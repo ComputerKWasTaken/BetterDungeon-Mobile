@@ -13,7 +13,17 @@ class StorageManager {
   static STORAGE_KEY = 'betterDungeonFeatures';
   static DEFAULT_FEATURES = {
     markdown: true,
-    command: true
+    command: true,
+    try: true,
+    triggerHighlight: true,
+    hotkey: true,
+    favoriteInstructions: true,
+    inputModeColor: true,
+    characterPreset: true,
+    autoSee: false,
+    notes: true,
+    storyCardModalDock: true,
+    inputHistory: true
   };
 
   static async getFeatures() {

@@ -267,38 +267,40 @@ class MainActivity : AppCompatActivity() {
      * and forward them to the main WebView via evaluateJavascript.
      */
     private fun injectPopupBridge(popupView: WebView) {
-        // First, inject the webview polyfill into the popup too
-        val polyfillJs = try {
-            assets.open("betterdungeon/utils/webview-polyfill.js")
-                .bufferedReader().readText()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read webview-polyfill.js for popup", e)
-            return
-        }
-
-        popupView.evaluateJavascript(polyfillJs, null)
-
-        // Now override chrome.tabs.sendMessage to forward to main WebView
+        // The popup HTML already loads webview-polyfill.js via <script> tag,
+        // giving it a working chrome.* API. Here we override the tabs methods
+        // to route messages across the native bridge to the main WebView.
         val bridgeScript = """
             (function() {
-                var originalSendMessage = chrome.tabs.sendMessage;
-                
+                // Override tabs.query to return a tab referencing the main WebView
+                chrome.tabs.query = function(queryInfo, callback) {
+                    var fakeTabs = [{
+                        id: 1,
+                        url: 'https://play.aidungeon.com',
+                        active: true,
+                        currentWindow: true
+                    }];
+                    if (typeof callback === 'function') {
+                        callback(fakeTabs);
+                    }
+                    return Promise.resolve(fakeTabs);
+                };
+
+                // Override tabs.sendMessage to forward to main WebView via native bridge
                 chrome.tabs.sendMessage = function(tabId, message, optionsOrCallback, maybeCallback) {
                     var callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
                     
-                    // Forward the message to the main WebView via the bridge
                     var messageJson = JSON.stringify(message);
                     BetterDungeonBridge.log('Popup sending message: ' + message.type);
                     
-                    // Use Android bridge to forward to main WebView
                     window.__bdPopupCallback = callback;
-                    window.__bdPopupMessageJson = messageJson;
-                    
-                    // The native side will call evaluateJavascript on the main WebView
                     BetterDungeonBridge.forwardToMainWebView(messageJson);
+                    
+                    // Return a Promise so .catch() chains don't crash
+                    return Promise.resolve(undefined);
                 };
                 
-                // Override window.close() to collapse the bottom sheet
+                // Override window.close() to collapse the popup panel
                 window.close = function() {
                     BetterDungeonBridge.closePopup();
                 };

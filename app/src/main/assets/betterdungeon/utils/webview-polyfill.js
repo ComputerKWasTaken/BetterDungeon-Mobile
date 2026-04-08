@@ -10,10 +10,25 @@
 (function () {
   'use strict';
 
+  // ── Storage Change Listeners ──────────────────────────────────────
+  // Track storage.onChanged listeners for cross-feature reactivity
+
+  var storageChangeListeners = [];
+
+  function fireStorageChanged(changes, areaName) {
+    for (var i = 0; i < storageChangeListeners.length; i++) {
+      try {
+        storageChangeListeners[i](changes, areaName);
+      } catch (err) {
+        console.error('[WebView Polyfill] storage.onChanged listener error:', err);
+      }
+    }
+  }
+
   // ── Storage Bridge ──────────────────────────────────────────────────
   // Uses the native BetterDungeonBridge exposed via @JavascriptInterface
 
-  function createStorageArea() {
+  function createStorageArea(areaName) {
     return {
       get: function (keys, callback) {
         try {
@@ -72,11 +87,32 @@
 
       set: function (items, callback) {
         try {
+          var changes = {};
           var itemKeys = Object.keys(items);
           for (var i = 0; i < itemKeys.length; i++) {
             var key = itemKeys[i];
-            var value = JSON.stringify(items[key]);
-            window.BetterDungeonBridge.storageSet(key, value);
+            var newValue = items[key];
+
+            // Read old value for onChanged notification
+            var oldValue;
+            try {
+              var oldRaw = window.BetterDungeonBridge.storageGet(key);
+              if (oldRaw !== null && oldRaw !== undefined && oldRaw !== '') {
+                oldValue = JSON.parse(oldRaw);
+              }
+            } catch (e) { /* old value unavailable */ }
+
+            window.BetterDungeonBridge.storageSet(key, JSON.stringify(newValue));
+
+            changes[key] = { newValue: newValue };
+            if (oldValue !== undefined) {
+              changes[key].oldValue = oldValue;
+            }
+          }
+
+          // Notify storage.onChanged listeners
+          if (Object.keys(changes).length > 0) {
+            fireStorageChanged(changes, areaName);
           }
 
           if (typeof callback === 'function') {
@@ -161,7 +197,8 @@
 
   // ── Build the polyfilled chrome object ──────────────────────────────
 
-  var storageArea = createStorageArea();
+  var syncStorageArea = createStorageArea('sync');
+  var localStorageArea = createStorageArea('local');
 
   var polyfilledChrome = {
     runtime: {
@@ -173,12 +210,23 @@
       onMessage: onMessageAPI
     },
     storage: {
-      sync: storageArea,
-      local: storageArea,
+      sync: syncStorageArea,
+      local: localStorageArea,
       onChanged: {
-        addListener: function () { /* no-op for now */ },
-        removeListener: function () { /* no-op */ },
-        hasListener: function () { return false; }
+        addListener: function (listener) {
+          if (typeof listener === 'function' && storageChangeListeners.indexOf(listener) === -1) {
+            storageChangeListeners.push(listener);
+          }
+        },
+        removeListener: function (listener) {
+          var idx = storageChangeListeners.indexOf(listener);
+          if (idx !== -1) {
+            storageChangeListeners.splice(idx, 1);
+          }
+        },
+        hasListener: function (listener) {
+          return storageChangeListeners.indexOf(listener) !== -1;
+        }
       }
     },
     tabs: {
@@ -204,12 +252,16 @@
         // Dispatch the message through the event bus
         dispatchMessage(message, { id: 'betterdungeon-android', tab: { id: tabId } });
 
-        // Give async listeners a moment, then call back
-        if (typeof callback === 'function') {
+        // Return a Promise and invoke the callback when ready
+        return new Promise(function (resolve) {
           setTimeout(function () {
-            callback(window.__bdLastResponse);
+            var response = window.__bdLastResponse;
+            if (typeof callback === 'function') {
+              callback(response);
+            }
+            resolve(response);
           }, 50);
-        }
+        });
       },
       create: function (props, callback) {
         // Open URL in system browser
