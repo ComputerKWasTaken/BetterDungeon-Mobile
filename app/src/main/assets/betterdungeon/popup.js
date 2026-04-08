@@ -1706,13 +1706,14 @@ function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
   if (!banner) return;
 
-  // Read the live version string from the header so there's one source of truth
-  const currentVersion = document.querySelector('.header-version')?.textContent?.trim() || '';
+  // Read the version number from the header's first text node (before the badge)
+  const versionEl = document.querySelector('.header-version');
+  const currentVersion = versionEl?.firstChild?.textContent?.trim() || '';
 
-  // Update the banner title to include the version
+  // Update the banner title for the mobile port
   const titleEl = document.getElementById('whats-new-title');
   if (titleEl && currentVersion) {
-    titleEl.textContent = `What's New in ${currentVersion}`;
+    titleEl.textContent = `What's New — ${currentVersion} Mobile`;
   }
 
   // Expand/collapse toggle for compact What's New
@@ -1921,12 +1922,18 @@ function updateSectionCounts() {
     const countEl = document.getElementById(`count-${sectionId}`);
     if (!countEl) return;
 
-    const enabled = featureIds.filter(id => {
+    // Filter out hidden features from both enabled count and total count
+    const visibleFeatures = featureIds.filter(id => {
+      const card = document.querySelector(`[data-feature="${id}"]`);
+      return card && !card.classList.contains('mobile-hidden');
+    });
+
+    const enabled = visibleFeatures.filter(id => {
       const toggle = document.getElementById(`feature-${id}`);
       return toggle && toggle.checked;
     }).length;
 
-    countEl.textContent = `${enabled}/${featureIds.length}`;
+    countEl.textContent = `${enabled}/${visibleFeatures.length}`;
   });
 }
 

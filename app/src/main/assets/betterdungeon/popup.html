@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=380">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BetterDungeon</title>
   <link rel="stylesheet" href="fonts/lucide/lucide.css">
   <link rel="stylesheet" href="core/theme-variables.css">
@@ -15,7 +15,7 @@
       <img src="icons/icon48.png" alt="" class="header-logo">
       <div class="header-title">
         <span class="header-name">BetterDungeon</span>
-        <span class="header-version">v1.2</span>
+        <span class="header-version">v1.2 <span class="header-badge mobile">Mobile</span></span>
       </div>
     </div>
     <button class="header-help" id="tutorial-help-btn" aria-label="Start Tutorial" title="Help">
@@ -45,14 +45,14 @@
       <div class="section whats-new-section" id="whats-new-banner">
         <div class="whats-new-compact" id="whats-new-compact">
           <div class="whats-new-compact-left">
-            <span class="whats-new-compact-icon icon-sparkles"></span>
+            <span class="whats-new-compact-icon icon-smartphone"></span>
             <div class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Firefox support, Input History, bug fixes &amp; more</span>
+              <span class="whats-new-compact-summary">Now on Android &mdash; touch-optimized settings &amp; persistent storage</span>
             </div>
           </div>
           <div class="whats-new-compact-right">
-            <span class="whats-new-badge">Latest</span>
+            <span class="whats-new-badge">New</span>
             <button class="whats-new-toggle" id="whats-new-toggle" aria-label="Expand">
               <span class="icon-chevron-down"></span>
             </button>
@@ -61,42 +61,26 @@
         <div class="whats-new-expandable" id="whats-new-expandable">
           <div class="whats-new-list">
             <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-sparkles" style="color: #22c55e;"></span>
-              <div><strong>What's New Banner</strong> &mdash; Dismissable banner shows recent updates</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon" style="font-size: 12px;">&#x1F98A;</span>
-              <div><strong>Firefox Support</strong> &mdash; Native support via polyfill system</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-history" style="color: var(--accent);"></span>
-              <div><strong>Input History</strong> &mdash; Terminal-style history with Up/Down arrows</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-user" style="color: #a855f7;"></span>
-              <div><strong>Character Presets Revised</strong> &mdash; Works with new Placeholders</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-star" style="color: #f59e0b;"></span>
-              <div><strong>Plot Presets Revised</strong> &mdash; Fixed detection &amp; styling bugs</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-terminal" style="color: var(--bd-mode-command);"></span>
-              <div><strong>Command Modes</strong> &mdash; Standard, Subtle &amp; OOC sub-modes with arrow key switching</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-pilcrow" style="color: var(--bd-icon-markdown);"></span>
-              <div><strong>Markdown Options</strong> &mdash; Toggle individual formatting types in AI instructions</div>
+              <span class="whats-new-item-icon icon-smartphone" style="color: #22c55e;"></span>
+              <div><strong>Mobile Port</strong> &mdash; BetterDungeon is now available on Android</div>
             </div>
             <div class="whats-new-item">
               <span class="whats-new-item-icon icon-sparkles" style="color: var(--accent);"></span>
-              <div><strong>Popup Overhaul</strong> &mdash; Searchable features, collapsible sections, and quick toggles</div>
+              <div><strong>All Features Included</strong> &mdash; Command, Try, Notes, Presets, Markdown &amp; more</div>
             </div>
             <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-wrench" style="color: #6b7280;"></span>
-              <div><strong>Bug Fixes</strong> &mdash; Various stability improvements</div>
+              <span class="whats-new-item-icon icon-settings" style="color: #a855f7;"></span>
+              <div><strong>Touch-Friendly Settings</strong> &mdash; Redesigned popup optimized for mobile screens</div>
             </div>
-          </div>
+            <div class="whats-new-item">
+              <span class="whats-new-item-icon icon-save" style="color: #3b82f6;"></span>
+              <div><strong>Persistent Storage</strong> &mdash; Preferences &amp; notes saved across sessions</div>
+            </div>
+            <div class="whats-new-item">
+              <span class="whats-new-item-icon icon-zap" style="color: #f59e0b;"></span>
+              <div><strong>Native Bridge</strong> &mdash; Chrome API polyfill for seamless WebView integration</div>
+            </div>
+            </div>
         </div>
       </div>
 
@@ -134,7 +118,7 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
-            <div class="quick-toggle-item" data-quick-feature="hotkey">
+            <div class="quick-toggle-item mobile-hidden" data-quick-feature="hotkey">
               <span class="quick-toggle-dot" style="background: var(--bd-icon-hotkeys);"></span>
               <span class="quick-toggle-name">Hotkeys</span>
               <label class="toggle sm">
@@ -287,7 +271,7 @@
         <div class="section-body" id="collapse-controls">
 
           <!-- Hotkeys -->
-          <article class="feature-card" data-feature="hotkey">
+          <article class="feature-card mobile-hidden" data-feature="hotkey">
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">

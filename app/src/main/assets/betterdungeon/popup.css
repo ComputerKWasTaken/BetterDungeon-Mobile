@@ -25,6 +25,11 @@
    (e.g. --bg-base, --accent, --border, etc.).
    ============================================ */
 
+/* === Mobile Hides === */
+.mobile-hidden {
+  display: none !important;
+}
+
 /* === Reset & Base === */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -101,6 +106,11 @@ body {
   background: var(--accent-muted);
   padding: 2px 5px;
   border-radius: var(--radius-sm);
+}
+
+.header-badge.mobile {
+  color: #06b6d4;
+  background: rgba(6, 182, 212, 0.12);
 }
 
 .header-help {
