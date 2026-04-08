@@ -1,8 +1,8 @@
-# BetterDungeon Mobile Emulator
+# BetterDungeon Mobile Port
 
 Welcome to the standalone Android port wrapper for the BetterDungeon browser extension!
 
-This application serves as a mobile client for `play.aidungeon.com` leveraging Android's robust `WebView` system. By wrapping the AI Dungeon website and programmatically injecting the custom scripts and stylesheets that make up the BetterDungeon extension, we achieve an identical modernized UI and feature set right out of the box on mobile devices!
+This application serves as a mobile client for `play.aidungeon.com` leveraging Android's robust `WebView` system. By wrapping the AI Dungeon website and programmatically injecting the custom scripts and stylesheets that make up the BetterDungeon extension, we achieve an identical modernized UI and feature set right out of the box on mobile devices, with adjustments and changes made to fit the mobile platform.
 
 ## Getting Started
 
