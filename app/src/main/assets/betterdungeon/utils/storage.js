@@ -22,7 +22,6 @@ class StorageManager {
     characterPreset: true,
     autoSee: false,
     notes: true,
-    storyCardModalDock: true,
     inputHistory: true
   };
 

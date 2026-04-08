@@ -115,15 +115,6 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'story-card-modal-dock',
-        type: 'spotlight',
-        target: '[data-feature="storyCardModalDock"]',
-        title: 'Story Card Modal Dock',
-        content: 'Docks the story card editor to the side so you can scroll through your story while editing. Toggle this off if you prefer the original modal.',
-        position: 'top',
-        expandCard: true
-      },
-      {
         id: 'better-scripts',
         type: 'spotlight',
         target: '[data-feature="betterScripts"]',

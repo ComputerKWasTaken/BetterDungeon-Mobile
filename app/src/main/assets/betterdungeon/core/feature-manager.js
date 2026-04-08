@@ -68,14 +68,6 @@ class FeatureManager {
       this.featureClasses.set('notes', NotesFeature);
     }
 
-    if (typeof AutoEnableScriptsFeature !== 'undefined') {
-      this.featureClasses.set('autoEnableScripts', AutoEnableScriptsFeature);
-    }
-
-    if (typeof StoryCardModalDockFeature !== 'undefined') {
-      this.featureClasses.set('storyCardModalDock', StoryCardModalDockFeature);
-    }
-
     if (typeof BetterScriptsFeature !== 'undefined') {
       this.featureClasses.set('betterScripts', BetterScriptsFeature);
     }
@@ -90,7 +82,7 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics', 'betterScripts', 'autoEnableScripts'];
+      const alwaysEnabled = ['storyCardAnalytics', 'betterScripts'];
       // Features that are disabled by default
       const defaultOff = ['autoSee'];
       

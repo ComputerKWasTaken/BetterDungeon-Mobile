@@ -1,6 +1,7 @@
 package com.computerk.betterdungeon
 
 import android.content.Context
+import android.util.Base64
 import android.util.Log
 import android.webkit.WebView
 import java.io.BufferedReader
@@ -50,8 +51,6 @@ class InjectionEngine(private val context: Context) {
             "features/auto_see_feature.js",
             "features/story_card_analytics_feature.js",
             "features/notes_feature.js",
-            "features/auto_enable_scripts_feature.js",
-            "features/story_card_modal_dock_feature.js",
             "features/better_scripts_feature.js",
             "features/input_history_feature.js",
             "features/mobile/mobile_settings_layer.js",
@@ -179,32 +178,59 @@ class InjectionEngine(private val context: Context) {
     }
 
     /**
-     * Fix font URLs in CSS to point to android_asset paths.
-     * Converts relative url() references to absolute file:///android_asset/ paths.
+     * Fix font URLs in CSS by embedding font files as base64 data URIs.
+     *
+     * The WebView loads pages from https://play.aidungeon.com, so file:///
+     * URLs are blocked by the browser security model. Inlining fonts as
+     * data URIs sidesteps this entirely — the font data lives inside the
+     * <style> block and needs no external fetch.
      */
     private fun fixFontUrls(css: String): String {
-        // Replace url('lucide.woff2') style references in lucide.css
-        // These are relative to the CSS file location (fonts/lucide/)
-        var result = css
-
-        // Fix lucide font references (relative to fonts/lucide/)
-        result = result.replace(
+        return css.replace(
             Regex("""url\(['"]?([^'")]+\.(woff2?|ttf|eot))['"]?\)""")
         ) { match ->
             val filename = match.groupValues[1]
+            val extension = match.groupValues[2]
+
             if (filename.startsWith("http") || filename.startsWith("file:") || filename.startsWith("data:")) {
                 match.value // Leave absolute URLs alone
             } else {
-                // Determine the correct path based on context
-                val absolutePath = when {
-                    filename.contains("/") -> "file:///android_asset/betterdungeon/$filename"
-                    else -> "file:///android_asset/betterdungeon/fonts/lucide/$filename"
+                // Resolve asset path relative to the lucide font directory
+                val assetPath = when {
+                    filename.contains("/") -> "$ASSET_BASE/$filename"
+                    else -> "$ASSET_BASE/fonts/lucide/$filename"
                 }
-                "url('$absolutePath')"
+
+                val mimeType = when (extension) {
+                    "woff2" -> "font/woff2"
+                    "woff"  -> "font/woff"
+                    "ttf"   -> "font/ttf"
+                    "eot"   -> "application/vnd.ms-fontobject"
+                    else    -> "application/octet-stream"
+                }
+
+                val base64 = readAssetBase64(assetPath)
+                if (base64 != null) {
+                    "url('data:$mimeType;base64,$base64')"
+                } else {
+                    Log.w(TAG, "Font file not found for embedding: $assetPath")
+                    match.value
+                }
             }
         }
+    }
 
-        return result
+    /**
+     * Read a binary asset file and return its contents as a Base64-encoded string.
+     */
+    private fun readAssetBase64(path: String): String? {
+        return try {
+            val bytes = context.assets.open(path).use { it.readBytes() }
+            Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read asset for base64 encoding: $path", e)
+            null
+        }
     }
 
     /**

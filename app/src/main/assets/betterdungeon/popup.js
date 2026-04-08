@@ -76,7 +76,6 @@ const DEFAULT_FEATURES = {
   characterPreset: true,
   autoSee: false,
   notes: true,
-  storyCardModalDock: true,
   inputHistory: true
 };
 
@@ -1914,7 +1913,7 @@ function updateSectionCounts() {
     'input-modes': ['command', 'try'],
     'controls': ['hotkey', 'inputHistory', 'inputModeColor'],
     'writing': ['markdown', 'notes'],
-    'scenario': ['triggerHighlight', 'storyCardModalDock'],
+    'scenario': ['triggerHighlight'],
     'automations': ['autoSee']
   };
 
