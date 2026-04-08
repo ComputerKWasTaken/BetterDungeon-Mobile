@@ -19,7 +19,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 /**
  * Main activity that hosts the AI Dungeon WebView and injects BetterDungeon.
@@ -40,7 +39,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var mainWebView: WebView
     private lateinit var popupWebView: WebView
-    private lateinit var fab: FloatingActionButton
     private lateinit var popupContainer: FrameLayout
 
     private lateinit var bridge: BetterDungeonBridge
@@ -58,9 +56,8 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
-        // Apply window insets to popup and FAB so they aren't hidden by system bars
+        // Apply window insets to popup so it isn't hidden by system bars
         popupContainer = findViewById(R.id.popup_container)
-        fab = findViewById(R.id.fab_popup)
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main_container)) { _, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -80,7 +77,6 @@ class MainActivity : AppCompatActivity() {
 
         setupMainWebView()
         setupPopupWebView()
-        setupFab()
         setupBackNavigation()
 
         // Wire up bridge references for cross-WebView communication
@@ -88,6 +84,9 @@ class MainActivity : AppCompatActivity() {
         bridge.popupWebView = popupWebView
         bridge.onClosePopup = {
             hidePopup()
+        }
+        bridge.onShowPopup = {
+            togglePopup()
         }
 
         // Load AI Dungeon
@@ -313,13 +312,6 @@ class MainActivity : AppCompatActivity() {
 
     // ── Full Screen Popup ─────────────────────────────────────────────
 
-    private fun setupFab() {
-        // FAB is initialized in onCreate before insets
-        fab.setOnClickListener {
-            togglePopup()
-        }
-    }
-
     private fun togglePopup() {
         if (popupContainer.visibility == View.GONE) {
             loadPopup()
@@ -331,12 +323,10 @@ class MainActivity : AppCompatActivity() {
     
     private fun showPopup() {
         popupContainer.visibility = View.VISIBLE
-        fab.hide()
     }
     
     private fun hidePopup() {
         popupContainer.visibility = View.GONE
-        fab.show()
     }
 
     // ── Back Navigation ───────────────────────────────────────────────

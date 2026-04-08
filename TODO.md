@@ -18,7 +18,7 @@ Mark features as `[x]` when fully tested and perfectly ported. If a feature is b
   - *Notes:* Keyboard shortcuts might require a virtual keyboard interface or be entirely overhauled/disabled for mobile touch interfaces.
 - [ ] **Plot Presets** (`plot_presets_feature.js`)
   - *Notes:*
-- [ ] **Input Mode Colors** (`input_mode_color_feature.js`)
+- [x] **Input Mode Colors** (`input_mode_color_feature.js`)
   - *Notes:*
 - [ ] **Character Presets** (`character_preset_feature.js`)
   - *Notes:*
@@ -42,7 +42,7 @@ Mark features as `[x]` when fully tested and perfectly ported. If a feature is b
 Track issues regarding the Android wrapper, Webview limitations, and overall port structure here.
 
 - [ ] Provide handling for hardware back-button navigation within the main WebView vs closing the popup/app. (Mostly implemented, needs battle testing)
-- [ ] Ensure the full-screen popup menu scrolls smoothly and doesn't get cut off by system navigation bars or notches.
+- [x] Ensure the full-screen popup menu scrolls smoothly and doesn't get cut off by system navigation bars or notches.
 - [ ] Handle potential zooming issues inside the WebView (prevent accidental pinch-to-zoom if it ruins the layout).
 - [ ] Verify that `SharedPreferences` saves persist correctly when force-closing the app.
 - [ ] Adjust any hover-based UI elements from the desktop extension to work logically with mobile touch events (e.g., tap to show tooltips).

@@ -13,21 +13,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- FAB to toggle popup panel -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_popup"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:layout_marginBottom="32dp"
-        android:contentDescription="BetterDungeon Settings"
-        app:tint="@android:color/white"
-        app:backgroundTint="@color/bd_accent"
-        app:srcCompat="@drawable/ic_bd_settings"
-        app:fabSize="normal"
-        app:elevation="6dp" />
-
     <!-- Full Screen Popup UI -->
     <FrameLayout
         android:id="@+id/popup_container"

@@ -31,6 +31,7 @@ class BetterDungeonBridge(private val context: Context) {
     var mainWebView: WebView? = null
     var popupWebView: WebView? = null
     var onClosePopup: (() -> Unit)? = null
+    var onShowPopup: (() -> Unit)? = null
 
     // ── Storage ───────────────────────────────────────────────────────
 
@@ -127,6 +128,16 @@ class BetterDungeonBridge(private val context: Context) {
     fun closePopup() {
         mainHandler.post {
             onClosePopup?.invoke()
+        }
+    }
+
+    /**
+     * Open the popup panel (called from the main webview's DOM).
+     */
+    @JavascriptInterface
+    fun showPopup() {
+        mainHandler.post {
+            onShowPopup?.invoke()
         }
     }
 
