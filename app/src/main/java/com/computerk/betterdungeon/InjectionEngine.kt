@@ -54,7 +54,7 @@ class InjectionEngine(private val context: Context) {
             "features/story_card_modal_dock_feature.js",
             "features/better_scripts_feature.js",
             "features/input_history_feature.js",
-            "features/mobile_settings_layer.js",
+            "features/mobile/mobile_settings_layer.js",
             "main.js"
         )
     }
