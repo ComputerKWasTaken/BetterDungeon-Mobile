@@ -32,10 +32,10 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
   - *Notes:* This feature pretty much entirely works, but there are some funny issues. Due to the icons not functioning on mobile, they appear as the "missing element" icon. This occurs in any and every feature that uses these custom icons. If I recall correctly, these are Lucide icons. Other than that though, the feature works great.
 - [~OK] **Notes Feature** (`notes_feature.js`)
   - *Notes:* This one has to be favorite bug. The Notes element appears, but funnily enough, it appears at the very top of the Settings panel. Our algorithm to determine where we need to place the Notes element must not like how the web interface modifies its DOM when adjusting for the mobile width (remember, the web version of AI Dungeon modifies its sizing when in mobile web sizes to accomodate for those on mobile web. Since our WebView app is basically a mobile web version of AI Dungeon, we can replicate this exact issue on PC. Very cool.)
-- [?] **Auto Enable Scripts** (`auto_enable_scripts_feature.js`)
-  - *Notes:* Since you can't actually modify scripts on mobile (or on mobile web due to sizing) we can remove this feature.
-- [?] **Story Card Modal Dock** (`story_card_modal_dock_feature.js`)
-  - *Notes:* This feature is unnecessary on mobile devices and can be removed.
+- [OK] **Auto Enable Scripts** (`auto_enable_scripts_feature.js`)
+  - *Notes:* Feature removed from mobile port (N/A on mobile, scripts can't be modified on mobile web).
+- [OK] **Story Card Modal Dock** (`story_card_modal_dock_feature.js`)
+  - *Notes:* Feature removed from mobile port (unnecessary on mobile devices).
 - [OK] **Better Scripts** (`better_scripts_feature.js`)
   - *Notes:* Shockingly works! No issues with Better Scripts. I'm just as surprised as you are. The UI is a bit small, but that's a smaller issue.
 - [?] **Input History** (`input_history_feature.js`)
@@ -55,7 +55,9 @@ That's it really lol
 
 ### Broken Icons
 
-Pretty much any feature that uses custom icons (like Lucide icons) will not work on mobile. They will appear as the "missing element" icon. This occurs in any and every feature that uses these custom icons.
+~~Pretty much any feature that uses custom icons (like Lucide icons) will not work on mobile. They will appear as the "missing element" icon. This occurs in any and every feature that uses these custom icons.~~
+
+**FIXED:** Lucide icons now render correctly on mobile. The issue was that `file:///android_asset/...` font URLs were blocked by the WebView's cross-origin security model (HTTPS pages can't load `file://` resources). Fixed by embedding font files as base64 data URIs directly in the CSS injection in `InjectionEngine.kt`.
 
 ## DOM Information
 
