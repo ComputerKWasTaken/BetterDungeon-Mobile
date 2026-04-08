@@ -82,16 +82,10 @@ class BetterDungeonBridge(private val context: Context) {
                 """
                 (function() {
                     var message = $messageJson;
-                    if (window.__bdDispatchMessage) {
+                    if (window.__bdDispatchMessageFromPopup) {
+                        window.__bdDispatchMessageFromPopup(message);
+                    } else if (window.__bdDispatchMessage) {
                         window.__bdDispatchMessage(message, { id: 'betterdungeon-popup' });
-                        
-                        // After a short delay, send the response back to popup
-                        setTimeout(function() {
-                            var response = window.__bdLastResponse;
-                            if (response !== undefined) {
-                                BetterDungeonBridge.sendResponseToPopup(JSON.stringify(response));
-                            }
-                        }, 100);
                     }
                 })();
                 """.trimIndent(),

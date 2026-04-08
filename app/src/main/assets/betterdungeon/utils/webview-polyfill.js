@@ -295,8 +295,40 @@
     }
   }
 
-  // Also expose the message dispatch function globally so popup can use it
+  // Expose the in-page message dispatch function globally
   window.__bdDispatchMessage = dispatchMessage;
+
+  // Cross-WebView dispatch: sendResponse routes back through the native bridge
+  // instead of setting a global. Handles both sync and async message handlers.
+  window.__bdDispatchMessageFromPopup = function (message) {
+    var sender = { id: 'betterdungeon-popup' };
+
+    for (var i = 0; i < messageListeners.length; i++) {
+      try {
+        var sendResponse = (function () {
+          var called = false;
+          return function (response) {
+            if (!called) {
+              called = true;
+              try {
+                window.BetterDungeonBridge.sendResponseToPopup(
+                  JSON.stringify(response)
+                );
+              } catch (e) {
+                console.error('[WebView Polyfill] Failed to send response to popup:', e);
+              }
+            }
+          };
+        })();
+
+        var result = messageListeners[i](message, sender, sendResponse);
+        // If listener returns true it will call sendResponse asynchronously —
+        // the bridge callback handles that automatically.
+      } catch (err) {
+        console.error('[WebView Polyfill] Message listener error:', err);
+      }
+    }
+  };
 
   console.log('[WebView Polyfill] Chrome API polyfill installed for Android WebView');
 })();
