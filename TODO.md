@@ -36,7 +36,7 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
   - *Notes:* Since you can't actually modify scripts on mobile (or on mobile web due to sizing) we can remove this feature.
 - [?] **Story Card Modal Dock** (`story_card_modal_dock_feature.js`)
   - *Notes:* This feature is unnecessary on mobile devices and can be removed.
-- [X] **Better Scripts** (`better_scripts_feature.js`)
+- [OK] **Better Scripts** (`better_scripts_feature.js`)
   - *Notes:* Shockingly works! No issues with Better Scripts. I'm just as surprised as you are. The UI is a bit small, but that's a smaller issue.
 - [?] **Input History** (`input_history_feature.js`)
   - *Notes:* Since the Input History feature uses the arrow keys, we can't actually test this on mobile. We'll need to adjust our input method to test the feature.
