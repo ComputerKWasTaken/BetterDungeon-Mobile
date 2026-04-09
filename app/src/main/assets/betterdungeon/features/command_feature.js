@@ -467,22 +467,22 @@ class CommandFeature {
         font-size: 12px !important;
       }
 
-      /* Scroll affordance — uses -webkit-mask-image to fade the right edge of
-         the menu, hinting that more buttons are off-screen.  The mask is relative
-         to the element's border-box (not its scrolled content), so the fade stays
+      /* Scroll affordance — an inset box-shadow on the right edge of the menu
+         hints that more buttons are off-screen.  box-shadow is painted on the
+         element's border-box (not its scrolled content), so the fade stays
          fixed at the right edge as the user scrolls.
+         Color matches the menu background (rgb(47,53,57) from device DOM).
          When the user scrolls to the end, JS adds [data-bd-scroll-end] which
-         removes the mask so the last button isn't faded. */
+         removes the shadow so the last button isn't obscured. */
       [data-bd-mode-menu]:not([data-bd-scroll-end]) {
-        -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent) !important;
-        mask-image: linear-gradient(to right, black calc(100% - 28px), transparent) !important;
+        box-shadow: inset -24px 0 14px -6px rgb(47, 53, 57) !important;
       }
     `;
     document.head.appendChild(style);
   }
 
-  // Toggle the mask-image scroll affordance off when the user has scrolled
-  // to the end of the mode menu (so the last button isn't faded out).
+  // Toggle the inset box-shadow scroll affordance off when the user has scrolled
+  // to the end of the mode menu (so the last button isn't obscured).
   _setupScrollAffordance(menu) {
     // Avoid duplicate listeners
     if (menu.hasAttribute('data-bd-scroll-listener')) return;
