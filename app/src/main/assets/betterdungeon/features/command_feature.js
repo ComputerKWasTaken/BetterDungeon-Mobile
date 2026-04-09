@@ -239,7 +239,6 @@ class CommandFeature {
     const menuLeft = parseFloat(menu.style.left) || 12;
     menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
     this._injectMobileMenuStyles();
-    this._setupScrollAffordance(menu);
 
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
@@ -466,68 +465,8 @@ class CommandFeature {
       [data-bd-mode-menu] > [role="button"] .font_body {
         font-size: 12px !important;
       }
-
-      /* Scroll affordance arrow indicator — styled via CSS, positioned via JS.
-         A small "›" arrow is appended to document.body and absolutely positioned
-         at the right edge of the menu.  Hidden when scrolled to the end. */
-      #bd-scroll-arrow {
-        position: absolute;
-        z-index: 10;
-        pointer-events: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 20px;
-        height: 40px;
-        background: rgba(47, 53, 57, 0.85);
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 18px;
-        font-weight: bold;
-        border-radius: 4px 0 0 4px;
-        font-family: sans-serif;
-      }
     `;
     document.head.appendChild(style);
-  }
-
-  // Show a small "›" arrow pinned to the right edge of the menu to hint that
-  // more buttons are off-screen.  The arrow is appended to document.body and
-  // positioned with JS so it doesn't depend on any parent layout quirks.
-  // Hidden automatically when the user scrolls to the end.
-  _setupScrollAffordance(menu) {
-    // Avoid duplicate listeners
-    if (menu.hasAttribute('data-bd-scroll-listener')) return;
-    menu.setAttribute('data-bd-scroll-listener', '');
-
-    // Create arrow element
-    let arrow = document.getElementById('bd-scroll-arrow');
-    if (!arrow) {
-      arrow = document.createElement('div');
-      arrow.id = 'bd-scroll-arrow';
-      arrow.textContent = '\u203A'; // › character
-      document.body.appendChild(arrow);
-    }
-
-    const positionArrow = () => {
-      const rect = menu.getBoundingClientRect();
-      arrow.style.top = `${rect.top}px`;
-      arrow.style.left = `${rect.right - 20}px`;
-      arrow.style.height = `${rect.height}px`;
-    };
-
-    const onScroll = () => {
-      const atEnd = menu.scrollLeft + menu.clientWidth >= menu.scrollWidth - 4;
-      arrow.style.display = atEnd ? 'none' : 'flex';
-      positionArrow();
-    };
-
-    menu.addEventListener('scroll', onScroll, { passive: true });
-
-    // Position and show/hide after layout settles
-    requestAnimationFrame(() => {
-      positionArrow();
-      onScroll();
-    });
   }
 
   removeCommandButton() {
@@ -536,10 +475,6 @@ class CommandFeature {
       button.remove();
     }
     this.commandButton = null;
-
-    // Remove the scroll affordance arrow if present
-    const arrow = document.getElementById('bd-scroll-arrow');
-    if (arrow) arrow.remove();
   }
 
   activateCommandMode() {
