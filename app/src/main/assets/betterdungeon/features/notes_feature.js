@@ -311,9 +311,14 @@ class NotesFeature {
         // We want a column that is essentially full-width.
         // The main plot components list is typically a column without center alignment
         // and often has a max-width or width of 100%.
+        // On mobile, viewport width is ~360-414px, so we use a lower threshold.
         if (isColumn) {
           const style = window.getComputedStyle(current);
-          const hasWidthConstraint = parseInt(style.maxWidth) > 500 || parseInt(style.width) > 500 || style.width === '100%';
+          const parsedWidth = parseInt(style.width);
+          const parsedMaxWidth = parseInt(style.maxWidth);
+          const viewportWidth = window.innerWidth || 360;
+          const mobileThreshold = Math.min(viewportWidth * 0.8, 500);
+          const hasWidthConstraint = parsedMaxWidth > mobileThreshold || parsedWidth > mobileThreshold || style.width === '100%';
           
           if (hasWidthConstraint || className.includes('_w-10037') /* common 100% class */) {
             targetContainer = current;
@@ -377,6 +382,20 @@ class NotesFeature {
   }
 
   createUI() {
+    // Guard: only show the Notes card when the Plot tab is active.
+    // Without this, findPlotComponentsContainer() can match similar DOM structures
+    // on the Story Cards or Details sub-tabs and inject the card in the wrong place.
+    if (!this.isPlotTabActive()) {
+      this.removeUI();
+      return;
+    }
+
+    // If the user is actively typing in our textarea, skip any DOM
+    // manipulation to avoid stealing focus and "kicking the user out".
+    if (this.textarea && document.activeElement === this.textarea) {
+      return;
+    }
+
     const wrapperDetached = this.notesCardWrapper && !document.body.contains(this.notesCardWrapper);
     const cardDetached = this.notesCard && !document.body.contains(this.notesCard);
     if (wrapperDetached || cardDetached) {
@@ -386,11 +405,6 @@ class NotesFeature {
     }
 
     const insertion = this.findPlotComponentsContainer();
-    if (!this.isPlotTabActive() && !insertion?.container) {
-      this.removeUI();
-      return;
-    }
-
     if (!insertion?.container) {
       this.scheduleUiRetry();
       return;

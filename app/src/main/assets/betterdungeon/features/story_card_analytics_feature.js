@@ -48,9 +48,23 @@ class StoryCardAnalyticsFeature {
 
   // Watch for Story Cards toolbar and inject the Dashboard button when visible
   startToolbarObserver() {
+    // Track last execution time so we can guarantee the check fires
+    // even during rapid DOM mutations (debounce starvation on mobile).
+    this._lastToolbarExec = 0;
+
     this.toolbarObserver = new MutationObserver(() => {
       clearTimeout(this._toolbarCheckTimer);
-      this._toolbarCheckTimer = setTimeout(() => this.tryInjectToolbarButton(), 300);
+
+      // If it has been more than 2 seconds since the last check, fire quickly
+      // (50 ms) instead of the full 300 ms debounce. This prevents the callback
+      // from being starved when React triggers continuous re-renders on mobile.
+      const elapsed = Date.now() - this._lastToolbarExec;
+      const delay = elapsed >= 2000 ? 50 : 300;
+
+      this._toolbarCheckTimer = setTimeout(() => {
+        this._lastToolbarExec = Date.now();
+        this.tryInjectToolbarButton();
+      }, delay);
     });
 
     this.toolbarObserver.observe(document.body, {
@@ -60,6 +74,12 @@ class StoryCardAnalyticsFeature {
 
     // Initial check after a short delay for page to settle
     setTimeout(() => this.tryInjectToolbarButton(), 500);
+
+    // Periodic fallback — guarantees the button is re-injected even if the
+    // MutationObserver debounce is continuously reset by rapid mutations.
+    this._toolbarFallbackInterval = setInterval(() => {
+      this.tryInjectToolbarButton();
+    }, 3000);
   }
 
   stopToolbarObserver() {
@@ -68,25 +88,66 @@ class StoryCardAnalyticsFeature {
       this.toolbarObserver = null;
     }
     clearTimeout(this._toolbarCheckTimer);
+    clearInterval(this._toolbarFallbackInterval);
   }
 
   // Inject Dashboard button into the Story Cards toolbar if not already present
   tryInjectToolbarButton() {
-    // Already injected and still in DOM — skip
-    if (this.toolbarButton && document.contains(this.toolbarButton)) return;
+    // Check the DOM for any existing dashboard button (by data attribute),
+    // not just our cached reference — React may have re-rendered the toolbar
+    // which removes the old element from the DOM while our JS reference goes stale.
+    const existingBtn = document.querySelector('[data-bd-dashboard-btn]');
+    if (existingBtn) {
+      // Verify it is actually attached and visible (not orphaned in a detached tree)
+      if (document.contains(existingBtn)) {
+        this.toolbarButton = existingBtn;
+        return;
+      }
+      // Stale node — remove it so we can create a fresh one
+      existingBtn.remove();
+    }
     this.toolbarButton = null;
 
     // Check if we are in the Story Cards tab
     const storyCardsTab = document.querySelector('[aria-label="Selected tab Story Cards"]');
     if (!storyCardsTab) return;
 
-    // Verify we have a Filters button
-    const filtersBtn = document.querySelector('[aria-label="Filters"]');
-    if (!filtersBtn) return;
+    // --- Anchor strategy ---
+    // Primary: use the Filters button (wrapped in a <span>) as the anchor.
+    // Fallback: locate the toolbar row inside the Story Cards content area
+    //           (the first Row with justify-content: space-between after the tabs).
+    let anchor = null;
+    let insertPosition = 'afterend';
 
-    // The Filters button is wrapped in a span which is in a row
-    const filtersWrapper = filtersBtn.closest('span');
-    if (!filtersWrapper) return;
+    const filtersBtn = document.querySelector('[aria-label="Filters"]');
+    if (filtersBtn) {
+      const filtersWrapper = filtersBtn.closest('span');
+      if (filtersWrapper) {
+        anchor = filtersWrapper;
+      }
+    }
+
+    // Fallback: walk up from the Story Cards tab to the tablist's parent,
+    // then look for the first Row-like sibling that acts as the toolbar.
+    if (!anchor) {
+      const tabList = storyCardsTab.closest('[role="tablist"]');
+      if (tabList) {
+        // The toolbar row is typically a sibling (or close descendant) of the
+        // tablist container that uses space-between layout.
+        const container = tabList.closest('.is_Row, .is_Column')?.parentElement;
+        if (container) {
+          const toolbarRow = container.parentElement?.querySelector(
+            '.is_Row[class*="_jc-space-betwe"]'
+          );
+          if (toolbarRow) {
+            anchor = toolbarRow;
+            insertPosition = 'beforeend'; // append inside the row
+          }
+        }
+      }
+    }
+
+    if (!anchor) return;
 
     // Build the button
     this.toolbarButton = document.createElement('div');
@@ -100,16 +161,30 @@ class StoryCardAnalyticsFeature {
       <span class="bd-toolbar-btn-label">Dashboard</span>
     `;
 
-    this.toolbarButton.addEventListener('click', () => this.openDashboard());
-    this.toolbarButton.addEventListener('keydown', (e) => {
+    // Touch-first event handling for mobile (matches wireButton pattern)
+    const btn = this.toolbarButton;
+    btn.addEventListener('click', () => this.openDashboard());
+    btn.addEventListener('touchstart', () => {
+      btn.style.transform = 'scale(0.95)';
+      btn.style.opacity = '0.8';
+    }, { passive: true });
+    btn.addEventListener('touchend', () => {
+      btn.style.transform = '';
+      btn.style.opacity = '';
+    }, { passive: true });
+    btn.addEventListener('touchcancel', () => {
+      btn.style.transform = '';
+      btn.style.opacity = '';
+    }, { passive: true });
+    btn.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         this.openDashboard();
       }
     });
 
-    // Insert after the Filters wrapper
-    filtersWrapper.insertAdjacentElement('afterend', this.toolbarButton);
+    // Insert the button
+    anchor.insertAdjacentElement(insertPosition, this.toolbarButton);
   }
 
   removeToolbarButton() {

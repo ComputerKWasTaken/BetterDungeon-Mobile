@@ -1,6 +1,7 @@
 // BetterDungeon - Input History Feature
 // Terminal-style input history: Save the user's recent inputs in local storage
-// Pressing Ctrl/Meta + Up/Down arrow keys inside the input box cycles through previously sent actions
+// Desktop: Ctrl/Meta + Up/Down arrow keys cycle through previously sent actions
+// Mobile: Touch-based prev/next buttons appear above the input area
 
 class InputHistoryFeature {
   static id = 'inputHistory';
@@ -37,6 +38,10 @@ class InputHistoryFeature {
     this.boundKeydownHandler = this.handleKeydown.bind(this);
     this.boundClickHandler = this.handleClick.bind(this);
     this.boundInputHandler = this.handleInput.bind(this);
+
+    // Touch navigation UI
+    this.historyBar = null;
+    this.historyBarObserver = null;
   }
 
   log(...args) {
@@ -49,12 +54,18 @@ class InputHistoryFeature {
     console.log('[InputHistory] Initializing Input History feature...');
     await this.loadHistory();
     this.attachListeners();
+    this.setupHistoryBarObserver();
     console.log('[InputHistory] Initialization complete.');
   }
 
   destroy() {
     console.log('[InputHistory] Destroying Input History feature...');
     this.detachListeners();
+    this.removeHistoryBar();
+    if (this.historyBarObserver) {
+      this.historyBarObserver.disconnect();
+      this.historyBarObserver = null;
+    }
     console.log('[InputHistory] Cleanup complete');
   }
 
@@ -273,7 +284,154 @@ class InputHistoryFeature {
       
       // Switch mode with a built-in cooldown to let UI animations finish
       await this.setInputMode(item.mode);
+
+      // Refresh the touch-navigation bar so the counter and button states update
+      this.updateHistoryBar();
     }
+  }
+
+  // ==================== TOUCH NAVIGATION UI ====================
+
+  // Watch for the game input to appear/disappear and inject the history bar
+  setupHistoryBarObserver() {
+    this.historyBarObserver = new MutationObserver(() => {
+      const input = document.querySelector(this.textInputSelector);
+      if (input && this.history.length > 0 && !document.querySelector('#bd-history-bar')) {
+        this.injectHistoryBar();
+      }
+    });
+    this.historyBarObserver.observe(document.body, { childList: true, subtree: true });
+
+    // Initial inject attempt
+    if (this.history.length > 0) {
+      setTimeout(() => this.injectHistoryBar(), 500);
+    }
+  }
+
+  injectHistoryBar() {
+    if (document.querySelector('#bd-history-bar')) return;
+    const textarea = document.querySelector(this.textInputSelector);
+    if (!textarea) return;
+
+    // The input row (textarea's parent) has position:absolute and bottom padding
+    const inputRow = textarea.parentElement;
+    if (!inputRow) return;
+
+    const bar = document.createElement('div');
+    bar.id = 'bd-history-bar';
+    bar.style.cssText = `
+      position: absolute;
+      top: -36px;
+      right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      z-index: 5;
+      pointer-events: auto;
+      touch-action: manipulation;
+      transition: opacity 0.2s;
+    `;
+
+    // Shared touch-friendly button style
+    const btnStyle = `
+      display:flex; align-items:center; justify-content:center;
+      min-width:32px; min-height:28px;
+      font-size:14px; font-weight:700; color:rgba(255,255,255,0.6);
+      padding:2px 6px; border-radius:5px;
+      background:rgba(255,255,255,0.08);
+      cursor:pointer; user-select:none;
+      -webkit-tap-highlight-color:transparent;
+      touch-action:manipulation;
+      transition:background .15s, transform .1s;
+    `.replace(/\n\s*/g, ' ');
+
+    bar.innerHTML = `
+      <span id="bd-history-prev" role="button" aria-label="Previous input" style="${btnStyle}">&#9650;</span>
+      <span id="bd-history-counter" style="min-width:24px; text-align:center; font-variant-numeric:tabular-nums; font-weight:600; font-size:10px; letter-spacing:0.3px;"></span>
+      <span id="bd-history-next" role="button" aria-label="Next input" style="${btnStyle}">&#9660;</span>
+    `;
+
+    // Wire touch + click for prev/next
+    const wireTouchBtn = (el, action) => {
+      if (!el) return;
+      const addPress = () => { el.style.background = 'rgba(255,255,255,0.22)'; el.style.transform = 'scale(0.92)'; };
+      const removePress = () => { el.style.background = 'rgba(255,255,255,0.08)'; el.style.transform = ''; };
+
+      el.addEventListener('touchstart', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        addPress();
+        action();
+      }, { passive: false });
+      el.addEventListener('touchend', (e) => { e.preventDefault(); removePress(); }, { passive: false });
+      el.addEventListener('touchcancel', removePress);
+      el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); action(); });
+      el.addEventListener('mousedown', addPress);
+      el.addEventListener('mouseup', removePress);
+      el.addEventListener('mouseleave', removePress);
+    };
+
+    wireTouchBtn(bar.querySelector('#bd-history-prev'), () => this.navigateHistory('up'));
+    wireTouchBtn(bar.querySelector('#bd-history-next'), () => this.navigateHistory('down'));
+
+    inputRow.appendChild(bar);
+    this.historyBar = bar;
+    this.updateHistoryBar();
+  }
+
+  navigateHistory(direction) {
+    if (this.history.length === 0) return;
+
+    if (direction === 'up') {
+      if (this.historyIndex < this.history.length - 1) {
+        this.historyIndex++;
+        this.applyHistoryItem(this.historyIndex);
+      }
+    } else {
+      if (this.historyIndex > 0) {
+        this.historyIndex--;
+        this.applyHistoryItem(this.historyIndex);
+      } else if (this.historyIndex === 0) {
+        this.historyIndex = -1;
+        this.setInputValue('');
+        this.updateHistoryBar();
+      }
+    }
+  }
+
+  updateHistoryBar() {
+    const counter = document.querySelector('#bd-history-counter');
+    const prevBtn = document.querySelector('#bd-history-prev');
+    const nextBtn = document.querySelector('#bd-history-next');
+    if (!counter) return;
+
+    if (this.historyIndex === -1) {
+      counter.textContent = `${this.history.length}`;
+    } else {
+      counter.textContent = `${this.historyIndex + 1}/${this.history.length}`;
+    }
+
+    // Dim buttons when at the boundary
+    if (prevBtn) {
+      prevBtn.style.opacity = (this.historyIndex >= this.history.length - 1) ? '0.3' : '1';
+    }
+    if (nextBtn) {
+      nextBtn.style.opacity = (this.historyIndex <= -1) ? '0.3' : '1';
+    }
+  }
+
+  removeHistoryBar() {
+    const bar = document.querySelector('#bd-history-bar');
+    if (bar) bar.remove();
+    this.historyBar = null;
   }
 }
 

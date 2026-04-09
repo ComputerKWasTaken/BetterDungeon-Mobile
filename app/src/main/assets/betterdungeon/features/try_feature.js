@@ -27,40 +27,68 @@ class TryFeature {
         'achieve it perfectly',
         'pull it off with incredible style',
         'succeed spectacularly',
-        'masterfully succeed'
+        'masterfully succeed',
+        'accomplish it with flair',
+        'execute it flawlessly',
+        'triumph with brilliance',
+        'excel beyond measure',
+        'perform with extraordinary skill'
       ],
       success: [
         'manage to do it',
         'are successful',
         'pull it off',
         'succeed',
-        'make it happen'
+        'make it happen',
+        'get it done',
+        'accomplish the task',
+        'achieve your goal',
+        'bring it to fruition',
+        'complete it successfully'
       ],
       failure: [
         'can\'t quite manage it',
         'fall short',
         'don\'t succeed',
         'fail',
-        'falter'
+        'falter',
+        'miss the mark',
+        'come up empty',
+        'are unable to do it',
+        'fall short of success',
+        'don\'t make the cut'
       ],
       crit_fail: [
         'fail catastrophically',
         'make a complete mess of it',
         'fail in the worst way possible',
         'fail miserably',
-        'suffer a disastrous failure'
+        'suffer a disastrous failure',
+        'botch it completely',
+        'fail spectacularly',
+        'suffer a total collapse',
+        'fail beyond all hope',
+        'end in utter disaster'
       ]
     };
 
     // Sentence templates for variety
     // {action} = the user's action
-    // {outcome} = the result phrase (usually bolded)
+    // {outcome} = the result phrase
     // {connector} = 'and' or 'but'
     this.templates = [
       'try to {action}, {connector} you {outcome}.',
       'In an attempt to {action}, you {outcome}.',
       'You {outcome} in your attempt to {action}.',
-      '{action}... you {outcome}.'
+      '{action}... you {outcome}.',
+      'Attempting to {action}, you {outcome}.',
+      'You try to {action}, {connector} you {outcome}.',
+      'As you try to {action}, you {outcome}.',
+      'While trying to {action}, you {outcome}.',
+      'You make an attempt to {action} {connector} {outcome}.',
+      'When you try to {action}, you {outcome}.',
+      'Your attempt to {action} results in you {outcome}.',
+      'You set out to {action}, {connector} you {outcome}.'
     ];
   }
 
@@ -426,7 +454,9 @@ class TryFeature {
     const textarea = document.querySelector('#game-text-input');
     if (!textarea) return;
 
-    // The input row (textarea's parent) has position:absolute and 32px bottom padding
+    // The input row (textarea's parent) is position:absolute.
+    // Mobile layout uses tighter padding (~12px) than desktop (~32px),
+    // so the bar must be compact to avoid cutting into the textarea and submit button.
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
 
@@ -434,36 +464,86 @@ class TryFeature {
     bar.id = 'bd-success-bar-container';
     bar.style.cssText = `
       position: absolute;
-      bottom: 6px;
-      left: 32px;
-      right: 32px;
+      bottom: 2px;
+      left: 12px;
+      right: 12px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 5px 14px;
-      background: rgba(0, 0, 0, 0.3);
+      gap: 4px;
+      padding: 2px 8px;
+      background: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      border-radius: 8px;
+      border-radius: 6px;
       border: 1px solid rgba(255, 255, 255, 0.06);
       font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 11px;
+      font-size: 10px;
       color: rgba(255, 255, 255, 0.45);
       z-index: 2;
       pointer-events: none;
+      box-sizing: border-box;
+      height: 22px;
     `;
 
+    // Compact button style scaled for the 22px bar — still meets minimum
+    // touch-target guidelines via padding while fitting the slim layout.
+    const btnStyle = `
+      pointer-events:auto; cursor:pointer; user-select:none;
+      display:flex; align-items:center; justify-content:center;
+      min-width:28px; min-height:20px;
+      font-size:14px; font-weight:700; color:rgba(255,255,255,0.7);
+      padding:1px 6px; line-height:1;
+      border-radius:4px;
+      background:rgba(255,255,255,0.08);
+      -webkit-tap-highlight-color:transparent;
+      touch-action:manipulation;
+      transition:background .15s, transform .1s;
+    `.replace(/\n\s*/g, ' ');
+
+    // Mobile-optimised layout: compact bar with touch −/+ buttons
+    // replacing the desktop ↑↓ arrow-key hint (unusable on mobile).
     bar.innerHTML = `
-      <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Success</span>
-      <div style="flex:1; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
-        <div id="bd-success-bar-fill" style="height:100%; border-radius:3px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
+      <span style="white-space:nowrap; font-weight:600; font-size:9px; letter-spacing:0.3px; text-transform:uppercase;">Success</span>
+      <span id="bd-weight-down" role="button" aria-label="Decrease success chance" style="${btnStyle}">\u2212</span>
+      <div style="flex:1; height:3px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden;">
+        <div id="bd-success-bar-fill" style="height:100%; border-radius:2px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
       </div>
-      <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
-      <span style="opacity:0.3; font-size:9px;">↑↓</span>
+      <span id="bd-success-percent" style="min-width:24px; text-align:center; font-weight:700; font-size:10px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
+      <span id="bd-weight-up" role="button" aria-label="Increase success chance" style="${btnStyle}">+</span>
     `;
+
+    // Attach touch AND click handlers to the +/- buttons.
+    // touchstart fires immediately on mobile (no 300ms delay) and we
+    // preventDefault to avoid the subsequent click-ghost from firing twice.
+    const wireButton = (el, delta) => {
+      if (!el) return;
+      // Visual feedback on press
+      const addPress = () => { el.style.background = 'rgba(255,255,255,0.22)'; el.style.transform = 'scale(0.92)'; };
+      const removePress = () => { el.style.background = 'rgba(255,255,255,0.08)'; el.style.transform = ''; };
+
+      el.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addPress();
+        this.adjustWeight(delta);
+      }, { passive: false });
+      el.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        removePress();
+      }, { passive: false });
+      el.addEventListener('touchcancel', removePress);
+      // Desktop fallback
+      el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.adjustWeight(delta); });
+      el.addEventListener('mousedown', addPress);
+      el.addEventListener('mouseup', removePress);
+      el.addEventListener('mouseleave', removePress);
+    };
+    wireButton(bar.querySelector('#bd-weight-down'), -1);
+    wireButton(bar.querySelector('#bd-weight-up'), 1);
 
     inputRow.appendChild(bar);
     this.successBar = bar;
+
     this.updateSuccessBar();
   }
 
@@ -606,6 +686,20 @@ class TryFeature {
     this.setupSubmitButtonListener();
   }
 
+  // Helper: set textarea value using React-compatible native setter
+  _setTextareaValue(textarea, value) {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+    if (setter) {
+      setter.call(textarea, value);
+    } else {
+      textarea.value = value;
+    }
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   setupKeyboardListener() {
     const handleKeyDown = (e) => {
       if (!this.isTryMode) {
@@ -622,10 +716,7 @@ class TryFeature {
           if (content.trim()) {
             // Format the content as a try with RNG result
             const formattedContent = this.formatAsTry(content);
-            textarea.value = formattedContent;
-            
-            // Trigger input event so React picks up the change
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            this._setTextareaValue(textarea, formattedContent);
             
             // Watch for the new action element to appear and update its icon
             this.watchForTryAction(formattedContent);
@@ -659,10 +750,7 @@ class TryFeature {
         if (content.trim()) {
           // Format the content as a try with RNG result
           const formattedContent = this.formatAsTry(content);
-          textarea.value = formattedContent;
-          
-          // Trigger input event so React picks up the change
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          this._setTextareaValue(textarea, formattedContent);
           
           // Watch for the new action element to appear and update its icon
           this.watchForTryAction(formattedContent);
@@ -766,7 +854,7 @@ class TryFeature {
       status,
       succeeded,
       isCrit,
-      phrase: `**${phrase}**` // Apply Markdown bolding (we use standard because we aren't actually formatting)
+      phrase
     };
   }
 

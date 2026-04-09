@@ -425,9 +425,20 @@ class TriggerHighlightFeature {
   }
 
   isAdventureModal(element) {
-    // Check if this modal has "Adventure" as its header
+    // The adventure context viewer is a modal/alertdialog that contains the
+    // story text. AI Dungeon changed the heading from "Adventure" to
+    // "Complete Text", so match both and also look for characteristic
+    // tab structure ("Text" / "Tokens" tabs) as a fallback.
     const header = element.querySelector('h1[role="heading"]');
-    return header && header.textContent.trim() === 'Adventure';
+    const headerText = header?.textContent?.trim() || '';
+    if (headerText === 'Adventure' || headerText === 'Complete Text') return true;
+
+    // Fallback: check for Text/Tokens tab pair that identifies the context viewer
+    const tabs = element.querySelectorAll('[role="tab"]');
+    const tabTexts = Array.from(tabs).map(t => t.textContent?.trim().toLowerCase());
+    if (tabTexts.includes('text') && tabTexts.includes('tokens')) return true;
+
+    return false;
   }
 
   handleAdventureModal(modal) {

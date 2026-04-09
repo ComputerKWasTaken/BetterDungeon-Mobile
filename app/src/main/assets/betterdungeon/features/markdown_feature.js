@@ -74,7 +74,10 @@ class MarkdownFeature {
     for (let i = 0; i < maxAttempts; i++) {
       // Check if we're on an adventure page with gameplay output
       const gameplayOutput = document.querySelector('#gameplay-output');
-      const settingsButton = document.querySelector('div[aria-label="Game settings"]');
+      // On mobile the button may be "Game Menu" instead of "Game settings"
+      const settingsButton = document.querySelector(
+        'div[aria-label="Game settings"], div[aria-label="Game Menu"], [aria-label="Navigation bar"]'
+      );
       
       if (gameplayOutput && settingsButton) {
         // Additional delay to ensure everything is loaded
@@ -104,29 +107,33 @@ class MarkdownFeature {
     };
   }
 
-  async applyInstructionsWithLoadingScreen() {
-    if (typeof loadingScreen === 'undefined') {
+  applyInstructionsWithLoadingScreen() {
+    // loadingScreen is block-scoped in its try{} block — access via window
+    const ls = window.loadingScreen;
+    if (!ls) {
       console.error('MarkdownFeature: Loading screen not available');
-      return { success: false, error: 'Loading screen not available' };
+      return Promise.resolve({ success: false, error: 'Loading screen not available' });
     }
 
     // Use queue to ensure sequential execution with other features
-    return loadingScreen.queueOperation(() => this._doApplyInstructions());
+    return ls.queueOperation(() => this._doApplyInstructions());
   }
 
   async _doApplyInstructions() {
-    loadingScreen.show({
+    const ls = window.loadingScreen;
+    ls.show({
       title: 'Applying Instructions',
       subtitle: 'Initializing...',
       showProgress: false
     });
 
     try {
-      if (typeof AIDungeonService === 'undefined') {
+      if (typeof AIDungeonService === 'undefined' && !window.AIDungeonService) {
         throw new Error('AIDungeonService not available');
       }
 
-      const service = new AIDungeonService();
+      const ServiceClass = window.AIDungeonService || AIDungeonService;
+      const service = new ServiceClass();
 
       // Step 1: Validate we're on AI Dungeon
       if (!service.isOnAIDungeon()) {
@@ -152,13 +159,13 @@ class MarkdownFeature {
       // Pass callbacks to update loading screen during the process
       const applyResult = await service.applyInstructionsToTextareas(instructionsResult.data, {
         onStepUpdate: (message) => {
-          loadingScreen.updateSubtitle(message);
+          ls.updateSubtitle(message);
         },
         onCreatingComponents: (message) => {
           if (message) {
-            loadingScreen.updateSubtitle(message);
+            ls.updateSubtitle(message);
           } else {
-            loadingScreen.updateSubtitle('Creating plot components...');
+            ls.updateSubtitle('Creating plot components...');
           }
         }
       });
@@ -169,24 +176,24 @@ class MarkdownFeature {
 
       // Handle different outcomes
       if (applyResult.alreadyApplied) {
-        loadingScreen.updateTitle('Already Applied');
-        loadingScreen.updateSubtitle('Markdown instructions are already present');
+        ls.updateTitle('Already Applied');
+        ls.updateSubtitle('Markdown instructions are already present');
         await this.wait(1200);
         return { success: true, alreadyApplied: true };
       }
 
       if (applyResult.appliedCount === 0) {
-        loadingScreen.updateTitle('Already Applied');
-        loadingScreen.updateSubtitle('Instructions were already in place');
+        ls.updateTitle('Already Applied');
+        ls.updateSubtitle('Instructions were already in place');
         await this.wait(1200);
         return { success: true, alreadyApplied: true };
       }
 
-      loadingScreen.updateTitle('Instructions Applied!');
+      ls.updateTitle('Instructions Applied!');
       if (applyResult.componentsCreated) {
-        loadingScreen.updateSubtitle('Created plot components & added instructions to AI Instructions');
+        ls.updateSubtitle('Created plot components & added instructions to AI Instructions');
       } else {
-        loadingScreen.updateSubtitle('Markdown formatting guidelines added to AI Instructions');
+        ls.updateSubtitle('Markdown formatting guidelines added to AI Instructions');
       }
       
       await this.wait(1500);
@@ -195,15 +202,15 @@ class MarkdownFeature {
 
     } catch (error) {
       console.error('MarkdownFeature: Apply instructions error:', error);
-      loadingScreen.updateTitle('Failed to Apply');
-      loadingScreen.updateSubtitle(error.message);
+      ls.updateTitle('Failed to Apply');
+      ls.updateSubtitle(error.message);
       
       await this.wait(2000);
       
       return { success: false, error: error.message };
 
     } finally {
-      loadingScreen.hide();
+      ls.hide();
     }
   }
 
@@ -533,7 +540,11 @@ class MarkdownFeature {
   }
 }
 
-// Export for use in other modules
+// Make available globally (required for Android WebView IIFE where classes are block-scoped)
+if (typeof window !== 'undefined') {
+  window.MarkdownFeature = MarkdownFeature;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = MarkdownFeature;
 }

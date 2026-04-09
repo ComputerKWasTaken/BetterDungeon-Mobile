@@ -230,6 +230,16 @@ class CommandFeature {
 
     this.commandButton = cleanButton;
 
+    // Mark the menu container so our injected CSS can target it reliably.
+    // React sets overflow:hidden as an inline style which gets reset on re-render,
+    // so we use a <style> tag with !important rules that persist across re-renders.
+    menu.setAttribute('data-bd-mode-menu', 'true');
+    // Read the menu's actual left offset and expose it as a CSS variable so the
+    // max-width calc adapts to whatever value AI Dungeon sets (varies by device).
+    const menuLeft = parseFloat(menu.style.left) || 12;
+    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
+    this._injectMobileMenuStyles();
+
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
     this.applySpriteTheming(cleanButton, seeButton || storyButton);
@@ -408,6 +418,57 @@ class CommandFeature {
     });
   }
 
+  // Inject a <style> tag with mobile-specific CSS for the input mode menu.
+  // This approach survives React re-renders because stylesheet rules with !important
+  // override regular inline styles (which React sets on the menu container).
+  _injectMobileMenuStyles() {
+    // Replace stale styles if already injected (content may have changed between versions)
+    const existing = document.getElementById('bd-mobile-mode-menu-styles');
+    if (existing) return;
+
+    const style = document.createElement('style');
+    style.id = 'bd-mobile-mode-menu-styles';
+    style.textContent = `
+      /* The expanded input mode menu is position:absolute with a left offset that
+         varies by device (12-32px).  Without an explicit width cap it auto-sizes
+         to its content, so buttons extend off-screen and an ancestor clips them.
+         We read the actual left offset at runtime (see injectCommandButton) and
+         set --bd-menu-left as a CSS variable on the element, then use it here.
+         React sets overflow:hidden as an inline style; !important overrides it. */
+      [data-bd-mode-menu] {
+        max-width: calc(100vw - var(--bd-menu-left, 12px) - 8px) !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap !important;
+      }
+
+      /* Hide the scrollbar but keep scroll functional */
+      [data-bd-mode-menu]::-webkit-scrollbar {
+        display: none;
+      }
+      [data-bd-mode-menu] {
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* IE/Edge */
+      }
+
+      /* Shrink button padding so more buttons fit on narrow mobile screens.
+         Native buttons use _pr-16px _pl-16px (16px each side).
+         Reducing to 8px each side saves 16px per button × 7 buttons = 112px. */
+      [data-bd-mode-menu] > [role="button"] {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+        flex-shrink: 0 !important;
+      }
+
+      /* Also shrink font size slightly for the mode labels to save horizontal space */
+      [data-bd-mode-menu] > [role="button"] .font_body {
+        font-size: 12px !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   removeCommandButton() {
     const button = document.querySelector('[aria-label="Set to \'Command\' mode"]');
     if (button) {
@@ -556,6 +617,20 @@ class CommandFeature {
     this.setupSubmitButtonListener();
   }
 
+  // Helper: set textarea value using React-compatible native setter
+  _setTextareaValue(textarea, value) {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+    if (setter) {
+      setter.call(textarea, value);
+    } else {
+      textarea.value = value;
+    }
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   setupKeyboardListener() {
     const handleKeyDown = (e) => {
       if (!this.isCommandMode) {
@@ -572,10 +647,7 @@ class CommandFeature {
           if (content.trim()) {
             // Format the content as a command header
             const formattedContent = this.formatAsCommand(content);
-            textarea.value = formattedContent;
-            
-            // Trigger input event so React picks up the change
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            this._setTextareaValue(textarea, formattedContent);
             
             // Schedule deletion if auto-delete is enabled
             this.scheduleCommandDeletion(formattedContent.trim());
@@ -609,10 +681,7 @@ class CommandFeature {
         if (content.trim()) {
           // Format the content as a command header
           const formattedContent = this.formatAsCommand(content);
-          textarea.value = formattedContent;
-          
-          // Trigger input event so React picks up the change
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          this._setTextareaValue(textarea, formattedContent);
           
           // Schedule deletion if auto-delete is enabled
           this.scheduleCommandDeletion(formattedContent.trim());
