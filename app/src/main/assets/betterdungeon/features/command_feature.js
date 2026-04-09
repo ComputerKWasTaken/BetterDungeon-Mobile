@@ -467,40 +467,67 @@ class CommandFeature {
         font-size: 12px !important;
       }
 
-      /* Scroll affordance — an inset box-shadow on the right edge of the menu
-         hints that more buttons are off-screen.  box-shadow is painted on the
-         element's border-box (not its scrolled content), so the fade stays
-         fixed at the right edge as the user scrolls.
-         Color matches the menu background (rgb(47,53,57) from device DOM).
-         When the user scrolls to the end, JS adds [data-bd-scroll-end] which
-         removes the shadow so the last button isn't obscured. */
-      [data-bd-mode-menu]:not([data-bd-scroll-end]) {
-        box-shadow: inset -24px 0 14px -6px rgb(47, 53, 57) !important;
+      /* Scroll affordance arrow indicator — styled via CSS, positioned via JS.
+         A small "›" arrow is appended to document.body and absolutely positioned
+         at the right edge of the menu.  Hidden when scrolled to the end. */
+      #bd-scroll-arrow {
+        position: absolute;
+        z-index: 10;
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 40px;
+        background: rgba(47, 53, 57, 0.85);
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 18px;
+        font-weight: bold;
+        border-radius: 4px 0 0 4px;
+        font-family: sans-serif;
       }
     `;
     document.head.appendChild(style);
   }
 
-  // Toggle the inset box-shadow scroll affordance off when the user has scrolled
-  // to the end of the mode menu (so the last button isn't obscured).
+  // Show a small "›" arrow pinned to the right edge of the menu to hint that
+  // more buttons are off-screen.  The arrow is appended to document.body and
+  // positioned with JS so it doesn't depend on any parent layout quirks.
+  // Hidden automatically when the user scrolls to the end.
   _setupScrollAffordance(menu) {
     // Avoid duplicate listeners
     if (menu.hasAttribute('data-bd-scroll-listener')) return;
     menu.setAttribute('data-bd-scroll-listener', '');
 
+    // Create arrow element
+    let arrow = document.getElementById('bd-scroll-arrow');
+    if (!arrow) {
+      arrow = document.createElement('div');
+      arrow.id = 'bd-scroll-arrow';
+      arrow.textContent = '\u203A'; // › character
+      document.body.appendChild(arrow);
+    }
+
+    const positionArrow = () => {
+      const rect = menu.getBoundingClientRect();
+      arrow.style.top = `${rect.top}px`;
+      arrow.style.left = `${rect.right - 20}px`;
+      arrow.style.height = `${rect.height}px`;
+    };
+
     const onScroll = () => {
       const atEnd = menu.scrollLeft + menu.clientWidth >= menu.scrollWidth - 4;
-      if (atEnd) {
-        menu.setAttribute('data-bd-scroll-end', '');
-      } else {
-        menu.removeAttribute('data-bd-scroll-end');
-      }
+      arrow.style.display = atEnd ? 'none' : 'flex';
+      positionArrow();
     };
 
     menu.addEventListener('scroll', onScroll, { passive: true });
 
-    // Initial check after layout settles
-    requestAnimationFrame(onScroll);
+    // Position and show/hide after layout settles
+    requestAnimationFrame(() => {
+      positionArrow();
+      onScroll();
+    });
   }
 
   removeCommandButton() {
@@ -509,6 +536,10 @@ class CommandFeature {
       button.remove();
     }
     this.commandButton = null;
+
+    // Remove the scroll affordance arrow if present
+    const arrow = document.getElementById('bd-scroll-arrow');
+    if (arrow) arrow.remove();
   }
 
   activateCommandMode() {
