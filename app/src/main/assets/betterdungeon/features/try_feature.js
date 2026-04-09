@@ -454,7 +454,9 @@ class TryFeature {
     const textarea = document.querySelector('#game-text-input');
     if (!textarea) return;
 
-    // The input row (textarea's parent) has position:absolute and 32px bottom padding
+    // The input row (textarea's parent) is position:absolute.
+    // Mobile layout uses tighter padding (~12px) than desktop (~32px),
+    // so the bar must be compact to avoid cutting into the textarea and submit button.
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
 
@@ -462,47 +464,51 @@ class TryFeature {
     bar.id = 'bd-success-bar-container';
     bar.style.cssText = `
       position: absolute;
-      bottom: 6px;
-      left: 32px;
-      right: 32px;
+      bottom: 2px;
+      left: 12px;
+      right: 12px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 5px 14px;
-      background: rgba(0, 0, 0, 0.3);
+      gap: 4px;
+      padding: 2px 8px;
+      background: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      border-radius: 8px;
+      border-radius: 6px;
       border: 1px solid rgba(255, 255, 255, 0.06);
       font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 11px;
+      font-size: 10px;
       color: rgba(255, 255, 255, 0.45);
       z-index: 2;
-      pointer-events: auto;
+      pointer-events: none;
+      box-sizing: border-box;
+      height: 22px;
     `;
 
-    // Shared button style — large enough touch target (min 44×44 tap area) with
-    // clear visual affordance (rounded pill, background on press).
+    // Compact button style scaled for the 22px bar — still meets minimum
+    // touch-target guidelines via padding while fitting the slim layout.
     const btnStyle = `
-      cursor:pointer; user-select:none;
+      pointer-events:auto; cursor:pointer; user-select:none;
       display:flex; align-items:center; justify-content:center;
-      min-width:36px; min-height:32px;
-      font-size:18px; font-weight:700; color:rgba(255,255,255,0.7);
-      padding:4px 8px; line-height:1;
-      border-radius:6px;
+      min-width:28px; min-height:20px;
+      font-size:14px; font-weight:700; color:rgba(255,255,255,0.7);
+      padding:1px 6px; line-height:1;
+      border-radius:4px;
       background:rgba(255,255,255,0.08);
       -webkit-tap-highlight-color:transparent;
       touch-action:manipulation;
       transition:background .15s, transform .1s;
     `.replace(/\n\s*/g, ' ');
 
+    // Mobile-optimised layout: compact bar with touch −/+ buttons
+    // replacing the desktop ↑↓ arrow-key hint (unusable on mobile).
     bar.innerHTML = `
-      <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Success</span>
-      <span id="bd-weight-down" role="button" aria-label="Decrease success chance" style="${btnStyle}">−</span>
-      <div style="flex:1; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
-        <div id="bd-success-bar-fill" style="height:100%; border-radius:3px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
+      <span style="white-space:nowrap; font-weight:600; font-size:9px; letter-spacing:0.3px; text-transform:uppercase;">Success</span>
+      <span id="bd-weight-down" role="button" aria-label="Decrease success chance" style="${btnStyle}">\u2212</span>
+      <div style="flex:1; height:3px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden;">
+        <div id="bd-success-bar-fill" style="height:100%; border-radius:2px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
       </div>
-      <span id="bd-success-percent" style="min-width:28px; text-align:center; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
+      <span id="bd-success-percent" style="min-width:24px; text-align:center; font-weight:700; font-size:10px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
       <span id="bd-weight-up" role="button" aria-label="Increase success chance" style="${btnStyle}">+</span>
     `;
 
@@ -537,6 +543,7 @@ class TryFeature {
 
     inputRow.appendChild(bar);
     this.successBar = bar;
+
     this.updateSuccessBar();
   }
 
