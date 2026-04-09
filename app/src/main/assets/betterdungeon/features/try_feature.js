@@ -450,17 +450,30 @@ class TryFeature {
       font-size: 11px;
       color: rgba(255, 255, 255, 0.45);
       z-index: 2;
-      pointer-events: none;
+      pointer-events: auto;
     `;
 
     bar.innerHTML = `
       <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Success</span>
+      <span id="bd-weight-down" role="button" style="cursor:pointer; user-select:none; font-size:16px; font-weight:700; color:rgba(255,255,255,0.5); padding:0 4px; line-height:1;">−</span>
       <div style="flex:1; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
         <div id="bd-success-bar-fill" style="height:100%; border-radius:3px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
       </div>
-      <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
-      <span style="opacity:0.3; font-size:9px;">↑↓</span>
+      <span id="bd-success-percent" style="min-width:28px; text-align:center; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
+      <span id="bd-weight-up" role="button" style="cursor:pointer; user-select:none; font-size:16px; font-weight:700; color:rgba(255,255,255,0.5); padding:0 4px; line-height:1;">+</span>
     `;
+
+    // Attach touch/click handlers to the +/- buttons
+    const downBtn = bar.querySelector('#bd-weight-down');
+    const upBtn = bar.querySelector('#bd-weight-up');
+    if (downBtn) {
+      downBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.adjustWeight(-1); });
+      downBtn.addEventListener('touchend', (e) => { e.preventDefault(); });
+    }
+    if (upBtn) {
+      upBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.adjustWeight(1); });
+      upBtn.addEventListener('touchend', (e) => { e.preventDefault(); });
+    }
 
     inputRow.appendChild(bar);
     this.successBar = bar;
@@ -606,6 +619,20 @@ class TryFeature {
     this.setupSubmitButtonListener();
   }
 
+  // Helper: set textarea value using React-compatible native setter
+  _setTextareaValue(textarea, value) {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+    if (setter) {
+      setter.call(textarea, value);
+    } else {
+      textarea.value = value;
+    }
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   setupKeyboardListener() {
     const handleKeyDown = (e) => {
       if (!this.isTryMode) {
@@ -622,10 +649,7 @@ class TryFeature {
           if (content.trim()) {
             // Format the content as a try with RNG result
             const formattedContent = this.formatAsTry(content);
-            textarea.value = formattedContent;
-            
-            // Trigger input event so React picks up the change
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            this._setTextareaValue(textarea, formattedContent);
             
             // Watch for the new action element to appear and update its icon
             this.watchForTryAction(formattedContent);
@@ -659,10 +683,7 @@ class TryFeature {
         if (content.trim()) {
           // Format the content as a try with RNG result
           const formattedContent = this.formatAsTry(content);
-          textarea.value = formattedContent;
-          
-          // Trigger input event so React picks up the change
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          this._setTextareaValue(textarea, formattedContent);
           
           // Watch for the new action element to appear and update its icon
           this.watchForTryAction(formattedContent);

@@ -533,7 +533,11 @@ class MarkdownFeature {
   }
 }
 
-// Export for use in other modules
+// Make available globally (required for Android WebView IIFE where classes are block-scoped)
+if (typeof window !== 'undefined') {
+  window.MarkdownFeature = MarkdownFeature;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = MarkdownFeature;
 }

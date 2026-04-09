@@ -311,9 +311,14 @@ class NotesFeature {
         // We want a column that is essentially full-width.
         // The main plot components list is typically a column without center alignment
         // and often has a max-width or width of 100%.
+        // On mobile, viewport width is ~360-414px, so we use a lower threshold.
         if (isColumn) {
           const style = window.getComputedStyle(current);
-          const hasWidthConstraint = parseInt(style.maxWidth) > 500 || parseInt(style.width) > 500 || style.width === '100%';
+          const parsedWidth = parseInt(style.width);
+          const parsedMaxWidth = parseInt(style.maxWidth);
+          const viewportWidth = window.innerWidth || 360;
+          const mobileThreshold = Math.min(viewportWidth * 0.8, 500);
+          const hasWidthConstraint = parsedMaxWidth > mobileThreshold || parsedWidth > mobileThreshold || style.width === '100%';
           
           if (hasWidthConstraint || className.includes('_w-10037') /* common 100% class */) {
             targetContainer = current;

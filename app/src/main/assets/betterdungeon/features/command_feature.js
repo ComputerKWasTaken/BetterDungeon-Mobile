@@ -230,6 +230,11 @@ class CommandFeature {
 
     this.commandButton = cleanButton;
 
+    // Ensure the menu is horizontally scrollable on mobile to prevent overflow
+    menu.style.overflowX = 'auto';
+    menu.style.flexWrap = 'nowrap';
+    menu.style.webkitOverflowScrolling = 'touch';
+
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
     this.applySpriteTheming(cleanButton, seeButton || storyButton);
@@ -556,6 +561,20 @@ class CommandFeature {
     this.setupSubmitButtonListener();
   }
 
+  // Helper: set textarea value using React-compatible native setter
+  _setTextareaValue(textarea, value) {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+    if (setter) {
+      setter.call(textarea, value);
+    } else {
+      textarea.value = value;
+    }
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   setupKeyboardListener() {
     const handleKeyDown = (e) => {
       if (!this.isCommandMode) {
@@ -572,10 +591,7 @@ class CommandFeature {
           if (content.trim()) {
             // Format the content as a command header
             const formattedContent = this.formatAsCommand(content);
-            textarea.value = formattedContent;
-            
-            // Trigger input event so React picks up the change
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            this._setTextareaValue(textarea, formattedContent);
             
             // Schedule deletion if auto-delete is enabled
             this.scheduleCommandDeletion(formattedContent.trim());
@@ -609,10 +625,7 @@ class CommandFeature {
         if (content.trim()) {
           // Format the content as a command header
           const formattedContent = this.formatAsCommand(content);
-          textarea.value = formattedContent;
-          
-          // Trigger input event so React picks up the change
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          this._setTextareaValue(textarea, formattedContent);
           
           // Schedule deletion if auto-delete is enabled
           this.scheduleCommandDeletion(formattedContent.trim());

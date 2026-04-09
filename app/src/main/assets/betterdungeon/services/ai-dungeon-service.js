@@ -506,14 +506,17 @@ class AIDungeonService {
       return { success: true, alreadyOpen: true };
     }
 
-    const settingsBtn = this.getSettingsButton();
+    // Try the dedicated settings button first, then fall back to Game Menu
+    // (on mobile layouts, only the Game Menu button may be visible)
+    const settingsBtn = this.getSettingsButton() || this.getGameMenuButton();
     if (!settingsBtn) {
       return { success: false, error: 'Settings button not found — are you in an adventure?' };
     }
 
     settingsBtn.click();
 
-    for (let i = 0; i < 20; i++) {
+    // Allow extra time on mobile for panel animations
+    for (let i = 0; i < 30; i++) {
       await this.wait(100);
       if (this.isSettingsPanelOpen()) {
         return { success: true };
@@ -782,9 +785,10 @@ class AIDungeonService {
     if (subTab) {
       onStepUpdate?.(`Waiting for ${subTab} tab...`);
       // After switching top tabs, subtabs re-render — poll until the target exists
+      // Use a longer timeout on mobile where DOM updates can be slower
       const subTabEl = await this.waitFor(
         () => this.findTabByText(subTab),
-        { interval: 100, timeout: 3000 }
+        { interval: 150, timeout: 5000 }
       );
       if (!subTabEl) {
         return { success: false, error: `${subTab} tab did not appear after selecting ${topTab}` };
