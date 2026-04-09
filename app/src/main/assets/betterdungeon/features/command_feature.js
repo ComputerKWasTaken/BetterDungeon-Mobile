@@ -230,33 +230,11 @@ class CommandFeature {
 
     this.commandButton = cleanButton;
 
-    // Make the menu horizontally scrollable on mobile so the Command button is reachable.
-    // We force the menu and ALL ancestor containers up to the input area to allow overflow,
-    // because AI Dungeon's layout uses overflow:hidden on intermediate wrappers.
-    menu.style.overflowX = 'auto';
-    menu.style.overflowY = 'hidden';
-    menu.style.flexWrap = 'nowrap';
-    menu.style.webkitOverflowScrolling = 'touch';
-    menu.style.scrollSnapType = 'x mandatory';
-    menu.style.scrollBehavior = 'smooth';
-    // Ensure children don't shrink and stay scrollable
-    for (const child of menu.children) {
-      child.style.flexShrink = '0';
-      child.style.scrollSnapAlign = 'start';
-    }
-    // Propagate overflow visibility up the DOM so the scroll actually works
-    let ancestor = menu.parentElement;
-    for (let i = 0; i < 5 && ancestor && ancestor !== document.body; i++) {
-      const cs = window.getComputedStyle(ancestor);
-      if (cs.overflow === 'hidden' || cs.overflowX === 'hidden') {
-        ancestor.style.overflowX = 'visible';
-      }
-      ancestor = ancestor.parentElement;
-    }
-
-    // Add a visual scroll affordance — a fading gradient on the right edge
-    // to hint that more buttons are available off-screen.
-    this._addScrollAffordance(menu);
+    // Mark the menu container so our injected CSS can target it reliably.
+    // React sets overflow:hidden as an inline style which gets reset on re-render,
+    // so we use a <style> tag with !important rules that persist across re-renders.
+    menu.setAttribute('data-bd-mode-menu', 'true');
+    this._injectMobileMenuStyles();
 
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
@@ -436,52 +414,48 @@ class CommandFeature {
     });
   }
 
-  // Add a visual scroll affordance to hint that more buttons exist off-screen.
-  // Shows a fading gradient on the right edge and auto-scrolls to reveal the Command button.
-  _addScrollAffordance(menu) {
-    // Remove any previous affordance
-    const old = menu.parentElement?.querySelector('.bd-scroll-affordance');
-    if (old) old.remove();
+  // Inject a <style> tag with mobile-specific CSS for the input mode menu.
+  // This approach survives React re-renders because stylesheet rules with !important
+  // override regular inline styles (which React sets on the menu container).
+  _injectMobileMenuStyles() {
+    if (document.getElementById('bd-mobile-mode-menu-styles')) return;
 
-    // Only add if the menu actually overflows
-    requestAnimationFrame(() => {
-      if (menu.scrollWidth <= menu.clientWidth) return;
-
-      // Create gradient overlay as a visual hint
-      const affordance = document.createElement('div');
-      affordance.className = 'bd-scroll-affordance';
-      affordance.style.cssText = `
-        position: absolute;
-        right: 0; top: 0; bottom: 0;
-        width: 32px;
-        pointer-events: none;
-        background: linear-gradient(to right, transparent, rgba(0,0,0,0.6));
-        z-index: 5;
-        border-radius: 0 8px 8px 0;
-        transition: opacity 0.3s;
-      `;
-      // Position relative to menu's parent so the gradient overlays the menu edge
-      const parent = menu.parentElement;
-      if (parent) {
-        parent.style.position = parent.style.position || 'relative';
-        parent.appendChild(affordance);
+    const style = document.createElement('style');
+    style.id = 'bd-mobile-mode-menu-styles';
+    style.textContent = `
+      /* Force the expanded input mode menu to scroll horizontally on mobile.
+         React sets overflow:hidden as an inline style; !important overrides it. */
+      [data-bd-mode-menu] {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap !important;
       }
 
-      // Hide the gradient once the user scrolls to the end
-      menu.addEventListener('scroll', () => {
-        const atEnd = menu.scrollLeft + menu.clientWidth >= menu.scrollWidth - 8;
-        affordance.style.opacity = atEnd ? '0' : '1';
-      }, { passive: true });
+      /* Hide the scrollbar but keep scroll functional */
+      [data-bd-mode-menu]::-webkit-scrollbar {
+        display: none;
+      }
+      [data-bd-mode-menu] {
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* IE/Edge */
+      }
 
-      // Auto-scroll briefly to flash the Command button, then scroll back
-      // This teaches the user that scrolling is possible
-      setTimeout(() => {
-        menu.scrollTo({ left: menu.scrollWidth, behavior: 'smooth' });
-        setTimeout(() => {
-          menu.scrollTo({ left: 0, behavior: 'smooth' });
-        }, 600);
-      }, 300);
-    });
+      /* Shrink button padding so more buttons fit on narrow mobile screens.
+         Native buttons use _pr-18px _pl-18px (18px each side = 36px per button).
+         Reducing to 10px each side saves 16px per button × 7 buttons = 112px. */
+      [data-bd-mode-menu] > [role="button"] {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+        flex-shrink: 0 !important;
+      }
+
+      /* Also shrink font size slightly for the mode labels to save horizontal space */
+      [data-bd-mode-menu] > [role="button"] .font_body {
+        font-size: 13px !important;
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   removeCommandButton() {
