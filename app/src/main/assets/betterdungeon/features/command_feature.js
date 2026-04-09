@@ -235,6 +235,7 @@ class CommandFeature {
     // so we use a <style> tag with !important rules that persist across re-renders.
     menu.setAttribute('data-bd-mode-menu', 'true');
     this._injectMobileMenuStyles();
+    this._addScrollAffordance(menu);
 
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
@@ -460,13 +461,83 @@ class CommandFeature {
       [data-bd-mode-menu] > [role="button"] .font_body {
         font-size: 13px !important;
       }
+
+      /* Scroll affordance — right-edge gradient that hints more buttons are off-screen.
+         Uses a wrapper div (not ::after, because overflow:auto clips pseudo-elements
+         that are children of the scrolling container). */
+      .bd-scroll-affordance {
+        position: absolute;
+        top: 0; bottom: 0; right: 0;
+        width: 28px;
+        pointer-events: none;
+        background: linear-gradient(to right, transparent, rgba(0,0,0,0.55));
+        border-radius: 0 9px 9px 0;
+        z-index: 4;
+        transition: opacity 0.25s ease;
+      }
+      .bd-scroll-affordance[data-bd-scroll-end] {
+        opacity: 0;
+      }
     `;
     document.head.appendChild(style);
+  }
+
+  // Add a visual gradient on the right edge of the mode menu to hint that
+  // more buttons are available via horizontal scroll.
+  _addScrollAffordance(menu) {
+    // The affordance must be a sibling positioned over the menu, not a child,
+    // because overflow:auto on the menu would scroll a child pseudo-element away.
+    const parent = menu.parentElement;
+    if (!parent) return;
+
+    // Remove stale affordance if present
+    const old = parent.querySelector('.bd-scroll-affordance');
+    if (old) old.remove();
+
+    // Ensure parent is a positioning context
+    const parentPos = window.getComputedStyle(parent).position;
+    if (parentPos === 'static' || !parentPos) {
+      parent.style.position = 'relative';
+    }
+
+    const affordance = document.createElement('div');
+    affordance.className = 'bd-scroll-affordance';
+    parent.appendChild(affordance);
+
+    // Position the affordance to overlay the menu's right edge
+    const updatePosition = () => {
+      const menuRect = menu.getBoundingClientRect();
+      const parentRect = parent.getBoundingClientRect();
+      affordance.style.top = `${menuRect.top - parentRect.top}px`;
+      affordance.style.height = `${menuRect.height}px`;
+      affordance.style.right = `${parentRect.right - menuRect.right}px`;
+    };
+
+    // Update affordance visibility on scroll
+    const onScroll = () => {
+      const atEnd = menu.scrollLeft + menu.clientWidth >= menu.scrollWidth - 4;
+      if (atEnd) {
+        affordance.setAttribute('data-bd-scroll-end', '');
+      } else {
+        affordance.removeAttribute('data-bd-scroll-end');
+      }
+    };
+
+    menu.addEventListener('scroll', onScroll, { passive: true });
+
+    // Initial position + visibility check after layout settles
+    requestAnimationFrame(() => {
+      updatePosition();
+      onScroll();
+    });
   }
 
   removeCommandButton() {
     const button = document.querySelector('[aria-label="Set to \'Command\' mode"]');
     if (button) {
+      // Clean up the scroll affordance overlay before removing the button
+      const affordance = button.parentElement?.parentElement?.querySelector('.bd-scroll-affordance');
+      if (affordance) affordance.remove();
       button.remove();
     }
     this.commandButton = null;
