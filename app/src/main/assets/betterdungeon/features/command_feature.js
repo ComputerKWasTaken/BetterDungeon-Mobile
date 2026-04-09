@@ -234,8 +234,12 @@ class CommandFeature {
     // React sets overflow:hidden as an inline style which gets reset on re-render,
     // so we use a <style> tag with !important rules that persist across re-renders.
     menu.setAttribute('data-bd-mode-menu', 'true');
+    // Read the menu's actual left offset and expose it as a CSS variable so the
+    // max-width calc adapts to whatever value AI Dungeon sets (varies by device).
+    const menuLeft = parseFloat(menu.style.left) || 12;
+    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
     this._injectMobileMenuStyles();
-    this._addScrollAffordance(menu);
+    this._setupScrollAffordance(menu);
 
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
@@ -419,20 +423,21 @@ class CommandFeature {
   // This approach survives React re-renders because stylesheet rules with !important
   // override regular inline styles (which React sets on the menu container).
   _injectMobileMenuStyles() {
+    // Replace stale styles if already injected (content may have changed between versions)
     const existing = document.getElementById('bd-mobile-mode-menu-styles');
     if (existing) return;
 
     const style = document.createElement('style');
     style.id = 'bd-mobile-mode-menu-styles';
     style.textContent = `
-      /* The expanded input mode menu (id="30") is position:absolute with left:32px.
-         Without an explicit width cap it auto-sizes to its content, so the buttons
-         simply extend off-screen and an ancestor clips them.  We cap the menu's
-         width to (viewport − left offset − small margin) and enable horizontal
-         scroll so all 7 buttons are reachable via swipe.
+      /* The expanded input mode menu is position:absolute with a left offset that
+         varies by device (12-32px).  Without an explicit width cap it auto-sizes
+         to its content, so buttons extend off-screen and an ancestor clips them.
+         We read the actual left offset at runtime (see injectCommandButton) and
+         set --bd-menu-left as a CSS variable on the element, then use it here.
          React sets overflow:hidden as an inline style; !important overrides it. */
       [data-bd-mode-menu] {
-        max-width: calc(100vw - 32px - 16px) !important;
+        max-width: calc(100vw - var(--bd-menu-left, 12px) - 8px) !important;
         overflow-x: auto !important;
         overflow-y: hidden !important;
         -webkit-overflow-scrolling: touch;
@@ -449,95 +454,58 @@ class CommandFeature {
       }
 
       /* Shrink button padding so more buttons fit on narrow mobile screens.
-         Native buttons use _pr-18px _pl-18px (18px each side = 36px per button).
-         Reducing to 10px each side saves 16px per button × 7 buttons = 112px. */
+         Native buttons use _pr-16px _pl-16px (16px each side).
+         Reducing to 8px each side saves 16px per button × 7 buttons = 112px. */
       [data-bd-mode-menu] > [role="button"] {
-        padding-left: 10px !important;
-        padding-right: 10px !important;
+        padding-left: 8px !important;
+        padding-right: 8px !important;
         flex-shrink: 0 !important;
       }
 
       /* Also shrink font size slightly for the mode labels to save horizontal space */
       [data-bd-mode-menu] > [role="button"] .font_body {
-        font-size: 13px !important;
+        font-size: 12px !important;
       }
 
-      /* Scroll affordance — right-edge gradient that hints more buttons are off-screen.
-         Uses a wrapper div (not ::after, because overflow:auto clips pseudo-elements
-         that are children of the scrolling container). */
-      .bd-scroll-affordance {
-        position: absolute;
-        top: 0; bottom: 0; right: 0;
-        width: 28px;
-        pointer-events: none;
-        background: linear-gradient(to right, transparent, rgba(0,0,0,0.55));
-        border-radius: 0 9px 9px 0;
-        z-index: 4;
-        transition: opacity 0.25s ease;
-      }
-      .bd-scroll-affordance[data-bd-scroll-end] {
-        opacity: 0;
+      /* Scroll affordance — uses -webkit-mask-image to fade the right edge of
+         the menu, hinting that more buttons are off-screen.  The mask is relative
+         to the element's border-box (not its scrolled content), so the fade stays
+         fixed at the right edge as the user scrolls.
+         When the user scrolls to the end, JS adds [data-bd-scroll-end] which
+         removes the mask so the last button isn't faded. */
+      [data-bd-mode-menu]:not([data-bd-scroll-end]) {
+        -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent) !important;
+        mask-image: linear-gradient(to right, black calc(100% - 28px), transparent) !important;
       }
     `;
     document.head.appendChild(style);
   }
 
-  // Add a visual gradient on the right edge of the mode menu to hint that
-  // more buttons are available via horizontal scroll.
-  _addScrollAffordance(menu) {
-    // The affordance must be a sibling positioned over the menu, not a child,
-    // because overflow:auto on the menu would scroll a child pseudo-element away.
-    const parent = menu.parentElement;
-    if (!parent) return;
+  // Toggle the mask-image scroll affordance off when the user has scrolled
+  // to the end of the mode menu (so the last button isn't faded out).
+  _setupScrollAffordance(menu) {
+    // Avoid duplicate listeners
+    if (menu.hasAttribute('data-bd-scroll-listener')) return;
+    menu.setAttribute('data-bd-scroll-listener', '');
 
-    // Remove stale affordance if present
-    const old = parent.querySelector('.bd-scroll-affordance');
-    if (old) old.remove();
-
-    // Ensure parent is a positioning context
-    const parentPos = window.getComputedStyle(parent).position;
-    if (parentPos === 'static' || !parentPos) {
-      parent.style.position = 'relative';
-    }
-
-    const affordance = document.createElement('div');
-    affordance.className = 'bd-scroll-affordance';
-    parent.appendChild(affordance);
-
-    // Position the affordance to overlay the menu's right edge
-    const updatePosition = () => {
-      const menuRect = menu.getBoundingClientRect();
-      const parentRect = parent.getBoundingClientRect();
-      affordance.style.top = `${menuRect.top - parentRect.top}px`;
-      affordance.style.height = `${menuRect.height}px`;
-      affordance.style.right = `${parentRect.right - menuRect.right}px`;
-    };
-
-    // Update affordance visibility on scroll
     const onScroll = () => {
       const atEnd = menu.scrollLeft + menu.clientWidth >= menu.scrollWidth - 4;
       if (atEnd) {
-        affordance.setAttribute('data-bd-scroll-end', '');
+        menu.setAttribute('data-bd-scroll-end', '');
       } else {
-        affordance.removeAttribute('data-bd-scroll-end');
+        menu.removeAttribute('data-bd-scroll-end');
       }
     };
 
     menu.addEventListener('scroll', onScroll, { passive: true });
 
-    // Initial position + visibility check after layout settles
-    requestAnimationFrame(() => {
-      updatePosition();
-      onScroll();
-    });
+    // Initial check after layout settles
+    requestAnimationFrame(onScroll);
   }
 
   removeCommandButton() {
     const button = document.querySelector('[aria-label="Set to \'Command\' mode"]');
     if (button) {
-      // Clean up the scroll affordance overlay before removing the button
-      const affordance = button.parentElement?.parentElement?.querySelector('.bd-scroll-affordance');
-      if (affordance) affordance.remove();
       button.remove();
     }
     this.commandButton = null;
