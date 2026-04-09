@@ -307,7 +307,7 @@ class BetterDungeon {
   }
 }
 
-// Global instance
+// Global instance — exposed on window so features inside other try{} blocks can access it
 let betterDungeonInstance = null;
 
 // Initialize when DOM is ready
@@ -316,6 +316,7 @@ function initBetterDungeon() {
     betterDungeonInstance.destroy();
   }
   betterDungeonInstance = new BetterDungeon();
+  window.betterDungeonInstance = betterDungeonInstance;
 }
 
 if (document.readyState === 'loading') {

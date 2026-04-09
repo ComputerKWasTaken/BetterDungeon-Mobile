@@ -382,6 +382,20 @@ class NotesFeature {
   }
 
   createUI() {
+    // Guard: only show the Notes card when the Plot tab is active.
+    // Without this, findPlotComponentsContainer() can match similar DOM structures
+    // on the Story Cards or Details sub-tabs and inject the card in the wrong place.
+    if (!this.isPlotTabActive()) {
+      this.removeUI();
+      return;
+    }
+
+    // If the user is actively typing in our textarea, skip any DOM
+    // manipulation to avoid stealing focus and "kicking the user out".
+    if (this.textarea && document.activeElement === this.textarea) {
+      return;
+    }
+
     const wrapperDetached = this.notesCardWrapper && !document.body.contains(this.notesCardWrapper);
     const cardDetached = this.notesCard && !document.body.contains(this.notesCard);
     if (wrapperDetached || cardDetached) {
@@ -391,11 +405,6 @@ class NotesFeature {
     }
 
     const insertion = this.findPlotComponentsContainer();
-    if (!this.isPlotTabActive() && !insertion?.container) {
-      this.removeUI();
-      return;
-    }
-
     if (!insertion?.container) {
       this.scheduleUiRetry();
       return;

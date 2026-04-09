@@ -72,8 +72,15 @@ class StoryCardAnalyticsFeature {
 
   // Inject Dashboard button into the Story Cards toolbar if not already present
   tryInjectToolbarButton() {
-    // Already injected and still in DOM — skip
-    if (this.toolbarButton && document.contains(this.toolbarButton)) return;
+    // Check the DOM for any existing dashboard button (by data attribute),
+    // not just our cached reference — React may have re-rendered the toolbar
+    // which removes the old element from the DOM while our JS reference goes stale.
+    const existingBtn = document.querySelector('[data-bd-dashboard-btn]');
+    if (existingBtn) {
+      // Re-cache so our reference stays current
+      this.toolbarButton = existingBtn;
+      return;
+    }
     this.toolbarButton = null;
 
     // Check if we are in the Story Cards tab

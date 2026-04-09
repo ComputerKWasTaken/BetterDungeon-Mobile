@@ -230,10 +230,33 @@ class CommandFeature {
 
     this.commandButton = cleanButton;
 
-    // Ensure the menu is horizontally scrollable on mobile to prevent overflow
+    // Make the menu horizontally scrollable on mobile so the Command button is reachable.
+    // We force the menu and ALL ancestor containers up to the input area to allow overflow,
+    // because AI Dungeon's layout uses overflow:hidden on intermediate wrappers.
     menu.style.overflowX = 'auto';
+    menu.style.overflowY = 'hidden';
     menu.style.flexWrap = 'nowrap';
     menu.style.webkitOverflowScrolling = 'touch';
+    menu.style.scrollSnapType = 'x mandatory';
+    menu.style.scrollBehavior = 'smooth';
+    // Ensure children don't shrink and stay scrollable
+    for (const child of menu.children) {
+      child.style.flexShrink = '0';
+      child.style.scrollSnapAlign = 'start';
+    }
+    // Propagate overflow visibility up the DOM so the scroll actually works
+    let ancestor = menu.parentElement;
+    for (let i = 0; i < 5 && ancestor && ancestor !== document.body; i++) {
+      const cs = window.getComputedStyle(ancestor);
+      if (cs.overflow === 'hidden' || cs.overflowX === 'hidden') {
+        ancestor.style.overflowX = 'visible';
+      }
+      ancestor = ancestor.parentElement;
+    }
+
+    // Add a visual scroll affordance — a fading gradient on the right edge
+    // to hint that more buttons are available off-screen.
+    this._addScrollAffordance(menu);
 
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
@@ -410,6 +433,54 @@ class CommandFeature {
       for (const { positioner, restLeft } of hoverData) {
         positioner.style.left = `${restLeft}px`;
       }
+    });
+  }
+
+  // Add a visual scroll affordance to hint that more buttons exist off-screen.
+  // Shows a fading gradient on the right edge and auto-scrolls to reveal the Command button.
+  _addScrollAffordance(menu) {
+    // Remove any previous affordance
+    const old = menu.parentElement?.querySelector('.bd-scroll-affordance');
+    if (old) old.remove();
+
+    // Only add if the menu actually overflows
+    requestAnimationFrame(() => {
+      if (menu.scrollWidth <= menu.clientWidth) return;
+
+      // Create gradient overlay as a visual hint
+      const affordance = document.createElement('div');
+      affordance.className = 'bd-scroll-affordance';
+      affordance.style.cssText = `
+        position: absolute;
+        right: 0; top: 0; bottom: 0;
+        width: 32px;
+        pointer-events: none;
+        background: linear-gradient(to right, transparent, rgba(0,0,0,0.6));
+        z-index: 5;
+        border-radius: 0 8px 8px 0;
+        transition: opacity 0.3s;
+      `;
+      // Position relative to menu's parent so the gradient overlays the menu edge
+      const parent = menu.parentElement;
+      if (parent) {
+        parent.style.position = parent.style.position || 'relative';
+        parent.appendChild(affordance);
+      }
+
+      // Hide the gradient once the user scrolls to the end
+      menu.addEventListener('scroll', () => {
+        const atEnd = menu.scrollLeft + menu.clientWidth >= menu.scrollWidth - 8;
+        affordance.style.opacity = atEnd ? '0' : '1';
+      }, { passive: true });
+
+      // Auto-scroll briefly to flash the Command button, then scroll back
+      // This teaches the user that scrolling is possible
+      setTimeout(() => {
+        menu.scrollTo({ left: menu.scrollWidth, behavior: 'smooth' });
+        setTimeout(() => {
+          menu.scrollTo({ left: 0, behavior: 'smooth' });
+        }, 600);
+      }, 300);
     });
   }
 

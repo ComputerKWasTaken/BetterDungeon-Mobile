@@ -481,27 +481,59 @@ class TryFeature {
       pointer-events: auto;
     `;
 
+    // Shared button style — large enough touch target (min 44×44 tap area) with
+    // clear visual affordance (rounded pill, background on press).
+    const btnStyle = `
+      cursor:pointer; user-select:none;
+      display:flex; align-items:center; justify-content:center;
+      min-width:36px; min-height:32px;
+      font-size:18px; font-weight:700; color:rgba(255,255,255,0.7);
+      padding:4px 8px; line-height:1;
+      border-radius:6px;
+      background:rgba(255,255,255,0.08);
+      -webkit-tap-highlight-color:transparent;
+      touch-action:manipulation;
+      transition:background .15s, transform .1s;
+    `.replace(/\n\s*/g, ' ');
+
     bar.innerHTML = `
       <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Success</span>
-      <span id="bd-weight-down" role="button" style="cursor:pointer; user-select:none; font-size:16px; font-weight:700; color:rgba(255,255,255,0.5); padding:0 4px; line-height:1;">−</span>
+      <span id="bd-weight-down" role="button" aria-label="Decrease success chance" style="${btnStyle}">−</span>
       <div style="flex:1; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
         <div id="bd-success-bar-fill" style="height:100%; border-radius:3px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
       </div>
       <span id="bd-success-percent" style="min-width:28px; text-align:center; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
-      <span id="bd-weight-up" role="button" style="cursor:pointer; user-select:none; font-size:16px; font-weight:700; color:rgba(255,255,255,0.5); padding:0 4px; line-height:1;">+</span>
+      <span id="bd-weight-up" role="button" aria-label="Increase success chance" style="${btnStyle}">+</span>
     `;
 
-    // Attach touch/click handlers to the +/- buttons
-    const downBtn = bar.querySelector('#bd-weight-down');
-    const upBtn = bar.querySelector('#bd-weight-up');
-    if (downBtn) {
-      downBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.adjustWeight(-1); });
-      downBtn.addEventListener('touchend', (e) => { e.preventDefault(); });
-    }
-    if (upBtn) {
-      upBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.adjustWeight(1); });
-      upBtn.addEventListener('touchend', (e) => { e.preventDefault(); });
-    }
+    // Attach touch AND click handlers to the +/- buttons.
+    // touchstart fires immediately on mobile (no 300ms delay) and we
+    // preventDefault to avoid the subsequent click-ghost from firing twice.
+    const wireButton = (el, delta) => {
+      if (!el) return;
+      // Visual feedback on press
+      const addPress = () => { el.style.background = 'rgba(255,255,255,0.22)'; el.style.transform = 'scale(0.92)'; };
+      const removePress = () => { el.style.background = 'rgba(255,255,255,0.08)'; el.style.transform = ''; };
+
+      el.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addPress();
+        this.adjustWeight(delta);
+      }, { passive: false });
+      el.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        removePress();
+      }, { passive: false });
+      el.addEventListener('touchcancel', removePress);
+      // Desktop fallback
+      el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.adjustWeight(delta); });
+      el.addEventListener('mousedown', addPress);
+      el.addEventListener('mouseup', removePress);
+      el.addEventListener('mouseleave', removePress);
+    };
+    wireButton(bar.querySelector('#bd-weight-down'), -1);
+    wireButton(bar.querySelector('#bd-weight-up'), 1);
 
     inputRow.appendChild(bar);
     this.successBar = bar;
