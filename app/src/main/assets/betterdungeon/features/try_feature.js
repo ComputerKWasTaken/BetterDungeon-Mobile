@@ -426,7 +426,9 @@ class TryFeature {
     const textarea = document.querySelector('#game-text-input');
     if (!textarea) return;
 
-    // The input row (textarea's parent) has position:absolute and 32px bottom padding
+    // The input row (textarea's parent) is position:absolute.
+    // Mobile layout uses tighter padding (~12px) than desktop (~32px),
+    // so the bar must be compact to avoid cutting into the textarea and submit button.
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
 
@@ -434,36 +436,60 @@ class TryFeature {
     bar.id = 'bd-success-bar-container';
     bar.style.cssText = `
       position: absolute;
-      bottom: 6px;
-      left: 32px;
-      right: 32px;
+      bottom: 2px;
+      left: 12px;
+      right: 12px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 5px 14px;
-      background: rgba(0, 0, 0, 0.3);
+      gap: 4px;
+      padding: 2px 8px;
+      background: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      border-radius: 8px;
+      border-radius: 6px;
       border: 1px solid rgba(255, 255, 255, 0.06);
       font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 11px;
+      font-size: 10px;
       color: rgba(255, 255, 255, 0.45);
       z-index: 2;
       pointer-events: none;
+      box-sizing: border-box;
+      height: 22px;
     `;
 
+    // Mobile-optimised layout: compact bar with touch −/+ buttons
+    // replacing the desktop ↑↓ arrow-key hint (unusable on mobile).
     bar.innerHTML = `
-      <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Success</span>
-      <div style="flex:1; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
-        <div id="bd-success-bar-fill" style="height:100%; border-radius:3px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
+      <span style="white-space:nowrap; font-weight:600; font-size:9px; letter-spacing:0.3px; text-transform:uppercase;">Success</span>
+      <div style="flex:1; height:3px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden;">
+        <div id="bd-success-bar-fill" style="height:100%; border-radius:2px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
       </div>
-      <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
-      <span style="opacity:0.3; font-size:9px;">↑↓</span>
+      <span id="bd-success-percent" style="min-width:24px; text-align:right; font-weight:700; font-size:10px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
+      <span id="bd-weight-down" role="button" aria-label="Decrease success weight" style="pointer-events:auto; cursor:pointer; padding:2px 6px; font-size:14px; line-height:1; color:rgba(255,255,255,0.5); user-select:none; -webkit-tap-highlight-color:transparent;">\u2212</span>
+      <span id="bd-weight-up" role="button" aria-label="Increase success weight" style="pointer-events:auto; cursor:pointer; padding:2px 6px; font-size:14px; line-height:1; color:rgba(255,255,255,0.5); user-select:none; -webkit-tap-highlight-color:transparent;">+</span>
     `;
 
     inputRow.appendChild(bar);
     this.successBar = bar;
+
+    // Wire up touch controls for weight adjustment
+    const downBtn = bar.querySelector('#bd-weight-down');
+    const upBtn = bar.querySelector('#bd-weight-up');
+    if (downBtn) {
+      downBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.adjustWeight(-1);
+      });
+    }
+    if (upBtn) {
+      upBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.adjustWeight(1);
+      });
+    }
+
     this.updateSuccessBar();
   }
 
