@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 
@@ -145,6 +146,35 @@ class BetterDungeonBridge(private val context: Context) {
             context.startActivity(intent)
         } catch (e: Exception) {
             // Silently fail if no browser is available
+        }
+    }
+
+    // ── Asset Access ─────────────────────────────────────────────────
+
+    /**
+     * Read an asset file from the betterdungeon directory and return it as a
+     * base64 data URI. Used by the webview-polyfill's chrome.runtime.getURL()
+     * to serve images inside the main WebView where file:/// URLs are blocked
+     * by the browser security model.
+     */
+    @JavascriptInterface
+    fun getAssetDataUri(path: String): String {
+        return try {
+            val bytes = context.assets.open("betterdungeon/$path").use { it.readBytes() }
+            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            val mimeType = when {
+                path.endsWith(".png", ignoreCase = true) -> "image/png"
+                path.endsWith(".jpg", ignoreCase = true) || path.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+                path.endsWith(".gif", ignoreCase = true) -> "image/gif"
+                path.endsWith(".svg", ignoreCase = true) -> "image/svg+xml"
+                path.endsWith(".webp", ignoreCase = true) -> "image/webp"
+                path.endsWith(".ico", ignoreCase = true) -> "image/x-icon"
+                else -> "application/octet-stream"
+            }
+            "data:$mimeType;base64,$base64"
+        } catch (e: Exception) {
+            android.util.Log.e("BetterDungeon", "Failed to read asset as data URI: betterdungeon/$path", e)
+            ""
         }
     }
 

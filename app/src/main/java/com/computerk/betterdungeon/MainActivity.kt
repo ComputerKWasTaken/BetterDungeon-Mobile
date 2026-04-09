@@ -293,11 +293,29 @@ class MainActivity : AppCompatActivity() {
                     var messageJson = JSON.stringify(message);
                     BetterDungeonBridge.log('Popup sending message: ' + message.type);
                     
-                    window.__bdPopupCallback = callback;
-                    BetterDungeonBridge.forwardToMainWebView(messageJson);
-                    
-                    // Return a Promise so .catch() chains don't crash
-                    return Promise.resolve(undefined);
+                    // Return a Promise that resolves when the native bridge
+                    // sends the response back from the main WebView.
+                    return new Promise(function(resolve) {
+                        window.__bdPopupCallback = function(response) {
+                            if (typeof callback === 'function') {
+                                callback(response);
+                            }
+                            resolve(response);
+                        };
+                        BetterDungeonBridge.forwardToMainWebView(messageJson);
+                        
+                        // Timeout fallback: resolve with undefined after 10s
+                        // so the popup never hangs indefinitely.
+                        setTimeout(function() {
+                            if (window.__bdPopupCallback) {
+                                window.__bdPopupCallback = null;
+                                if (typeof callback === 'function') {
+                                    callback(undefined);
+                                }
+                                resolve(undefined);
+                            }
+                        }, 10000);
+                    });
                 };
                 
                 // Override window.close() to collapse the popup panel
