@@ -418,14 +418,20 @@ class CommandFeature {
   // This approach survives React re-renders because stylesheet rules with !important
   // override regular inline styles (which React sets on the menu container).
   _injectMobileMenuStyles() {
-    if (document.getElementById('bd-mobile-mode-menu-styles')) return;
+    const existing = document.getElementById('bd-mobile-mode-menu-styles');
+    if (existing) return;
 
     const style = document.createElement('style');
     style.id = 'bd-mobile-mode-menu-styles';
     style.textContent = `
-      /* Force the expanded input mode menu to scroll horizontally on mobile.
+      /* The expanded input mode menu (id="30") is position:absolute with left:32px.
+         Without an explicit width cap it auto-sizes to its content, so the buttons
+         simply extend off-screen and an ancestor clips them.  We cap the menu's
+         width to (viewport − left offset − small margin) and enable horizontal
+         scroll so all 7 buttons are reachable via swipe.
          React sets overflow:hidden as an inline style; !important overrides it. */
       [data-bd-mode-menu] {
+        max-width: calc(100vw - 32px - 16px) !important;
         overflow-x: auto !important;
         overflow-y: hidden !important;
         -webkit-overflow-scrolling: touch;
