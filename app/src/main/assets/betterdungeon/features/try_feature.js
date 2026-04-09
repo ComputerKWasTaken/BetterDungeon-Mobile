@@ -27,40 +27,68 @@ class TryFeature {
         'achieve it perfectly',
         'pull it off with incredible style',
         'succeed spectacularly',
-        'masterfully succeed'
+        'masterfully succeed',
+        'accomplish it with flair',
+        'execute it flawlessly',
+        'triumph with brilliance',
+        'excel beyond measure',
+        'perform with extraordinary skill'
       ],
       success: [
         'manage to do it',
         'are successful',
         'pull it off',
         'succeed',
-        'make it happen'
+        'make it happen',
+        'get it done',
+        'accomplish the task',
+        'achieve your goal',
+        'bring it to fruition',
+        'complete it successfully'
       ],
       failure: [
         'can\'t quite manage it',
         'fall short',
         'don\'t succeed',
         'fail',
-        'falter'
+        'falter',
+        'miss the mark',
+        'come up empty',
+        'are unable to do it',
+        'fall short of success',
+        'don\'t make the cut'
       ],
       crit_fail: [
         'fail catastrophically',
         'make a complete mess of it',
         'fail in the worst way possible',
         'fail miserably',
-        'suffer a disastrous failure'
+        'suffer a disastrous failure',
+        'botch it completely',
+        'fail spectacularly',
+        'suffer a total collapse',
+        'fail beyond all hope',
+        'end in utter disaster'
       ]
     };
 
     // Sentence templates for variety
     // {action} = the user's action
-    // {outcome} = the result phrase (usually bolded)
+    // {outcome} = the result phrase
     // {connector} = 'and' or 'but'
     this.templates = [
       'try to {action}, {connector} you {outcome}.',
       'In an attempt to {action}, you {outcome}.',
       'You {outcome} in your attempt to {action}.',
-      '{action}... you {outcome}.'
+      '{action}... you {outcome}.',
+      'Attempting to {action}, you {outcome}.',
+      'You try to {action}, {connector} you {outcome}.',
+      'As you try to {action}, you {outcome}.',
+      'While trying to {action}, you {outcome}.',
+      'You make an attempt to {action} {connector} {outcome}.',
+      'When you try to {action}, you {outcome}.',
+      'Your attempt to {action} results in you {outcome}.',
+      'You set out to {action}, {connector} you {outcome}.'
     ];
   }
 
@@ -787,7 +815,7 @@ class TryFeature {
       status,
       succeeded,
       isCrit,
-      phrase: `**${phrase}**` // Apply Markdown bolding (we use standard because we aren't actually formatting)
+      phrase
     };
   }
 
