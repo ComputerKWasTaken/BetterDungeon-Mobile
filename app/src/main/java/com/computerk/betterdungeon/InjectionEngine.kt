@@ -54,6 +54,7 @@ class InjectionEngine(private val context: Context) {
             "features/better_scripts_feature.js",
             "features/input_history_feature.js",
             "features/mobile/mobile_settings_layer.js",
+            "features/mobile/mobile_design_layer.js",
             "main.js"
         )
     }
