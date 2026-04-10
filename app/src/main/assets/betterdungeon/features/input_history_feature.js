@@ -193,6 +193,7 @@ class InputHistoryFeature {
     // If the user actually typed something, reset the history index so they can navigate normally
     if (this.historyIndex !== -1) {
       this.historyIndex = -1;
+      this.updateHistoryBar();
     }
   }
 
@@ -225,6 +226,10 @@ class InputHistoryFeature {
     this.saveHistory();
     this.historyIndex = -1; // Reset index after sending
     this.log(`Saved input to history: [${mode}] ${text}`);
+
+    // Ensure the touch-navigation bar is visible and reflects the new count
+    this.injectHistoryBar();
+    this.updateHistoryBar();
   }
 
   async handleKeydown(e) {
@@ -321,12 +326,13 @@ class InputHistoryFeature {
     bar.id = 'bd-history-bar';
     bar.style.cssText = `
       position: absolute;
-      top: -36px;
-      right: 8px;
-      display: flex;
+      top: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 4px 8px;
+      padding: 2px 8px;
       background: rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
@@ -336,16 +342,17 @@ class InputHistoryFeature {
       font-size: 11px;
       color: rgba(255, 255, 255, 0.5);
       z-index: 5;
-      pointer-events: auto;
+      pointer-events: none;
       touch-action: manipulation;
       transition: opacity 0.2s;
     `;
 
-    // Shared touch-friendly button style
+    // Touch-friendly button style matching other BetterDungeon compact bars
     const btnStyle = `
+      pointer-events:auto;
       display:flex; align-items:center; justify-content:center;
-      min-width:32px; min-height:28px;
-      font-size:14px; font-weight:700; color:rgba(255,255,255,0.6);
+      min-width:28px; min-height:24px;
+      font-size:12px; font-weight:700; color:rgba(255,255,255,0.6);
       padding:2px 6px; border-radius:5px;
       background:rgba(255,255,255,0.08);
       cursor:pointer; user-select:none;
