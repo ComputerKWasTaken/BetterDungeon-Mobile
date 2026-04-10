@@ -177,9 +177,10 @@ class CommandFeature {
     // Check if we already added the button
     const existingButton = menu.querySelector('[aria-label="Set to \'Command\' mode"]');
     if (existingButton) {
-      // Verify it's in the correct position (should be after See, at the end)
-      // Correct position: seeButton -> commandButton (last)
-      if (seeButton && existingButton.previousElementSibling === seeButton && !existingButton.nextElementSibling) {
+      // Verify it's in the correct position (should be after See).
+      // Note: the gradient affordance from mobile_design_layer.js may sit
+      // after the Command button, so we only check the previous sibling.
+      if (seeButton && existingButton.previousElementSibling === seeButton) {
         return; // Already in correct position
       }
       // Wrong position - remove and re-add

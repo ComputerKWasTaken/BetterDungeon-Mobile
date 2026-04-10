@@ -123,14 +123,21 @@
 
   // --- Lifecycle ---
 
+  // Re-entrancy guard: prevent the observer from reacting to DOM changes
+  // caused by our own gradient injection (which would trigger an infinite loop).
+  let injecting = false;
+
   // 1. MutationObserver: whenever the menu appears/re-renders, sync.
   const observer = new MutationObserver(() => {
+    if (injecting) return;
     if (!shouldBeActive()) return;
 
     const menu = document.querySelector('[data-bd-mode-menu]');
     if (menu && !menu.querySelector('#' + GRADIENT_ID)) {
+      injecting = true;
       injectScrollStyles();
       injectGradient(menu);
+      injecting = false;
     }
   });
   observer.observe(document.body, { childList: true, subtree: true });
