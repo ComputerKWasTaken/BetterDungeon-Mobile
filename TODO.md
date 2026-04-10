@@ -37,7 +37,7 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
 - [OK] **Input Mode Colors** (`input_mode_color_feature.js`)
   - No issues currently with the Input Mode Colors feature.
 - [OK] **Character Presets** (`character_preset_feature.js`)
-  - No issues currently with the Character Presets feature.
+  - The Character Presets feature is working, but the "Save and Continue" button we inject is disappearing. Generally, we just need to analyze the process that occurs when we enter a scenario and are in the scenario placeholder questions. We could be more intelligent and more stable with how we process everything (especially considering we can go back and whatnot)
 - [OK] **Auto See** (`auto_see_feature.js`)
   - No issues currently with the Auto See feature.
 - [OK] **Story Card Analytics** (`story_card_analytics_feature.js`)
