@@ -50,9 +50,3 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
   - No issues currently with Better Scripts.
 - [X] **Input History** (`input_history_feature.js`)
   - This feature might work but we need to create a UI element that allows the user to actually switch between their previous inputs.
-
-## Other Issues and PC Bugs (that also need fixing)
-
-- Many features in the popup with buttons within them seem to always return incorrect updates (for example, when pressing Apply Instructions with the Markdown feature, the popup claims that application failed when it did not. These incorrect updates seem to occur with any button inside of our popup.)
-
-- The image icons aren't properly loading (this is most noticable in the loading screen, where the image of the BetterDungeon logo doesn't load and throws the "broken image" icon)
