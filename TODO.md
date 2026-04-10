@@ -30,8 +30,8 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
   - No issues currently with the Command Mode feature.
 - [OK] **Try Mode** (`try_feature.js`)
   - No issues currently with the Try mode.
-- [X] **Trigger Highlight** (`trigger_highlight_feature.js`)
-  - The Trigger Highlight system is porked on both mobile and PC. We'll tackle this one last as we'll probably need to rebuild this from the ground up.
+- [OK] **Trigger Highlight** (`trigger_highlight_feature.js`)
+  - Fixed on both mobile and PC. Updated `scanForTriggers` to use stable aria-labelledby selectors (matching the story card scanner), added `span.font_body` label scanning with `p.is_Paragraph` as legacy fallback, updated `findCardName` to use `scTitleLabel` input as primary method, updated `isAdventureModal` (PC) to handle "Complete Text" heading and tab-based fallback, and added cascading fallback selectors in `highlightTriggersInModal` for robustness.
 - [OK] **Plot Presets** (`plot_presets_feature.js`)
   - No issues currently with the Plot Presets feature.
 - [OK] **Input Mode Colors** (`input_mode_color_feature.js`)
