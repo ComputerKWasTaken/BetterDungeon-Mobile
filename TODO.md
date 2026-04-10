@@ -35,9 +35,7 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
 - [X] **Trigger Highlight** (`trigger_highlight_feature.js`)
   - The Trigger Highlight system is porked on both mobile and PC. We'll tackle this one last as we'll probably need to rebuild this from the ground up.
 - [~OK] **Plot Presets** (`plot_presets_feature.js`)
-  - The Plot Presets feature somewhat works...
-  - When you press "Save Preset", it throws a toast error in the popup yet executes normally
-  - Then, it'll successfully save the preset, but it won't update the Saved Plot Presets list until you close and reopen the app to cause a refresh.
+  - The Plot Presets feature successfully saves presets, but it won't update the Saved Plot Presets list until you close and reopen the app to cause a refresh.
 - [OK] **Input Mode Colors** (`input_mode_color_feature.js`)
   - No issues currently with the Input Mode Colors feature.
 - [OK] **Character Presets** (`character_preset_feature.js`)
