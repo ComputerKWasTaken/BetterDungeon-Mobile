@@ -1129,13 +1129,18 @@ async function saveNewPreset() {
 
     if (response?.success) {
       showToast('Preset saved!', 'success');
-      loadPresets();
     } else {
       showToast(response?.error || 'Failed to save', 'error');
     }
   } catch {
     showToast('Error saving preset', 'error');
   }
+
+  // Always refresh the preset list after a save attempt.
+  // The main WebView writes to SharedPreferences before responding;
+  // refreshing here ensures the list stays in sync even when the
+  // cross-WebView response is lost or delayed by the native bridge.
+  loadPresets();
 }
 
 function openPresetEditModal(preset) {
