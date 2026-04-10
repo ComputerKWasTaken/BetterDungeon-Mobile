@@ -48,5 +48,5 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
     2. The Notes feature may occasionally not allow you to edit your Notes, where you can tap on the text input box, but it will immediately kick you out of editing.
 - [OK] **Better Scripts** (`better_scripts_feature.js`)
   - No issues currently with Better Scripts.
-- [X] **Input History** (`input_history_feature.js`)
-  - This feature might work but we need to create a UI element that allows the user to actually switch between their previous inputs.
+- [OK] **Input History** (`input_history_feature.js`)
+  - No issues currently with the Input History feature.

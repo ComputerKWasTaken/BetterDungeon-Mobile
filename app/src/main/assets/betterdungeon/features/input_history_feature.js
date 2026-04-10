@@ -193,6 +193,7 @@ class InputHistoryFeature {
     // If the user actually typed something, reset the history index so they can navigate normally
     if (this.historyIndex !== -1) {
       this.historyIndex = -1;
+      this.updateHistoryBar();
     }
   }
 
@@ -225,6 +226,10 @@ class InputHistoryFeature {
     this.saveHistory();
     this.historyIndex = -1; // Reset index after sending
     this.log(`Saved input to history: [${mode}] ${text}`);
+
+    // Ensure the touch-navigation bar is visible and reflects the new count
+    this.injectHistoryBar();
+    this.updateHistoryBar();
   }
 
   async handleKeydown(e) {
@@ -308,25 +313,50 @@ class InputHistoryFeature {
     }
   }
 
+  // Inject a <style> tag that allows the input row to overflow so the
+  // history bar can sit visually above it without being clipped.
+  // Uses the same !important-override pattern as mobile_design_layer.js.
+  injectOverflowStyle() {
+    if (document.getElementById('bd-history-bar-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'bd-history-bar-styles';
+    style.textContent = `
+      [data-bd-history-parent] {
+        overflow: visible !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  removeOverflowStyle() {
+    const el = document.getElementById('bd-history-bar-styles');
+    if (el) el.remove();
+  }
+
   injectHistoryBar() {
     if (document.querySelector('#bd-history-bar')) return;
     const textarea = document.querySelector(this.textInputSelector);
     if (!textarea) return;
 
-    // The input row (textarea's parent) has position:absolute and bottom padding
+    // The input row (textarea's parent) has position:absolute and bottom padding.
+    // We mark it with a data attribute so our injected <style> can force
+    // overflow:visible, letting the bar sit above the row without clipping.
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
+
+    inputRow.setAttribute('data-bd-history-parent', 'true');
+    this.injectOverflowStyle();
 
     const bar = document.createElement('div');
     bar.id = 'bd-history-bar';
     bar.style.cssText = `
       position: absolute;
-      top: -36px;
+      bottom: calc(100% + 4px);
       right: 8px;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 4px 8px;
+      padding: 2px 8px;
       background: rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
@@ -336,16 +366,17 @@ class InputHistoryFeature {
       font-size: 11px;
       color: rgba(255, 255, 255, 0.5);
       z-index: 5;
-      pointer-events: auto;
+      pointer-events: none;
       touch-action: manipulation;
       transition: opacity 0.2s;
     `;
 
-    // Shared touch-friendly button style
+    // Touch-friendly button style matching other BetterDungeon compact bars
     const btnStyle = `
+      pointer-events:auto;
       display:flex; align-items:center; justify-content:center;
-      min-width:32px; min-height:28px;
-      font-size:14px; font-weight:700; color:rgba(255,255,255,0.6);
+      min-width:28px; min-height:24px;
+      font-size:12px; font-weight:700; color:rgba(255,255,255,0.6);
       padding:2px 6px; border-radius:5px;
       background:rgba(255,255,255,0.08);
       cursor:pointer; user-select:none;
@@ -432,6 +463,9 @@ class InputHistoryFeature {
     const bar = document.querySelector('#bd-history-bar');
     if (bar) bar.remove();
     this.historyBar = null;
+    this.removeOverflowStyle();
+    const marked = document.querySelector('[data-bd-history-parent]');
+    if (marked) marked.removeAttribute('data-bd-history-parent');
   }
 }
 
