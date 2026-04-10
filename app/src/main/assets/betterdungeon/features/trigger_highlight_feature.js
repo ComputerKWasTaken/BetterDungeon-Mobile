@@ -624,9 +624,10 @@ class TriggerHighlightFeature {
       return;
     }
 
-    // Find the story text content within the Adventure modal
-    // The story text is in a scrollable area with font_mono class
-    const storyTextElements = modal.querySelectorAll('.font_mono.is_Paragraph');
+    // Find the story text content within the Context Viewer modal
+    // The story text is displayed in span elements with is_Text and font_mono classes
+    // within the scrollable content area (is_Paragraph was removed in a DOM update)
+    const storyTextElements = modal.querySelectorAll('.is_Text.font_mono');
     
     // Collect all text for noun frequency analysis
     let allText = '';
