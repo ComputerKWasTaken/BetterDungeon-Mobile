@@ -24,8 +24,8 @@ Mark features as `[~X]` when they are barely working and need major adjustments
 Mark features as `[X]` when they are not working at all
 Mark features as `[?]` when they can't be tested or are not applicable on mobile (e.g., keyboard shortcuts that don't exist on touch devices).
 
-- [~OK] **Markdown Feature** (`markdown_feature.js`)
-  - The Markdown system is nearly perfect. It formats the text correctly and accounts for all types of text formatting we have available. However, there is one minor issue with the Auto Apply system in that it seems to be unable to properly apply the Markdown application instructions in the Author's Note element. (ALSO A PC BUG WE NEED TO FIX.)
+- [OK] **Markdown Feature** (`markdown_feature.js`)
+  - No issues currently with the Markdown system.
 - [~OK] **Command Mode** (`command_feature.js`)
   - This works for the most part, but I have 2 desired changes I would like to see implemented.
     - 1. The logic for changing the input mode switcher menu element from a static element to a scrollable element is contained within this file. This is bad practice, because if the Command Mode feature is disabled, then the scroll menu stop functioning, even when it is relevant and useful. The logic for converting the input mode switcher menu element should be moved into a new file called `mobile_design_layer.js` inside of app\src\main\assets\betterdungeon\features\mobile. Additionally, the input mode switcher menu element conversion process should only occur when either Command or Try is enable. If neither are enabled, then being able to scroll is irrelevant and the feature should be disabled until either Command or Try is reenabled. ADDITIONALLY, we shouldn't resize the buttons. Since we have the feature that enables the switcher menu to be scrollable, we shouldn't resize the buttons to be smaller. We should add a minor affordance by creating a new gradient element that will provide a UI affordance to the player (when the mobile_design_layer is enabled of course.)
@@ -35,9 +35,7 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
 - [X] **Trigger Highlight** (`trigger_highlight_feature.js`)
   - The Trigger Highlight system is porked on both mobile and PC. We'll tackle this one last as we'll probably need to rebuild this from the ground up.
 - [~OK] **Plot Presets** (`plot_presets_feature.js`)
-  - The Plot Presets feature somewhat works...
-  - When you press "Save Preset", it throws a toast error in the popup yet executes normally
-  - Then, it'll successfully save the preset, but it won't update the Saved Plot Presets list until you close and reopen the app to cause a refresh.
+  - The Plot Presets feature successfully saves presets, but it won't update the Saved Plot Presets list until you close and reopen the app to cause a refresh.
 - [OK] **Input Mode Colors** (`input_mode_color_feature.js`)
   - No issues currently with the Input Mode Colors feature.
 - [OK] **Character Presets** (`character_preset_feature.js`)
@@ -54,7 +52,3 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
   - No issues currently with Better Scripts.
 - [X] **Input History** (`input_history_feature.js`)
   - This feature might work but we need to create a UI element that allows the user to actually switch between their previous inputs.
-
-## Other Issues and PC Bugs (that also need fixing)
-
-- The image icons aren't properly loading (this is most noticable in the loading screen, where the image of the BetterDungeon logo doesn't load and throws the "broken image" icon)
