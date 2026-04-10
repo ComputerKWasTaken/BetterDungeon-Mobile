@@ -313,22 +313,46 @@ class InputHistoryFeature {
     }
   }
 
+  // Inject a <style> tag that allows the input row to overflow so the
+  // history bar can sit visually above it without being clipped.
+  // Uses the same !important-override pattern as mobile_design_layer.js.
+  injectOverflowStyle() {
+    if (document.getElementById('bd-history-bar-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'bd-history-bar-styles';
+    style.textContent = `
+      [data-bd-history-parent] {
+        overflow: visible !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  removeOverflowStyle() {
+    const el = document.getElementById('bd-history-bar-styles');
+    if (el) el.remove();
+  }
+
   injectHistoryBar() {
     if (document.querySelector('#bd-history-bar')) return;
     const textarea = document.querySelector(this.textInputSelector);
     if (!textarea) return;
 
-    // The input row (textarea's parent) has position:absolute and bottom padding
+    // The input row (textarea's parent) has position:absolute and bottom padding.
+    // We mark it with a data attribute so our injected <style> can force
+    // overflow:visible, letting the bar sit above the row without clipping.
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
+
+    inputRow.setAttribute('data-bd-history-parent', 'true');
+    this.injectOverflowStyle();
 
     const bar = document.createElement('div');
     bar.id = 'bd-history-bar';
     bar.style.cssText = `
       position: absolute;
-      top: 4px;
-      left: 50%;
-      transform: translateX(-50%);
+      bottom: calc(100% + 4px);
+      right: 8px;
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -439,6 +463,9 @@ class InputHistoryFeature {
     const bar = document.querySelector('#bd-history-bar');
     if (bar) bar.remove();
     this.historyBar = null;
+    this.removeOverflowStyle();
+    const marked = document.querySelector('[data-bd-history-parent]');
+    if (marked) marked.removeAttribute('data-bd-history-parent');
   }
 }
 
