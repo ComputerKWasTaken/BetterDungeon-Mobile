@@ -26,10 +26,8 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
 
 - [OK] **Markdown Feature** (`markdown_feature.js`)
   - No issues currently with the Markdown feature.
-- [~OK] **Command Mode** (`command_feature.js`)
-  - This works for the most part, but I have 2 desired changes I would like to see implemented.
-    - 1. The logic for changing the input mode switcher menu element from a static element to a scrollable element is contained within this file. This is bad practice, because if the Command Mode feature is disabled, then the scroll menu stop functioning, even when it is relevant and useful. The logic for converting the input mode switcher menu element should be moved into a new file called `mobile_design_layer.js` inside of app\src\main\assets\betterdungeon\features\mobile. Additionally, the input mode switcher menu element conversion process should only occur when either Command or Try is enable. If neither are enabled, then being able to scroll is irrelevant and the feature should be disabled until either Command or Try is reenabled. ADDITIONALLY, we shouldn't resize the buttons. Since we have the feature that enables the switcher menu to be scrollable, we shouldn't resize the buttons to be smaller. We should add a minor affordance by creating a new gradient element that will provide a UI affordance to the player (when the mobile_design_layer is enabled of course.)
-    - 2. The Command mode feature creates an element that indicates to the user that they can switch Command "modes" through the arrow keys. Since we are on mobile, the user can't actually change the "mode". We should adjust this element to be interactable via touch just like our `try_feature.js` does on mobile devices.
+- [OK] **Command Mode** (`command_feature.js`)
+  - No issues currently with the Command Mode feature.
 - [OK] **Try Mode** (`try_feature.js`)
   - No issues currently with the Try mode.
 - [X] **Trigger Highlight** (`trigger_highlight_feature.js`)
@@ -52,9 +50,3 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
   - No issues currently with Better Scripts.
 - [X] **Input History** (`input_history_feature.js`)
   - This feature might work but we need to create a UI element that allows the user to actually switch between their previous inputs.
-
-## Other Issues and PC Bugs (that also need fixing)
-
-- Many features in the popup with buttons within them seem to always return incorrect updates (for example, when pressing Apply Instructions with the Markdown feature, the popup claims that application failed when it did not. These incorrect updates seem to occur with any button inside of our popup.)
-
-- The image icons aren't properly loading (this is most noticable in the loading screen, where the image of the BetterDungeon logo doesn't load and throws the "broken image" icon)

@@ -177,9 +177,10 @@ class CommandFeature {
     // Check if we already added the button
     const existingButton = menu.querySelector('[aria-label="Set to \'Command\' mode"]');
     if (existingButton) {
-      // Verify it's in the correct position (should be after See, at the end)
-      // Correct position: seeButton -> commandButton (last)
-      if (seeButton && existingButton.previousElementSibling === seeButton && !existingButton.nextElementSibling) {
+      // Verify it's in the correct position (should be after See).
+      // Note: the gradient affordance from mobile_design_layer.js may sit
+      // after the Command button, so we only check the previous sibling.
+      if (seeButton && existingButton.previousElementSibling === seeButton) {
         return; // Already in correct position
       }
       // Wrong position - remove and re-add
@@ -238,8 +239,6 @@ class CommandFeature {
     // max-width calc adapts to whatever value AI Dungeon sets (varies by device).
     const menuLeft = parseFloat(menu.style.left) || 12;
     menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
-    this._injectMobileMenuStyles();
-
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
     this.applySpriteTheming(cleanButton, seeButton || storyButton);
@@ -418,56 +417,6 @@ class CommandFeature {
     });
   }
 
-  // Inject a <style> tag with mobile-specific CSS for the input mode menu.
-  // This approach survives React re-renders because stylesheet rules with !important
-  // override regular inline styles (which React sets on the menu container).
-  _injectMobileMenuStyles() {
-    // Replace stale styles if already injected (content may have changed between versions)
-    const existing = document.getElementById('bd-mobile-mode-menu-styles');
-    if (existing) return;
-
-    const style = document.createElement('style');
-    style.id = 'bd-mobile-mode-menu-styles';
-    style.textContent = `
-      /* The expanded input mode menu is position:absolute with a left offset that
-         varies by device (12-32px).  Without an explicit width cap it auto-sizes
-         to its content, so buttons extend off-screen and an ancestor clips them.
-         We read the actual left offset at runtime (see injectCommandButton) and
-         set --bd-menu-left as a CSS variable on the element, then use it here.
-         React sets overflow:hidden as an inline style; !important overrides it. */
-      [data-bd-mode-menu] {
-        max-width: calc(100vw - var(--bd-menu-left, 12px) - 8px) !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
-        -webkit-overflow-scrolling: touch;
-        flex-wrap: nowrap !important;
-      }
-
-      /* Hide the scrollbar but keep scroll functional */
-      [data-bd-mode-menu]::-webkit-scrollbar {
-        display: none;
-      }
-      [data-bd-mode-menu] {
-        scrollbar-width: none; /* Firefox */
-        -ms-overflow-style: none; /* IE/Edge */
-      }
-
-      /* Shrink button padding so more buttons fit on narrow mobile screens.
-         Native buttons use _pr-16px _pl-16px (16px each side).
-         Reducing to 8px each side saves 16px per button × 7 buttons = 112px. */
-      [data-bd-mode-menu] > [role="button"] {
-        padding-left: 8px !important;
-        padding-right: 8px !important;
-        flex-shrink: 0 !important;
-      }
-
-      /* Also shrink font size slightly for the mode labels to save horizontal space */
-      [data-bd-mode-menu] > [role="button"] .font_body {
-        font-size: 12px !important;
-      }
-    `;
-    document.head.appendChild(style);
-  }
 
   removeCommandButton() {
     const button = document.querySelector('[aria-label="Set to \'Command\' mode"]');
@@ -821,11 +770,55 @@ class CommandFeature {
       font-size: 9px;
       color: rgba(255, 255, 255, 0.5);
       z-index: 2;
-      pointer-events: none;
       user-select: none;
     `;
 
-    bar.innerHTML = `<span id="bd-submode-pill"></span><span style="opacity:0.3; font-size:8px;">\u2191\u2193</span>`;
+    // Touch-friendly button style matching the Try feature's compact bar buttons
+    const btnStyle = `
+      pointer-events:auto; cursor:pointer; user-select:none;
+      display:flex; align-items:center; justify-content:center;
+      min-width:22px; min-height:18px;
+      font-size:12px; font-weight:700; color:rgba(255,255,255,0.7);
+      padding:1px 4px; line-height:1;
+      border-radius:4px;
+      background:rgba(255,255,255,0.08);
+      -webkit-tap-highlight-color:transparent;
+      touch-action:manipulation;
+      transition:background .15s, transform .1s;
+    `.replace(/\n\s*/g, ' ');
+
+    bar.innerHTML = `
+      <span id="bd-submode-prev" role="button" aria-label="Previous command sub-mode" style="${btnStyle}">\u2039</span>
+      <span id="bd-submode-pill"></span>
+      <span id="bd-submode-next" role="button" aria-label="Next command sub-mode" style="${btnStyle}">\u203A</span>
+    `;
+
+    // Wire up touch AND click handlers on the prev/next buttons,
+    // following the same pattern as Try feature's success bar buttons.
+    const wireButton = (el, direction) => {
+      if (!el) return;
+      const addPress = () => { el.style.background = 'rgba(255,255,255,0.22)'; el.style.transform = 'scale(0.92)'; };
+      const removePress = () => { el.style.background = 'rgba(255,255,255,0.08)'; el.style.transform = ''; };
+
+      el.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addPress();
+        this.cycleSubMode(direction);
+      }, { passive: false });
+      el.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        removePress();
+      }, { passive: false });
+      el.addEventListener('touchcancel', removePress);
+      // Desktop fallback
+      el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.cycleSubMode(direction); });
+      el.addEventListener('mousedown', addPress);
+      el.addEventListener('mouseup', removePress);
+      el.addEventListener('mouseleave', removePress);
+    };
+    wireButton(bar.querySelector('#bd-submode-prev'), -1);
+    wireButton(bar.querySelector('#bd-submode-next'), 1);
 
     inputRow.appendChild(bar);
     this.subModeBar = bar;
