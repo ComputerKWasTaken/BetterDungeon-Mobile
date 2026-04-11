@@ -74,8 +74,15 @@ class CharacterPresetFeature {
   _removeUIElement(refName, visibleClass, sweepSelector) {
     const el = this[refName];
     if (el) {
-      el.classList.remove(visibleClass);
       this[refName] = null;
+      // If the element is already detached from the DOM (orphaned by React),
+      // skip the fade-out animation and remove immediately.
+      if (!el.isConnected) {
+        el.remove();
+        document.querySelectorAll(sweepSelector).forEach(e => e.remove());
+        return;
+      }
+      el.classList.remove(visibleClass);
       setTimeout(() => {
         el?.remove();
         // Sweep orphans, but protect any freshly-created element now tracked by this ref
@@ -94,19 +101,62 @@ class CharacterPresetFeature {
   }
 
   startPolling() {
-    // Poll every 500ms as a fallback for detection
+    // Poll every 500ms as a fallback for detection and UI integrity checks
     this.checkInterval = setInterval(() => {
+      this.verifyUIIntegrity();
       this.debouncedCheck();
     }, 500);
   }
 
-  // Debounce checkForEntryField to avoid excessive calls from MutationObserver
+  // Verify that all tracked UI elements are still attached to the DOM.
+  // Mobile WebView can silently detach elements when React re-renders
+  // the parent container during question transitions. When orphaned
+  // elements are found, null their references so the next checkForEntryField
+  // cycle cleanly rebuilds them.
+  verifyUIIntegrity() {
+    if (this.isProcessing || !this.currentFieldLabel) return;
+
+    let anyOrphaned = false;
+
+    if (this.overlayElement && !this.overlayElement.isConnected) {
+      this.overlayElement = null;
+      anyOrphaned = true;
+    }
+    if (this.saveButtonElement && !this.saveButtonElement.isConnected) {
+      this.saveButtonElement = null;
+      anyOrphaned = true;
+    }
+    if (this.characterIndicator && !this.characterIndicator.isConnected) {
+      this.characterIndicator = null;
+      anyOrphaned = true;
+    }
+    if (this.approvalElement && !this.approvalElement.isConnected) {
+      this.approvalElement = null;
+      anyOrphaned = true;
+    }
+
+    if (anyOrphaned) {
+      this.log('[CharacterPreset] Detected orphaned UI elements, will rebuild on next check');
+    }
+  }
+
+  // Check if any tracked UI elements have been orphaned (detached from DOM).
+  _hasOrphanedUI() {
+    return (this.overlayElement && !this.overlayElement.isConnected) ||
+           (this.saveButtonElement && !this.saveButtonElement.isConnected) ||
+           (this.characterIndicator && !this.characterIndicator.isConnected) ||
+           (this.approvalElement && !this.approvalElement.isConnected);
+  }
+
+  // Debounce checkForEntryField to avoid excessive calls from MutationObserver.
+  // Uses a shorter delay (120ms) than original (250ms) for faster recovery on mobile
+  // while still coalescing rapid-fire mutation bursts.
   debouncedCheck() {
     if (this._checkDebounceTimer) return;
     this._checkDebounceTimer = setTimeout(() => {
       this._checkDebounceTimer = null;
       this.checkForEntryField();
-    }, 250);
+    }, 120);
   }
 
   // ============================================
@@ -330,9 +380,10 @@ class CharacterPresetFeature {
   setupObserver() {
     this.observer = new MutationObserver((mutations) => {
       if (this.isProcessing) return;
-      
+
       for (const mutation of mutations) {
-        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        if (mutation.type === 'childList' &&
+            (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0)) {
           this.debouncedCheck();
           break;
         }
@@ -429,10 +480,22 @@ class CharacterPresetFeature {
         
         // Determine what to show based on the field type and state
         await this.handleField(field);
+      } else if (this._hasOrphanedUI()) {
+        // Same field, but some UI elements were detached by a React re-render.
+        // Clean up stale references and rebuild for the current field.
+        this.removeOverlay();
+        this.removeSaveButton();
+        this.removeCharacterIndicator();
+        this.removeApproval();
+        this.hasAutoFilled = false;
+        this._indicatorCharacterId = null;
+        await this.handleField(field);
       }
     } else {
       // Field not found, so use a grace period before tearing down UI.
       // React re-renders can cause the input to briefly disappear from the DOM.
+      // Mobile WebView transitions are slower, so use a longer grace period (800ms)
+      // to avoid tearing down UI that will reappear momentarily.
       if (this.currentFieldLabel !== null && !this._fieldGraceTimer) {
         this._fieldGraceTimer = setTimeout(() => {
           this._fieldGraceTimer = null;
@@ -447,7 +510,7 @@ class CharacterPresetFeature {
             this.removeCharacterIndicator();
             this.removeApproval();
           }
-        }, 400);
+        }, 800);
       }
     }
   }
@@ -786,7 +849,7 @@ class CharacterPresetFeature {
   // ============================================
 
   showCharacterIndicator(field, character) {
-    // Skip rebuild if already showing indicator for the same character
+    // Skip rebuild if already showing indicator for the same character and it's still in the DOM
     if (this._indicatorCharacterId === character.id && this.characterIndicator?.isConnected) return;
     this.removeCharacterIndicator();
     this._indicatorCharacterId = character.id;
