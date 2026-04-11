@@ -30,8 +30,8 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
   - No issues currently with the Command Mode feature.
 - [OK] **Try Mode** (`try_feature.js`)
   - No issues currently with the Try mode.
-- [X] **Trigger Highlight** (`trigger_highlight_feature.js`)
-  - The Trigger Highlight system is porked on both mobile and PC. We'll tackle this one last as we'll probably need to rebuild this from the ground up.
+- [OK] **Trigger Highlight** (`trigger_highlight_feature.js`)
+  - No issues currently with the Trigger Highlight feature.
 - [OK] **Plot Presets** (`plot_presets_feature.js`)
   - No issues currently with the Plot Presets feature.
 - [OK] **Input Mode Colors** (`input_mode_color_feature.js`)
