@@ -1,8 +1,25 @@
 // BetterDungeon - Character Preset Feature
-// Allows users to save character presets and auto-fill scenario entry fields
+// Allows users to save character presets and auto-fill scenario entry fields.
+//
+// Works with AI Dungeon's placeholder system (docs/07-scenarios/placeholders.md):
+// Scenarios define placeholders like ${Question text?} that present full-screen
+// text input prompts (#full-screen-text-input) to the player during Adventure setup.
+// This feature detects those prompts, lets the player pick a saved character preset,
+// and auto-fills responses based on previously saved field values.
+//
+// DOM queries follow the selector-centralization pattern from AIDungeonService.
+// React-compatible value setting uses the native HTMLInputElement prototype setter
+// (same technique as AIDungeonService.setTextInputValue).
 
 class CharacterPresetFeature {
   static id = 'characterPreset';
+
+  // Centralized selectors for scenario placeholder UI elements.
+  // Mirrors AIDungeonService.SEL pattern so selector updates happen in one place.
+  static SEL = {
+    SCENARIO_INPUT: '#full-screen-text-input',    // The full-screen text input shown during placeholder questions
+    HEADING:        'h1, h2, [role="heading"]',   // Heading elements used to read the placeholder question text
+  };
 
   constructor() {
     this.observer = null;
@@ -31,7 +48,7 @@ class CharacterPresetFeature {
 
   log(message, ...args) {
     if (this.debug) {
-      console.log(message, ...args);
+      console.log('[CharacterPreset]', message, ...args);
     }
   }
 
@@ -156,7 +173,7 @@ class CharacterPresetFeature {
       if (syncPresets.length > 0) {
         await this._chromeSet('local', { [this.storageKey]: syncPresets });
         try { chrome.storage.sync.remove(this.storageKey); } catch { /* ignore */ }
-        this.log('[CharacterPreset] Migrated presets from sync to local storage');
+        this.log('Migrated presets from sync to local storage');
       }
       presets = syncPresets;
     }
@@ -178,7 +195,7 @@ class CharacterPresetFeature {
       if (syncActiveId !== null) {
         await this._chromeSet('local', { [this.activePresetKey]: syncActiveId });
         try { chrome.storage.sync.remove(this.activePresetKey); } catch { /* ignore */ }
-        this.log('[CharacterPreset] Migrated active preset ID from sync to local storage');
+        this.log('Migrated active preset ID from sync to local storage');
       }
       activeId = syncActiveId;
     }
@@ -321,11 +338,11 @@ class CharacterPresetFeature {
     const fieldKey = this.normalizeFieldKey(label);
     
     if (fieldKey && preset.fields[fieldKey] !== undefined) {
-      this.log(`[CharacterPreset] Found match for "${fieldKey}"`);
+      this.log(`Found match for "${fieldKey}"`);
       return preset.fields[fieldKey];
     }
     
-    this.log(`[CharacterPreset] No match found for "${label}" (key: ${fieldKey})`);
+    this.log(`No match found for "${label}" (key: ${fieldKey})`);
     return undefined;
   }
 
@@ -368,7 +385,7 @@ class CharacterPresetFeature {
   // (an ancestor whose parent has multiple children), rather than relying
   // on fragile CSS-in-JS class names that can change between builds.
   getFieldContainer(field) {
-    if (!field?.input) return null;
+    if (!field?.input?.isConnected) return null;
     
     let el = field.input.parentElement;
     let depth = 0;
@@ -388,7 +405,7 @@ class CharacterPresetFeature {
   }
 
   findScenarioEntryField() {
-    const input = document.getElementById('full-screen-text-input');
+    const input = document.querySelector(CharacterPresetFeature.SEL.SCENARIO_INPUT);
     if (!input) return null;
 
     // Check if this is a scenario entry field by looking at its context
@@ -403,7 +420,7 @@ class CharacterPresetFeature {
     // Walk up from the input to find a reasonable ancestor to scope heading search
     const searchRoot = input.closest('[style*="max-width"]') || input.parentElement?.parentElement?.parentElement;
     if (searchRoot) {
-      const headings = searchRoot.querySelectorAll('h1, h2, [role="heading"]');
+      const headings = searchRoot.querySelectorAll(CharacterPresetFeature.SEL.HEADING);
       for (const heading of headings) {
         const text = heading.textContent?.trim();
         if (text && text.length > 0 && text.length < 100) {
@@ -465,7 +482,7 @@ class CharacterPresetFeature {
         } else if (!this._isUIAttached()) {
           // Same field, but our UI elements were detached (React re-rendered
           // the container). Clean up stale references and re-create the UI.
-          this.log('[CharacterPreset] UI detached from DOM, re-attaching...');
+          this.log('UI detached from DOM, re-attaching...');
           this._cleanDetachedRefs();
           await this.handleField(field);
         }
@@ -678,7 +695,7 @@ class CharacterPresetFeature {
 
   async createNewCharacterFromNameField(field) {
     // Re-query the input to get the freshest DOM reference
-    const input = document.getElementById('full-screen-text-input') || field.input;
+    const input = document.querySelector(CharacterPresetFeature.SEL.SCENARIO_INPUT) || field.input;
     const name = input.value?.trim();
     
     // Require user to type a name in the field first
@@ -777,7 +794,7 @@ class CharacterPresetFeature {
 
   async saveFieldAndContinue(field, continueBtn) {
     // Re-query the input to get the freshest DOM value
-    const freshInput = document.getElementById('full-screen-text-input') || field.input;
+    const freshInput = document.querySelector(CharacterPresetFeature.SEL.SCENARIO_INPUT) || field.input;
     const value = freshInput.value?.trim();
     
     if (!value) {
@@ -796,8 +813,9 @@ class CharacterPresetFeature {
     this.showToast(`Saved to ${sessionCharacter.name}`, 'success');
     this.removeSaveButton();
     
-    // Click continue
-    setTimeout(() => continueBtn.click(), 100);
+    // Click continue after a brief delay for the DOM to settle
+    await this._wait(100);
+    continueBtn.click();
   }
 
   // Save a field value under its normalized key
@@ -809,7 +827,7 @@ class CharacterPresetFeature {
     
     if (fieldKey) {
       preset.fields[fieldKey] = value;
-      this.log(`[CharacterPreset] Saved field: "${fieldKey}"`);
+      this.log(`Saved field: "${fieldKey}"`);
     }
     
     preset.updatedAt = Date.now();
@@ -826,7 +844,7 @@ class CharacterPresetFeature {
     
     if (preset.fields.hasOwnProperty(fieldKey)) {
       delete preset.fields[fieldKey];
-      this.log(`[CharacterPreset] Deleted field: "${fieldKey}"`);
+      this.log(`Deleted field: "${fieldKey}"`);
     }
     
     preset.updatedAt = Date.now();
@@ -836,17 +854,16 @@ class CharacterPresetFeature {
 
   findAdvanceButton(field) {
     // Find the button that advances to the next placeholder step.
-    // The new placeholder UI uses "Next" (mid-flow) and "Start" (final step)
+    // The placeholder UI uses "Next" (mid-flow) and "Start" (final step)
     // instead of the old "Continue". We match all three for backward compat.
-    // When a field is provided, scope the search to its container to avoid
-    // matching unrelated buttons elsewhere on the page.
+    // Scope search to field container to avoid matching unrelated buttons.
     const searchRoot = field ? (this.getFieldContainer(field) || document) : document;
     const buttons = searchRoot.querySelectorAll('[role="button"], button');
     for (const btn of buttons) {
+      // Skip the Back button — prefer aria-label check (more reliable than text)
+      if (btn.getAttribute('aria-label')?.toLowerCase() === 'back') continue;
       const text = btn.textContent?.toLowerCase() || '';
       if (text.includes('next') || text.includes('start') || text.includes('continue')) {
-        // Exclude the Back button so we don't accidentally match it
-        if (text.includes('back')) continue;
         return btn;
       }
     }
@@ -947,16 +964,15 @@ class CharacterPresetFeature {
       
       try {
         // Re-query the input element to avoid stale DOM references
-        const freshInput = document.getElementById('full-screen-text-input') || field.input;
+        const freshInput = document.querySelector(CharacterPresetFeature.SEL.SCENARIO_INPUT) || field.input;
         await this.typewriterFill(freshInput, value);
         this.showToast(`Filled: ${this.truncate(value, 25)}`, 'success');
         
-        setTimeout(() => {
-          // Re-query the advance button from fresh DOM state
-          const freshField = this.findScenarioEntryField() || field;
-          const continueBtn = this.findAdvanceButton(freshField);
-          if (continueBtn) continueBtn.click();
-        }, 300);
+        // Re-query the advance button from fresh DOM state
+        await this._wait(300);
+        const freshField = this.findScenarioEntryField() || field;
+        const continueBtn = this.findAdvanceButton(freshField);
+        if (continueBtn) continueBtn.click();
       } catch (err) {
         this.showToast('Auto-fill failed', 'error');
       } finally {
@@ -1073,55 +1089,65 @@ class CharacterPresetFeature {
   removeApproval() {
     this._removeUIElement('approvalElement', 'bd-approval-visible', '.bd-autofill-approval');
   }
-  
-  typewriterFill(input, text) {
-    return new Promise((resolve) => {
-      input.focus();
-      
-      // Determine the correct native value setter based on the element type.
-      // Using the wrong prototype's setter can fail to trigger React's synthetic events.
-      const proto = input instanceof HTMLTextAreaElement
-        ? HTMLTextAreaElement.prototype
-        : HTMLInputElement.prototype;
-      const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-      
-      if (!nativeSetter) {
-        // Fallback: direct assignment if native setter is unavailable
-        input.value = text;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        resolve();
-        return;
-      }
-      
-      // Step 1: Simulate a single keystroke to trigger React's state update.
-      // This ensures React's internal state stays in sync with the DOM value.
-      // (In older builds this also made the Continue button appear; the new
-      //  placeholder UI always shows Next/Start, but the two-step fill
-      //  remains necessary for React's controlled-input change detection.)
-      const firstChar = text.charAt(0) || ' ';
-      nativeSetter.call(input, firstChar);
-      input.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertText',
-        data: firstChar
-      }));
-      
-      // Step 2: Brief pause for React to process the state change
-      setTimeout(() => {
-        // Now set the full text instantly using the native setter
-        nativeSetter.call(input, text);
-        input.dispatchEvent(new InputEvent('input', {
-          bubbles: true,
-          cancelable: true,
-          inputType: 'insertText',
-          data: text
-        }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        resolve();
-      }, 50);
-    });
+
+  // ============================================
+  // UTILITIES (mirrors AIDungeonService patterns)
+  // ============================================
+
+  // Simple delay promise (same as AIDungeonService.wait)
+  _wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Get the React-compatible native value setter for an input element.
+  // Same technique as AIDungeonService.setTextInputValue — uses the
+  // prototype's setter to bypass React's synthetic event system.
+  _getInputSetter(input) {
+    const proto = input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+    return Object.getOwnPropertyDescriptor(proto, 'value')?.set || null;
+  }
+
+  // Fill an input using a two-step native setter approach for React compatibility.
+  // Step 1: Set the first character to trigger React's controlled-input change detection.
+  // Step 2: After a brief pause, set the full text.
+  // This two-step approach is necessary because React's placeholder input
+  // (#full-screen-text-input) requires an initial keystroke event before it
+  // recognizes the full value change — unlike the adventure's #game-text-input
+  // which AIDungeonService.setTextInputValue handles with a single set.
+  async typewriterFill(input, text) {
+    input.focus();
+    const nativeSetter = this._getInputSetter(input);
+
+    if (!nativeSetter) {
+      // Fallback: direct assignment if native setter is unavailable
+      input.value = text;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+
+    // Step 1: Single keystroke to sync React's internal state
+    const firstChar = text.charAt(0) || ' ';
+    nativeSetter.call(input, firstChar);
+    input.dispatchEvent(new InputEvent('input', {
+      bubbles: true,
+      cancelable: true,
+      inputType: 'insertText',
+      data: firstChar
+    }));
+
+    // Step 2: Brief pause for React to process, then set full text
+    await this._wait(50);
+    nativeSetter.call(input, text);
+    input.dispatchEvent(new InputEvent('input', {
+      bubbles: true,
+      cancelable: true,
+      inputType: 'insertText',
+      data: text
+    }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   // ============================================
