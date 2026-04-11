@@ -29,6 +29,11 @@ class NotesFeature {
     this.uiRetryTimer = null;
     this.uiRetryCount = 0;
     this.maxUiRetries = 12;
+
+    // Editing-state tracking for focus protection (Bug 2)
+    this._lastEditTime = 0;
+    this._pendingContent = null;
+    this._pendingCursorPos = null;
     
     // History API originals for cleanup
     this.originalPushState = null;
@@ -51,6 +56,13 @@ class NotesFeature {
     if (this.debug) {
       console.log(message, ...args);
     }
+  }
+
+  // Returns true if the user is actively editing or was very recently editing.
+  // Survives brief DOM detaches where activeElement reverts to <body>.
+  _isRecentlyEditing() {
+    if (this.textarea && document.activeElement === this.textarea) return true;
+    return (Date.now() - this._lastEditTime) < 2000;
   }
 
   // ==================== LIFECYCLE ====================
@@ -121,6 +133,9 @@ class NotesFeature {
 
         this.currentAdventureId = newAdventureId;
         this.loadedAdventureId = null;
+        // Clear stale pending content from previous adventure
+        this._pendingContent = null;
+        this._pendingCursorPos = null;
       }
 
       this.createUI();
@@ -130,11 +145,20 @@ class NotesFeature {
         this.loadedAdventureId = this.currentAdventureId;
       }
     } else {
+      // If the URL still has an adventure but UI elements are transiently
+      // absent (React re-render) and the user is editing, defer cleanup.
+      const urlStillHasAdventure = !!this.getAdventureIdFromUrl();
+      if (urlStillHasAdventure && this._isRecentlyEditing()) {
+        return;
+      }
+
       if (this.currentAdventureId && this.textarea) {
         this.saveNotes();
       }
       this.currentAdventureId = null;
       this.loadedAdventureId = null;
+      this._pendingContent = null;
+      this._pendingCursorPos = null;
       this.removeUI();
     }
   }
@@ -386,19 +410,28 @@ class NotesFeature {
     // Without this, findPlotComponentsContainer() can match similar DOM structures
     // on the Story Cards or Details sub-tabs and inject the card in the wrong place.
     if (!this.isPlotTabActive()) {
+      // Don't tear down UI during transient tab-detection flickers while editing
+      if (this._isRecentlyEditing()) {
+        return;
+      }
       this.removeUI();
       return;
     }
 
-    // If the user is actively typing in our textarea, skip any DOM
-    // manipulation to avoid stealing focus and "kicking the user out".
-    if (this.textarea && document.activeElement === this.textarea) {
+    // If the user is actively typing in our textarea and it is still
+    // attached to the DOM, skip any DOM manipulation to avoid stealing focus.
+    if (this._isRecentlyEditing() && this.textarea && document.body.contains(this.textarea)) {
       return;
     }
 
     const wrapperDetached = this.notesCardWrapper && !document.body.contains(this.notesCardWrapper);
     const cardDetached = this.notesCard && !document.body.contains(this.notesCard);
     if (wrapperDetached || cardDetached) {
+      // Preserve in-progress edits before nullifying references
+      if (this.textarea) {
+        this._pendingContent = this.textarea.value;
+        this._pendingCursorPos = this.textarea.selectionStart;
+      }
       this.notesCard = null;
       this.notesCardWrapper = null;
       this.textarea = null;
@@ -446,7 +479,36 @@ class NotesFeature {
 
     this.textarea = this.notesCard.querySelector('.bd-notes-textarea');
 
-    this.textarea?.addEventListener('input', () => this.debouncedSave());
+    if (this.textarea) {
+      this.textarea.addEventListener('input', () => {
+        this._lastEditTime = Date.now();
+        this.debouncedSave();
+      });
+      this.textarea.addEventListener('focus', () => {
+        this._lastEditTime = Date.now();
+      });
+
+      // Restore in-progress edits that were preserved across a DOM detach/recreate
+      if (this._pendingContent !== null) {
+        this.textarea.value = this._pendingContent;
+        const cursorPos = this._pendingCursorPos;
+        if (cursorPos !== null) {
+          this.textarea.selectionStart = cursorPos;
+          this.textarea.selectionEnd = cursorPos;
+        }
+
+        const wasEditing = this._isRecentlyEditing();
+        this._pendingContent = null;
+        this._pendingCursorPos = null;
+
+        if (wasEditing) {
+          this.textarea.focus();
+        }
+
+        // Trigger a save for the restored content
+        this.debouncedSave();
+      }
+    }
   }
 
   removeUI() {
