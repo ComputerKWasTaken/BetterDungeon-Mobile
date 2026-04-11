@@ -421,6 +421,9 @@ class NotesFeature {
       this.notesCard = null;
       this.notesCardWrapper = null;
       this.textarea = null;
+      // The card will be recreated below with an empty textarea, so we
+      // must reload notes from storage afterwards.
+      this.loadedAdventureId = null;
     }
 
     const insertion = this.findPlotComponentsContainer();
@@ -466,6 +469,17 @@ class NotesFeature {
     this.textarea = this.notesCard.querySelector('.bd-notes-textarea');
 
     this.textarea?.addEventListener('input', () => this.debouncedSave());
+
+    // Save immediately when the textarea loses focus so content is
+    // persisted before any MutationObserver-driven detection cycle can
+    // recreate the card.  This also flushes the debounced save timer.
+    this.textarea?.addEventListener('blur', () => {
+      if (this.saveDebounceTimer) {
+        clearTimeout(this.saveDebounceTimer);
+        this.saveDebounceTimer = null;
+      }
+      this.saveNotes();
+    });
   }
 
   removeUI() {
