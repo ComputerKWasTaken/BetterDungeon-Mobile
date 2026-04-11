@@ -497,13 +497,14 @@ class NotesFeature {
           this.textarea.selectionEnd = cursorPos;
         }
 
-        const wasEditing = this._isRecentlyEditing();
         this._pendingContent = null;
         this._pendingCursorPos = null;
 
-        if (wasEditing) {
-          this.textarea.focus();
-        }
+        // Do NOT call this.textarea.focus() here. On mobile, programmatic
+        // focus triggers the keyboard which causes a layout shift / React
+        // re-render that detaches the card again, creating an infinite
+        // focus → detach → recreate → focus cycle.  The content and cursor
+        // are preserved; the user can tap to resume editing.
 
         // Trigger a save for the restored content
         this.debouncedSave();
