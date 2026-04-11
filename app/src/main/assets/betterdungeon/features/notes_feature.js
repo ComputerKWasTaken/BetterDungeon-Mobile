@@ -221,13 +221,24 @@ class NotesFeature {
 
   // ==================== UI CREATION ====================
 
+  // Locate the Plot subtab using the same multi-strategy approach as
+  // AIDungeonService.findTabByText() so we don't miss non-aria-label tabs.
   findPlotTab() {
     const tabs = document.querySelectorAll('[role="tab"]');
     for (const tab of tabs) {
-      const ariaLabel = tab.getAttribute('aria-label')?.toLowerCase() || '';
-      if (ariaLabel.includes('plot')) {
-        return tab;
+      const aria = tab.getAttribute('aria-label')?.toLowerCase() || '';
+      if (aria === 'plot' || aria.includes('tab plot')) return tab;
+
+      for (const p of tab.querySelectorAll('p')) {
+        if (p.textContent?.trim().toLowerCase() === 'plot') return tab;
       }
+
+      for (const span of tab.querySelectorAll('.font_body')) {
+        if (span.textContent?.trim().toLowerCase() === 'plot') return tab;
+      }
+
+      const full = tab.textContent?.trim().toLowerCase() || '';
+      if (full === 'plot') return tab;
     }
     return null;
   }
@@ -264,9 +275,7 @@ class NotesFeature {
 
   isPlotTabActive() {
     const plotTab = this.findPlotTab();
-    if (plotTab && this.isTabSelected(plotTab)) return true;
-
-    return !!this.findAddPlotComponentButton();
+    return !!(plotTab && this.isTabSelected(plotTab));
   }
 
   findAddPlotComponentButton() {
