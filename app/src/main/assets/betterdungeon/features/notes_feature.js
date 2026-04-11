@@ -70,6 +70,7 @@ class NotesFeature {
     if (this.currentAdventureId) {
       this.createUI();
       await this.loadNotes();
+      this.loadedAdventureId = this.currentAdventureId;
     }
     
     this.startAdventureChangeDetection();
@@ -79,20 +80,14 @@ class NotesFeature {
   destroy() {
     console.log('[Notes] Destroying Notes feature...');
     
-    // Save any pending notes
+    // Flush any pending debounce and always persist current content
     if (this.saveDebounceTimer) {
       clearTimeout(this.saveDebounceTimer);
-      this.saveNotes();
+      this.saveDebounceTimer = null;
     }
-
-    // Clear editing state
-    if (this._editingBlurTimer) {
-      clearTimeout(this._editingBlurTimer);
-      this._editingBlurTimer = null;
-    }
-    this._isEditing = false;
+    this.saveNotes();
     
-    // Remove UI elements
+    // Remove UI elements (also clears editing state)
     this.removeUI();
     
     // Clean up event listeners and observers
@@ -400,19 +395,22 @@ class NotesFeature {
   }
 
   createUI() {
+    // If the user is actively editing, skip all DOM manipulation to avoid
+    // stealing focus.  The _isEditing flag is more reliable than checking
+    // document.activeElement on mobile, where focus can flicker during
+    // keyboard transitions and React re-renders.
+    // This MUST be checked before isPlotTabActive() — during DOM transitions
+    // (keyboard open/close, React re-renders) the tab check can briefly
+    // return false, which would call removeUI() and destroy the textarea.
+    if (this._isEditing) {
+      return;
+    }
+
     // Guard: only show the Notes card when the Plot tab is active.
     // Without this, findPlotComponentsContainer() can match similar DOM structures
     // on the Story Cards or Details sub-tabs and inject the card in the wrong place.
     if (!this.isPlotTabActive()) {
       this.removeUI();
-      return;
-    }
-
-    // If the user is actively editing, skip all DOM manipulation to avoid
-    // stealing focus.  The _isEditing flag is more reliable than checking
-    // document.activeElement on mobile, where focus can flicker during
-    // keyboard transitions and React re-renders.
-    if (this._isEditing) {
       return;
     }
 
@@ -493,6 +491,10 @@ class NotesFeature {
       this._editingBlurTimer = setTimeout(() => {
         this._isEditing = false;
         this._editingBlurTimer = null;
+        // Trigger a refresh now that editing is done.  If the card was
+        // detached by React during editing, this re-creates it and
+        // reloads the saved content.
+        this.detectCurrentAdventure();
       }, 300);
     });
   }
@@ -528,12 +530,16 @@ class NotesFeature {
     if (!this.currentAdventureId || !this.textarea) return;
     if (!this.isExtensionContextValid()) return;
     
-    const key = this.storageKeyPrefix + this.currentAdventureId;
+    // Capture the adventure ID at call time so we can verify it hasn't
+    // changed by the time the async storage read completes.
+    const adventureId = this.currentAdventureId;
+    const key = this.storageKeyPrefix + adventureId;
     
     try {
       const result = await chrome.storage.local.get(key);
       const notes = result[key] || '';
-      if (this.textarea) {
+      // Only apply if we're still on the same adventure and have a textarea
+      if (this.textarea && this.currentAdventureId === adventureId) {
         this.textarea.value = notes;
       }
     } catch (e) {
