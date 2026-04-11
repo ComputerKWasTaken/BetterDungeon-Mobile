@@ -34,6 +34,7 @@ class NotesFeature {
     this._lastEditTime = 0;
     this._pendingContent = null;
     this._pendingCursorPos = null;
+    this._safeFocusReconnectTimer = null;
     
     // History API originals for cleanup
     this.originalPushState = null;
@@ -65,6 +66,39 @@ class NotesFeature {
     return (Date.now() - this._lastEditTime) < 2000;
   }
 
+  // Focus the textarea without triggering the MutationObserver → recreate
+  // cycle.  Temporarily disconnects the observer so the keyboard appearance
+  // and resulting layout shift don't cause adventure-detection to fire.
+  // The observer is reconnected after the layout has settled.
+  _focusTextareaSafely() {
+    if (!this.textarea) return;
+
+    // Cancel any pending reconnect from a previous call
+    if (this._safeFocusReconnectTimer) {
+      clearTimeout(this._safeFocusReconnectTimer);
+      this._safeFocusReconnectTimer = null;
+    }
+
+    // Disconnect the observer before focusing
+    if (this.adventureObserver) {
+      this.adventureObserver.disconnect();
+    }
+
+    this.textarea.focus();
+    this._lastEditTime = Date.now();
+
+    // Reconnect after keyboard animation / layout has settled
+    this._safeFocusReconnectTimer = setTimeout(() => {
+      this._safeFocusReconnectTimer = null;
+      if (this.adventureObserver) {
+        this.adventureObserver.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      }
+    }, 600);
+  }
+
   // ==================== LIFECYCLE ====================
 
   async init() {
@@ -93,6 +127,12 @@ class NotesFeature {
     // Remove UI elements
     this.removeUI();
     
+    // Clean up safe-focus reconnect timer
+    if (this._safeFocusReconnectTimer) {
+      clearTimeout(this._safeFocusReconnectTimer);
+      this._safeFocusReconnectTimer = null;
+    }
+
     // Clean up event listeners and observers
     this.stopAdventureChangeDetection();
     
@@ -497,14 +537,15 @@ class NotesFeature {
           this.textarea.selectionEnd = cursorPos;
         }
 
+        const wasEditing = this._isRecentlyEditing();
         this._pendingContent = null;
         this._pendingCursorPos = null;
 
-        // Do NOT call this.textarea.focus() here. On mobile, programmatic
-        // focus triggers the keyboard which causes a layout shift / React
-        // re-render that detaches the card again, creating an infinite
-        // focus → detach → recreate → focus cycle.  The content and cursor
-        // are preserved; the user can tap to resume editing.
+        // Re-focus using the safe method which pauses the MutationObserver
+        // so the keyboard / layout shift doesn't trigger a recreate cycle.
+        if (wasEditing) {
+          this._focusTextareaSafely();
+        }
 
         // Trigger a save for the restored content
         this.debouncedSave();
