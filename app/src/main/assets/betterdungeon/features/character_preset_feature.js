@@ -26,7 +26,7 @@ class CharacterPresetFeature {
     this._checkDebounceTimer = null; // Debounce timer for checkForEntryField
     this._fieldGraceTimer = null; // Grace period before tearing down UI when field disappears
     this._indicatorCharacterId = null; // Track which character the indicator is showing
-    this._lastHandledField = null; // Cache the last field passed to handleField for re-attachment
+    this._checkRunning = false; // Reentrance guard for async checkForEntryField
   }
 
   log(message, ...args) {
@@ -68,7 +68,6 @@ class CharacterPresetFeature {
     this.removeCharacterIndicator();
     this.removeApproval();
     this.sessionCharacterId = null;
-    this._lastHandledField = null;
   }
 
   // Shared helper: fade out a tracked UI element, null the reference, then
@@ -219,12 +218,7 @@ class CharacterPresetFeature {
   }
 
   isNewScenario() {
-    const currentUrl = window.location.href;
-    // Check if URL has changed (different scenario)
-    if (this.scenarioSessionUrl !== currentUrl) {
-      return true;
-    }
-    return false;
+    return this.scenarioSessionUrl !== window.location.href;
   }
 
   async startNewScenarioSession() {
@@ -440,60 +434,64 @@ class CharacterPresetFeature {
 
   async checkForEntryField() {
     if (this.isProcessing) return; // Don't re-detect fields mid-fill
-    const field = this.findScenarioEntryField();
+    if (this._checkRunning) return; // Prevent overlapping async calls
+    this._checkRunning = true;
     
-    if (field) {
-      const fieldId = field.ariaLabel;
+    try {
+      const field = this.findScenarioEntryField();
       
-      // Field found, so cancel any pending teardown grace timer
-      if (this._fieldGraceTimer) {
-        clearTimeout(this._fieldGraceTimer);
-        this._fieldGraceTimer = null;
-      }
-      
-      // Check if this is a new field
-      if (this.currentFieldLabel !== fieldId) {
-        this.currentFieldLabel = fieldId;
-        this.currentFieldKey = field.fieldKey;
-        this.hasAutoFilled = false;
+      if (field) {
+        const fieldId = field.ariaLabel;
         
-        // Clean up previous UI
-        this.removeOverlay();
-        this.removeSaveButton();
-        this.removeApproval();
-        
-        // Determine what to show based on the field type and state
-        this._lastHandledField = field;
-        await this.handleField(field);
-      } else if (!this._isUIAttached()) {
-        // Same field, but our UI elements were detached (React re-rendered
-        // the container). Clean up stale references and re-create the UI.
-        this.log('[CharacterPreset] UI detached from DOM, re-attaching...');
-        this._cleanDetachedRefs();
-        this._lastHandledField = field;
-        await this.handleField(field);
-      }
-    } else {
-      // Field not found, so use a grace period before tearing down UI.
-      // React re-renders can cause the input to briefly disappear from the DOM.
-      // Use a longer grace period on mobile where re-renders are slower.
-      if (this.currentFieldLabel !== null && !this._fieldGraceTimer) {
-        this._fieldGraceTimer = setTimeout(() => {
+        // Field found, so cancel any pending teardown grace timer
+        if (this._fieldGraceTimer) {
+          clearTimeout(this._fieldGraceTimer);
           this._fieldGraceTimer = null;
-          // Re-check: if field is genuinely gone, tear down
-          if (!this.findScenarioEntryField()) {
-            this.currentFieldLabel = null;
-            this.currentFieldKey = null;
-            this.hasAutoFilled = false;
-            this._indicatorCharacterId = null;
-            this._lastHandledField = null;
-            this.removeOverlay();
-            this.removeSaveButton();
-            this.removeCharacterIndicator();
-            this.removeApproval();
-          }
-        }, 800);
+        }
+        
+        // Check if this is a new field
+        if (this.currentFieldLabel !== fieldId) {
+          this.currentFieldLabel = fieldId;
+          this.currentFieldKey = field.fieldKey;
+          this.hasAutoFilled = false;
+          
+          // Clean up previous UI
+          this.removeOverlay();
+          this.removeSaveButton();
+          this.removeApproval();
+          
+          // Determine what to show based on the field type and state
+          await this.handleField(field);
+        } else if (!this._isUIAttached()) {
+          // Same field, but our UI elements were detached (React re-rendered
+          // the container). Clean up stale references and re-create the UI.
+          this.log('[CharacterPreset] UI detached from DOM, re-attaching...');
+          this._cleanDetachedRefs();
+          await this.handleField(field);
+        }
+      } else {
+        // Field not found, so use a grace period before tearing down UI.
+        // React re-renders can cause the input to briefly disappear from the DOM.
+        // Use a longer grace period on mobile where re-renders are slower.
+        if (this.currentFieldLabel !== null && !this._fieldGraceTimer) {
+          this._fieldGraceTimer = setTimeout(() => {
+            this._fieldGraceTimer = null;
+            // Re-check: if field is genuinely gone, tear down
+            if (!this.findScenarioEntryField()) {
+              this.currentFieldLabel = null;
+              this.currentFieldKey = null;
+              this.hasAutoFilled = false;
+              this._indicatorCharacterId = null;
+              this.removeOverlay();
+              this.removeSaveButton();
+              this.removeCharacterIndicator();
+              this.removeApproval();
+            }
+          }, 800);
+        }
       }
+    } finally {
+      this._checkRunning = false;
     }
   }
 
@@ -645,6 +643,8 @@ class CharacterPresetFeature {
   }
 
   setupCharacterSelectorHandlers(field) {
+    if (!this.overlayElement?.isConnected) return;
+    
     const selector = this.overlayElement.querySelector('#bd-preset-selector');
     const newPresetBtn = this.overlayElement.querySelector('#bd-new-preset-btn');
 
@@ -677,12 +677,14 @@ class CharacterPresetFeature {
   }
 
   async createNewCharacterFromNameField(field) {
-    const name = field.input.value?.trim();
+    // Re-query the input to get the freshest DOM reference
+    const input = document.getElementById('full-screen-text-input') || field.input;
+    const name = input.value?.trim();
     
     // Require user to type a name in the field first
     if (!name) {
       this.showToast('Type a character name first', 'error');
-      field.input.focus();
+      input.focus();
       return;
     }
     
@@ -774,7 +776,9 @@ class CharacterPresetFeature {
   }
 
   async saveFieldAndContinue(field, continueBtn) {
-    const value = field.input.value?.trim();
+    // Re-query the input to get the freshest DOM value
+    const freshInput = document.getElementById('full-screen-text-input') || field.input;
+    const value = freshInput.value?.trim();
     
     if (!value) {
       this.showToast('Enter a value first', 'error');
@@ -948,7 +952,9 @@ class CharacterPresetFeature {
         this.showToast(`Filled: ${this.truncate(value, 25)}`, 'success');
         
         setTimeout(() => {
-          const continueBtn = this.findAdvanceButton(field);
+          // Re-query the advance button from fresh DOM state
+          const freshField = this.findScenarioEntryField() || field;
+          const continueBtn = this.findAdvanceButton(freshField);
           if (continueBtn) continueBtn.click();
         }, 300);
       } catch (err) {
