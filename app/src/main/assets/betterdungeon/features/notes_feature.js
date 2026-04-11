@@ -37,8 +37,6 @@ class NotesFeature {
     this.debug = false;
   }
 
-  // Check if the Chrome extension runtime is still alive.
-  // Returns false after extension reload/update/disable while the content script lingers.
   isExtensionContextValid() {
     try {
       return !!chrome.runtime?.id;
@@ -50,6 +48,21 @@ class NotesFeature {
   log(message, ...args) {
     if (this.debug) {
       console.log(message, ...args);
+    }
+  }
+
+  // Run a storage operation with standardised error handling.
+  // Swallows "Extension context invalidated" errors (benign race after
+  // extension reload) and logs anything else.
+  async _storageOp(tag, fn) {
+    if (!this.isExtensionContextValid()) return undefined;
+    try {
+      return await fn();
+    } catch (e) {
+      if (!String(e).includes('Extension context invalidated')) {
+        console.error(`[Notes] ${tag}:`, e);
+      }
+      return undefined;
     }
   }
 
@@ -71,25 +84,24 @@ class NotesFeature {
 
   destroy() {
     console.log('[Notes] Destroying Notes feature...');
-    
-    // Save any pending notes
-    if (this.saveDebounceTimer) {
-      clearTimeout(this.saveDebounceTimer);
-      this.saveNotes();
-    }
-    
-    // Remove UI elements
+    this.flushPendingSave();
     this.removeUI();
-    
-    // Clean up event listeners and observers
     this.stopAdventureChangeDetection();
-    
     console.log('[Notes] Cleanup complete');
   }
 
   // ==================== ADVENTURE DETECTION ====================
 
-  // Check if adventure UI elements are present in the DOM
+  // Uses a DOM query fallback so it works even if this.textarea was
+  // temporarily nulled during a React re-render.
+  isUserEditingNotes() {
+    if (this.textarea && document.activeElement === this.textarea) {
+      return true;
+    }
+    const notesTextarea = document.querySelector('.bd-notes-textarea');
+    return !!(notesTextarea && document.activeElement === notesTextarea);
+  }
+
   isAdventureUIPresent() {
     // These elements are always present on an active adventure page
     const gameplayOutput = document.querySelector('#gameplay-output');
@@ -107,10 +119,12 @@ class NotesFeature {
   }
 
   detectCurrentAdventure() {
+    // Skip while the user is editing — React re-renders can cause
+    // transient DOM states that would destroy the textarea.
+    if (this.isUserEditingNotes()) return;
+
     const newAdventureId = this.getAdventureIdFromUrl();
     const adventureUIPresent = this.isAdventureUIPresent();
-    
-    // Only consider us "on an adventure" if both URL matches AND UI is present
     const isOnAdventure = newAdventureId && adventureUIPresent;
     
     if (isOnAdventure) {
@@ -207,13 +221,24 @@ class NotesFeature {
 
   // ==================== UI CREATION ====================
 
+  // Locate the Plot subtab using the same multi-strategy approach as
+  // AIDungeonService.findTabByText() so we don't miss non-aria-label tabs.
   findPlotTab() {
     const tabs = document.querySelectorAll('[role="tab"]');
     for (const tab of tabs) {
-      const ariaLabel = tab.getAttribute('aria-label')?.toLowerCase() || '';
-      if (ariaLabel.includes('plot')) {
-        return tab;
+      const aria = tab.getAttribute('aria-label')?.toLowerCase() || '';
+      if (aria === 'plot' || aria.includes('tab plot')) return tab;
+
+      for (const p of tab.querySelectorAll('p')) {
+        if (p.textContent?.trim().toLowerCase() === 'plot') return tab;
       }
+
+      for (const span of tab.querySelectorAll('.font_body')) {
+        if (span.textContent?.trim().toLowerCase() === 'plot') return tab;
+      }
+
+      const full = tab.textContent?.trim().toLowerCase() || '';
+      if (full === 'plot') return tab;
     }
     return null;
   }
@@ -250,9 +275,7 @@ class NotesFeature {
 
   isPlotTabActive() {
     const plotTab = this.findPlotTab();
-    if (plotTab && this.isTabSelected(plotTab)) return true;
-
-    return !!this.findAddPlotComponentButton();
+    return !!(plotTab && this.isTabSelected(plotTab));
   }
 
   findAddPlotComponentButton() {
@@ -382,26 +405,23 @@ class NotesFeature {
   }
 
   createUI() {
-    // Guard: only show the Notes card when the Plot tab is active.
-    // Without this, findPlotComponentsContainer() can match similar DOM structures
-    // on the Story Cards or Details sub-tabs and inject the card in the wrong place.
+    // Only show Notes on the Plot tab.
     if (!this.isPlotTabActive()) {
       this.removeUI();
       return;
     }
 
-    // If the user is actively typing in our textarea, skip any DOM
-    // manipulation to avoid stealing focus and "kicking the user out".
-    if (this.textarea && document.activeElement === this.textarea) {
-      return;
-    }
+    if (this.isUserEditingNotes()) return;
 
-    const wrapperDetached = this.notesCardWrapper && !document.body.contains(this.notesCardWrapper);
-    const cardDetached = this.notesCard && !document.body.contains(this.notesCard);
-    if (wrapperDetached || cardDetached) {
+    // If React re-rendered our parent, the card may be detached.
+    // Null references so we recreate and reload below.
+    const detached = (this.notesCardWrapper && !document.body.contains(this.notesCardWrapper))
+                  || (this.notesCard && !document.body.contains(this.notesCard));
+    if (detached) {
       this.notesCard = null;
       this.notesCardWrapper = null;
       this.textarea = null;
+      this.loadedAdventureId = null;
     }
 
     const insertion = this.findPlotComponentsContainer();
@@ -447,6 +467,7 @@ class NotesFeature {
     this.textarea = this.notesCard.querySelector('.bd-notes-textarea');
 
     this.textarea?.addEventListener('input', () => this.debouncedSave());
+    this.textarea?.addEventListener('blur', () => this.flushPendingSave());
   }
 
   removeUI() {
@@ -471,102 +492,55 @@ class NotesFeature {
 
   async loadNotes() {
     if (!this.currentAdventureId || !this.textarea) return;
-    if (!this.isExtensionContextValid()) return;
-    
     const key = this.storageKeyPrefix + this.currentAdventureId;
-    
-    try {
+    await this._storageOp('load', async () => {
       const result = await chrome.storage.local.get(key);
-      const notes = result[key] || '';
-      if (this.textarea) {
-        this.textarea.value = notes;
-      }
-    } catch (e) {
-      // Silently ignore extension context invalidation. This is a benign
-      // race that occurs when the extension reloads while the page is open.
-      if (String(e).includes('Extension context invalidated')) {
-        this.log('[Notes] Extension context invalidated, skipping load');
-        return;
-      }
-      console.error('[Notes] Error loading notes:', e);
-    }
+      if (this.textarea) this.textarea.value = result[key] || '';
+    });
   }
 
   async saveNotes() {
     if (!this.currentAdventureId || !this.textarea) return;
-    if (!this.isExtensionContextValid()) return;
-    
     const key = this.storageKeyPrefix + this.currentAdventureId;
     const notes = this.textarea.value;
-    
-    try {
-      await chrome.storage.local.set({ [key]: notes });
-    } catch (e) {
-      if (String(e).includes('Extension context invalidated')) {
-        this.log('[Notes] Extension context invalidated, skipping save');
-        return;
-      }
-      console.error('[Notes] Error saving notes:', e);
+    await this._storageOp('save', () => chrome.storage.local.set({ [key]: notes }));
+  }
+
+  // Flush any pending debounced save immediately.
+  flushPendingSave() {
+    if (this.saveDebounceTimer) {
+      clearTimeout(this.saveDebounceTimer);
+      this.saveDebounceTimer = null;
     }
+    this.saveNotes();
   }
 
   debouncedSave() {
-    if (this.saveDebounceTimer) {
-      clearTimeout(this.saveDebounceTimer);
-    }
-    
-    this.saveDebounceTimer = setTimeout(() => {
-      this.saveNotes();
-    }, 500);
+    if (this.saveDebounceTimer) clearTimeout(this.saveDebounceTimer);
+    this.saveDebounceTimer = setTimeout(() => this.saveNotes(), 500);
   }
 
   // ==================== PUBLIC API ====================
 
-  // Get notes for a specific adventure
   async getNotesForAdventure(adventureId) {
-    if (!this.isExtensionContextValid()) return '';
     const key = this.storageKeyPrefix + adventureId;
-    try {
-      const result = await chrome.storage.local.get(key);
-      return result[key] || '';
-    } catch (e) {
-      if (String(e).includes('Extension context invalidated')) return '';
-      console.error('[Notes] Error getting notes:', e);
-      return '';
-    }
+    const result = await this._storageOp('get', () => chrome.storage.local.get(key));
+    return result?.[key] || '';
   }
 
-  // Set notes for a specific adventure
   async setNotesForAdventure(adventureId, notes) {
-    if (!this.isExtensionContextValid()) return;
     const key = this.storageKeyPrefix + adventureId;
-    try {
-      await chrome.storage.local.set({ [key]: notes });
-      
-      // Update textarea if viewing the same adventure
-      if (adventureId === this.currentAdventureId && this.textarea) {
-        this.textarea.value = notes;
-      }
-    } catch (e) {
-      if (String(e).includes('Extension context invalidated')) return;
-      console.error('[Notes] Error setting notes:', e);
+    await this._storageOp('set', () => chrome.storage.local.set({ [key]: notes }));
+    if (adventureId === this.currentAdventureId && this.textarea) {
+      this.textarea.value = notes;
     }
   }
 
-  // Clear notes for a specific adventure
   async clearNotesForAdventure(adventureId) {
-    if (!this.isExtensionContextValid()) return;
     const key = this.storageKeyPrefix + adventureId;
-    try {
-      await chrome.storage.local.remove(key);
-      
-      // Clear textarea if viewing the same adventure
-      if (adventureId === this.currentAdventureId && this.textarea) {
-        this.textarea.value = '';
-      }
-    } catch (e) {
-      if (String(e).includes('Extension context invalidated')) return;
-      console.error('[Notes] Error clearing notes:', e);
+    await this._storageOp('clear', () => chrome.storage.local.remove(key));
+    if (adventureId === this.currentAdventureId && this.textarea) {
+      this.textarea.value = '';
     }
   }
 }

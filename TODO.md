@@ -42,10 +42,8 @@ Mark features as `[?]` when they can't be tested or are not applicable on mobile
   - No issues currently with the Auto See feature.
 - [OK] **Story Card Analytics** (`story_card_analytics_feature.js`)
   - No issues currently with the Story Card Analytics feature.
-- [~OK] **Notes Feature** (`notes_feature.js`)
-  - The Notes feature has 2 main problems it needs to solve:
-    1. The Notes feature is not saving our Notes correctly. It appears that when we exit out of the adventure and/or app and come back, our Notes are gone. Most likely not being saved properly.
-    2. The Notes feature may occasionally not allow you to edit your Notes, where you can tap on the text input box, but it will immediately kick you out of editing.
+- [OK] **Notes Feature** (`notes_feature.js`)
+  - No issues currently with the Notes feature.
 - [OK] **Better Scripts** (`better_scripts_feature.js`)
   - No issues currently with Better Scripts.
 - [OK] **Input History** (`input_history_feature.js`)
