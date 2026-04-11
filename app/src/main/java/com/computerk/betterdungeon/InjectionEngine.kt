@@ -38,6 +38,7 @@ class InjectionEngine(private val context: Context) {
             "utils/storage.js",
             "services/ai-dungeon-service.js",
             "services/loading-screen.js",
+            "services/story-card-cache.js",
             "services/story-card-scanner.js",
             "core/feature-manager.js",
             "features/markdown_feature.js",
