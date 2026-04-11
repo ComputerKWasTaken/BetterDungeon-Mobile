@@ -89,6 +89,17 @@ class NotesFeature {
 
   // ==================== ADVENTURE DETECTION ====================
 
+  // Check if the user is currently editing the notes textarea.
+  // Uses a DOM query as a fallback so it still works even if
+  // this.textarea was temporarily nulled during a React re-render.
+  isUserEditingNotes() {
+    if (this.textarea && document.activeElement === this.textarea) {
+      return true;
+    }
+    const notesTextarea = document.querySelector('.bd-notes-textarea');
+    return !!(notesTextarea && document.activeElement === notesTextarea);
+  }
+
   // Check if adventure UI elements are present in the DOM
   isAdventureUIPresent() {
     // These elements are always present on an active adventure page
@@ -107,6 +118,14 @@ class NotesFeature {
   }
 
   detectCurrentAdventure() {
+    // If the user is actively typing in the notes textarea, skip the
+    // entire detection cycle.  React re-renders can cause transient DOM
+    // states where isAdventureUIPresent() flickers to false, which would
+    // trigger removeUI() and destroy the textarea the user is editing.
+    if (this.isUserEditingNotes()) {
+      return;
+    }
+
     const newAdventureId = this.getAdventureIdFromUrl();
     const adventureUIPresent = this.isAdventureUIPresent();
     
