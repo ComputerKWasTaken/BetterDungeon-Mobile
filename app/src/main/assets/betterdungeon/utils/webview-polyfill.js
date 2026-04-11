@@ -31,7 +31,7 @@
   function createStorageArea(areaName) {
     return {
       get: function (keys, callback) {
-        try {
+        function doGet() {
           // Normalise keys to an array
           var keyList;
           if (typeof keys === 'string') {
@@ -74,19 +74,33 @@
             }
           }
 
-          if (typeof callback === 'function') {
-            callback(result);
-          }
-        } catch (err) {
-          console.error('[WebView Polyfill] storage.get error:', err);
-          if (typeof callback === 'function') {
+          return result;
+        }
+
+        // Support both callback style and Promise style (Manifest V3)
+        if (typeof callback === 'function') {
+          try {
+            callback(doGet());
+          } catch (err) {
+            console.error('[WebView Polyfill] storage.get error:', err);
             callback({});
           }
+          return;
         }
+
+        // Return a Promise when no callback is provided
+        return new Promise(function (resolve) {
+          try {
+            resolve(doGet());
+          } catch (err) {
+            console.error('[WebView Polyfill] storage.get error:', err);
+            resolve({});
+          }
+        });
       },
 
       set: function (items, callback) {
-        try {
+        function doSet() {
           var changes = {};
           var itemKeys = Object.keys(items);
           for (var i = 0; i < itemKeys.length; i++) {
@@ -114,33 +128,62 @@
           if (Object.keys(changes).length > 0) {
             fireStorageChanged(changes, areaName);
           }
-
-          if (typeof callback === 'function') {
-            callback();
-          }
-        } catch (err) {
-          console.error('[WebView Polyfill] storage.set error:', err);
-          if (typeof callback === 'function') {
-            callback();
-          }
         }
+
+        // Support both callback style and Promise style (Manifest V3)
+        if (typeof callback === 'function') {
+          try {
+            doSet();
+            callback();
+          } catch (err) {
+            console.error('[WebView Polyfill] storage.set error:', err);
+            callback();
+          }
+          return;
+        }
+
+        // Return a Promise when no callback is provided
+        return new Promise(function (resolve) {
+          try {
+            doSet();
+            resolve();
+          } catch (err) {
+            console.error('[WebView Polyfill] storage.set error:', err);
+            resolve();
+          }
+        });
       },
 
       remove: function (keys, callback) {
-        try {
+        function doRemove() {
           var keyList = typeof keys === 'string' ? [keys] : keys;
           for (var i = 0; i < keyList.length; i++) {
             window.BetterDungeonBridge.storageRemove(keyList[i]);
           }
-          if (typeof callback === 'function') {
-            callback();
-          }
-        } catch (err) {
-          console.error('[WebView Polyfill] storage.remove error:', err);
-          if (typeof callback === 'function') {
-            callback();
-          }
         }
+
+        // Support both callback style and Promise style (Manifest V3)
+        if (typeof callback === 'function') {
+          try {
+            doRemove();
+            callback();
+          } catch (err) {
+            console.error('[WebView Polyfill] storage.remove error:', err);
+            callback();
+          }
+          return;
+        }
+
+        // Return a Promise when no callback is provided
+        return new Promise(function (resolve) {
+          try {
+            doRemove();
+            resolve();
+          } catch (err) {
+            console.error('[WebView Polyfill] storage.remove error:', err);
+            resolve();
+          }
+        });
       }
     };
   }
