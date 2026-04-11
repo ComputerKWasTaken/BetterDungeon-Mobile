@@ -1,6 +1,6 @@
 # ![BetterDungeon Icon](app/src/main/assets/betterdungeon/icons/icon16.png) BetterDungeon Mobile
 
-The Android companion app for [BetterDungeon](https://github.com/ComputerKWasTaken/BetterDungeon) — bringing the full extension experience to AI Dungeon on your phone.
+The Android mobile port of [BetterDungeon](https://github.com/ComputerKWasTaken/BetterDungeon), bringing the full extension experience to AI Dungeon on your phone.
 
 ## Installation
 
@@ -10,8 +10,6 @@ The Android companion app for [BetterDungeon](https://github.com/ComputerKWasTak
 2. Open the APK on your Android device
 3. Allow installation from unknown sources if prompted
 4. You're in!
-
-> **Note:** Requires Android 8.1 (Oreo) or higher.
 
 ### Build from Source
 
@@ -45,13 +43,11 @@ All the features you know from the browser extension, optimized for mobile.
 
 - **Trigger Highlighting** — Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
 - **Story Card Analytics Dashboard** — Card statistics, trigger overlaps, coverage analysis, and potential issues for scenario creators.
-- **Story Card Modal Dock** — Docks the story card modal to the side, allowing you to scroll through your story while editing Story Cards.
 - **BetterScripts** — A communication layer between the app and AI Dungeon scripts for dynamic UI widgets like HP bars, stats, and game state displays.
 
 ### ⚡ Automations
 
 - **Auto See** — Automatically triggers a See input command after every AI response or after a set number of turns. Configurable frequency with credit usage warnings.
-- **Auto Enable Scripts** — Automatically retoggles "Enable Scripts" in Scenario Creation.
 
 ### 📋 Presets
 
@@ -88,7 +84,7 @@ BetterDungeon Mobile wraps AI Dungeon's web interface in an Android WebView and 
 
 ## Usage
 
-1. Open BetterDungeon Mobile — it loads [AI Dungeon](https://play.aidungeon.com) automatically
+1. Open BetterDungeon Mobile, it loads [AI Dungeon](https://play.aidungeon.com) automatically
 2. Tap the ⚙️ BetterDungeon gear icon to toggle features and access settings
 3. Play your adventure with all the goodies
 
