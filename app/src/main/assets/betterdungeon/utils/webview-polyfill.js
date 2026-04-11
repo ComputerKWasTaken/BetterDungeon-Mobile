@@ -76,12 +76,17 @@
 
           if (typeof callback === 'function') {
             callback(result);
+            return;
           }
+          // Return a Promise when no callback is provided (Manifest V3 style)
+          return Promise.resolve(result);
         } catch (err) {
           console.error('[WebView Polyfill] storage.get error:', err);
           if (typeof callback === 'function') {
             callback({});
+            return;
           }
+          return Promise.resolve({});
         }
       },
 
@@ -117,12 +122,16 @@
 
           if (typeof callback === 'function') {
             callback();
+            return;
           }
+          return Promise.resolve();
         } catch (err) {
           console.error('[WebView Polyfill] storage.set error:', err);
           if (typeof callback === 'function') {
             callback();
+            return;
           }
+          return Promise.resolve();
         }
       },
 
@@ -134,12 +143,16 @@
           }
           if (typeof callback === 'function') {
             callback();
+            return;
           }
+          return Promise.resolve();
         } catch (err) {
           console.error('[WebView Polyfill] storage.remove error:', err);
           if (typeof callback === 'function') {
             callback();
+            return;
           }
+          return Promise.resolve();
         }
       }
     };

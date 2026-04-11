@@ -29,6 +29,13 @@ class NotesFeature {
     this.uiRetryTimer = null;
     this.uiRetryCount = 0;
     this.maxUiRetries = 12;
+
+    // Editing state — tracks whether the user is actively focused on the
+    // textarea.  Used to suppress MutationObserver-driven DOM manipulation
+    // that would otherwise steal focus on mobile (keyboard open/close, React
+    // re-renders, etc.).
+    this._isEditing = false;
+    this._editingBlurTimer = null;
     
     // History API originals for cleanup
     this.originalPushState = null;
@@ -77,6 +84,13 @@ class NotesFeature {
       clearTimeout(this.saveDebounceTimer);
       this.saveNotes();
     }
+
+    // Clear editing state
+    if (this._editingBlurTimer) {
+      clearTimeout(this._editingBlurTimer);
+      this._editingBlurTimer = null;
+    }
+    this._isEditing = false;
     
     // Remove UI elements
     this.removeUI();
@@ -160,6 +174,10 @@ class NotesFeature {
     
     // DOM observer with debounce to detect when adventure UI appears/disappears
     this.adventureObserver = new MutationObserver(() => {
+      // While the user is editing, skip observer-driven detection entirely.
+      // Genuine navigation is still caught by the URL-based handlers above.
+      if (this._isEditing) return;
+
       // Debounce to prevent excessive calls during rapid DOM changes
       if (this.adventureDetectionDebounce) {
         clearTimeout(this.adventureDetectionDebounce);
@@ -390,9 +408,11 @@ class NotesFeature {
       return;
     }
 
-    // If the user is actively typing in our textarea, skip any DOM
-    // manipulation to avoid stealing focus and "kicking the user out".
-    if (this.textarea && document.activeElement === this.textarea) {
+    // If the user is actively editing, skip all DOM manipulation to avoid
+    // stealing focus.  The _isEditing flag is more reliable than checking
+    // document.activeElement on mobile, where focus can flicker during
+    // keyboard transitions and React re-renders.
+    if (this._isEditing) {
       return;
     }
 
@@ -447,6 +467,34 @@ class NotesFeature {
     this.textarea = this.notesCard.querySelector('.bd-notes-textarea');
 
     this.textarea?.addEventListener('input', () => this.debouncedSave());
+
+    this.textarea?.addEventListener('focus', () => {
+      // Clear any pending blur-delay timer so a quick re-focus doesn't
+      // falsely clear the editing flag.
+      if (this._editingBlurTimer) {
+        clearTimeout(this._editingBlurTimer);
+        this._editingBlurTimer = null;
+      }
+      this._isEditing = true;
+    });
+
+    this.textarea?.addEventListener('blur', () => {
+      // Flush any pending debounced save immediately so content is persisted
+      // even if the element is about to be detached by a React re-render.
+      if (this.saveDebounceTimer) {
+        clearTimeout(this.saveDebounceTimer);
+        this.saveDebounceTimer = null;
+      }
+      this.saveNotes();
+
+      // Delay clearing _isEditing so that MutationObserver callbacks fired
+      // by the keyboard closing / DOM settling don't sneak in and rebuild
+      // the card in the brief gap between blur and the next focus.
+      this._editingBlurTimer = setTimeout(() => {
+        this._isEditing = false;
+        this._editingBlurTimer = null;
+      }, 300);
+    });
   }
 
   removeUI() {
@@ -460,6 +508,13 @@ class NotesFeature {
     this.notesCard = null;
     this.textarea = null;
     this.loadedAdventureId = null;
+
+    // Clean up editing state so stale timers don't fire after removal
+    if (this._editingBlurTimer) {
+      clearTimeout(this._editingBlurTimer);
+      this._editingBlurTimer = null;
+    }
+    this._isEditing = false;
 
     if (this.uiRetryTimer) {
       clearTimeout(this.uiRetryTimer);
