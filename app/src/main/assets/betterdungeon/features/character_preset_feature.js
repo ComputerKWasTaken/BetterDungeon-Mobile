@@ -26,6 +26,7 @@ class CharacterPresetFeature {
     this._checkDebounceTimer = null; // Debounce timer for checkForEntryField
     this._fieldGraceTimer = null; // Grace period before tearing down UI when field disappears
     this._indicatorCharacterId = null; // Track which character the indicator is showing
+    this._lastHandledField = null; // Cache the last field passed to handleField for re-attachment
   }
 
   log(message, ...args) {
@@ -67,6 +68,7 @@ class CharacterPresetFeature {
     this.removeCharacterIndicator();
     this.removeApproval();
     this.sessionCharacterId = null;
+    this._lastHandledField = null;
   }
 
   // Shared helper: fade out a tracked UI element, null the reference, then
@@ -74,10 +76,13 @@ class CharacterPresetFeature {
   _removeUIElement(refName, visibleClass, sweepSelector) {
     const el = this[refName];
     if (el) {
-      el.classList.remove(visibleClass);
+      // Only attempt fade-out if the element is still in the live DOM
+      if (el.isConnected) {
+        el.classList.remove(visibleClass);
+      }
       this[refName] = null;
       setTimeout(() => {
-        el?.remove();
+        if (el.isConnected) el.remove();
         // Sweep orphans, but protect any freshly-created element now tracked by this ref
         const current = this[refName];
         document.querySelectorAll(sweepSelector).forEach(e => {
@@ -94,19 +99,26 @@ class CharacterPresetFeature {
   }
 
   startPolling() {
-    // Poll every 500ms as a fallback for detection
+    // Poll every 500ms as a fallback for detection.
+    // Bypass the debounce so the poll always runs a health-check even when
+    // the MutationObserver debounce timer is active.
     this.checkInterval = setInterval(() => {
-      this.debouncedCheck();
+      this.checkForEntryField();
     }, 500);
   }
 
-  // Debounce checkForEntryField to avoid excessive calls from MutationObserver
+  // Debounce checkForEntryField to avoid excessive calls from MutationObserver.
+  // Uses a trailing-edge approach: resets the timer on every call so the check
+  // always fires after mutations settle, preventing the "last mutation dropped"
+  // problem on mobile where the field reappears right as the timer fires.
   debouncedCheck() {
-    if (this._checkDebounceTimer) return;
+    if (this._checkDebounceTimer) {
+      clearTimeout(this._checkDebounceTimer);
+    }
     this._checkDebounceTimer = setTimeout(() => {
       this._checkDebounceTimer = null;
       this.checkForEntryField();
-    }, 250);
+    }, 150);
   }
 
   // ============================================
@@ -331,11 +343,23 @@ class CharacterPresetFeature {
     this.observer = new MutationObserver((mutations) => {
       if (this.isProcessing) return;
       
+      let shouldCheck = false;
       for (const mutation of mutations) {
-        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-          this.debouncedCheck();
-          break;
+        if (mutation.type === 'childList') {
+          if (mutation.addedNodes.length > 0) {
+            shouldCheck = true;
+            break;
+          }
+          // Also trigger when nodes are removed — this catches React
+          // destroying and rebuilding the container our UI sits in.
+          if (mutation.removedNodes.length > 0) {
+            shouldCheck = true;
+            break;
+          }
         }
+      }
+      if (shouldCheck) {
+        this.debouncedCheck();
       }
     });
 
@@ -403,6 +427,17 @@ class CharacterPresetFeature {
     };
   }
 
+  // Check whether all UI elements that should be visible are still attached
+  // to the live DOM. Mobile WebView re-renders can reparent or destroy the
+  // containers our elements sit in, leaving stale references.
+  _isUIAttached() {
+    if (this.overlayElement && !this.overlayElement.isConnected) return false;
+    if (this.saveButtonElement && !this.saveButtonElement.isConnected) return false;
+    if (this.characterIndicator && !this.characterIndicator.isConnected) return false;
+    if (this.approvalElement && !this.approvalElement.isConnected) return false;
+    return true;
+  }
+
   async checkForEntryField() {
     if (this.isProcessing) return; // Don't re-detect fields mid-fill
     const field = this.findScenarioEntryField();
@@ -428,11 +463,20 @@ class CharacterPresetFeature {
         this.removeApproval();
         
         // Determine what to show based on the field type and state
+        this._lastHandledField = field;
+        await this.handleField(field);
+      } else if (!this._isUIAttached()) {
+        // Same field, but our UI elements were detached (React re-rendered
+        // the container). Clean up stale references and re-create the UI.
+        this.log('[CharacterPreset] UI detached from DOM, re-attaching...');
+        this._cleanDetachedRefs();
+        this._lastHandledField = field;
         await this.handleField(field);
       }
     } else {
       // Field not found, so use a grace period before tearing down UI.
       // React re-renders can cause the input to briefly disappear from the DOM.
+      // Use a longer grace period on mobile where re-renders are slower.
       if (this.currentFieldLabel !== null && !this._fieldGraceTimer) {
         this._fieldGraceTimer = setTimeout(() => {
           this._fieldGraceTimer = null;
@@ -442,13 +486,35 @@ class CharacterPresetFeature {
             this.currentFieldKey = null;
             this.hasAutoFilled = false;
             this._indicatorCharacterId = null;
+            this._lastHandledField = null;
             this.removeOverlay();
             this.removeSaveButton();
             this.removeCharacterIndicator();
             this.removeApproval();
           }
-        }, 400);
+        }, 800);
       }
+    }
+  }
+
+  // Null out references to UI elements that are no longer in the DOM,
+  // without running the full fade-out / sweep teardown.
+  _cleanDetachedRefs() {
+    if (this.overlayElement && !this.overlayElement.isConnected) {
+      this.overlayElement = null;
+    }
+    if (this.saveButtonElement && !this.saveButtonElement.isConnected) {
+      this.saveButtonElement = null;
+    }
+    if (this.characterIndicator && !this.characterIndicator.isConnected) {
+      this.characterIndicator = null;
+      this._indicatorCharacterId = null;
+    }
+    if (this.approvalElement && !this.approvalElement.isConnected) {
+      this.approvalElement = null;
+      // Don't reset hasAutoFilled here — the field hasn't changed, we just
+      // need to re-show the approval that was already shown.
+      this.hasAutoFilled = false;
     }
   }
 
@@ -505,9 +571,12 @@ class CharacterPresetFeature {
     // Reload presets to ensure we have the latest
     await this.loadPresets();
     
+    // Re-query the field after the async gap — the DOM may have changed
+    const freshField = this.findScenarioEntryField() || field;
+    
     // Find the input container to place our selector near it
-    const inputContainer = this.getFieldContainer(field);
-    if (!inputContainer) {
+    const inputContainer = this.getFieldContainer(freshField);
+    if (!inputContainer || !inputContainer.isConnected) {
       return;
     }
     
@@ -522,7 +591,7 @@ class CharacterPresetFeature {
       this.overlayElement?.classList.add('bd-selector-visible');
     });
     
-    this.setupCharacterSelectorHandlers(field);
+    this.setupCharacterSelectorHandlers(freshField);
     
   }
 
@@ -637,16 +706,19 @@ class CharacterPresetFeature {
     const sessionCharacter = this.getSessionCharacter();
     if (!sessionCharacter) return;
     
+    // Re-query the field to get the freshest DOM reference
+    const freshField = this.findScenarioEntryField() || field;
+    
     // Find the Next/Start button and the field container
-    const continueBtn = this.findAdvanceButton(field);
+    const continueBtn = this.findAdvanceButton(freshField);
     if (!continueBtn) {
       return;
     }
     
     // Walk up from the Continue button to find the wrapper that is a
     // direct child of the field container (avoids fragile CSS-in-JS selectors)
-    const fieldContainer = this.getFieldContainer(field);
-    if (!fieldContainer) return;
+    const fieldContainer = this.getFieldContainer(freshField);
+    if (!fieldContainer || !fieldContainer.isConnected) return;
     
     let continueBtnWrapper = continueBtn;
     while (continueBtnWrapper && continueBtnWrapper.parentElement !== fieldContainer) {
@@ -791,9 +863,12 @@ class CharacterPresetFeature {
     this.removeCharacterIndicator();
     this._indicatorCharacterId = character.id;
     
+    // Re-query the field to get the freshest DOM reference
+    const freshField = this.findScenarioEntryField() || field;
+    
     // Find the input container
-    const inputContainer = this.getFieldContainer(field);
-    if (!inputContainer) return;
+    const inputContainer = this.getFieldContainer(freshField);
+    if (!inputContainer || !inputContainer.isConnected) return;
     
     this.characterIndicator = document.createElement('div');
     this.characterIndicator.className = 'bd-character-indicator';
@@ -828,9 +903,12 @@ class CharacterPresetFeature {
     const sessionCharacter = this.getSessionCharacter();
     if (!sessionCharacter) return;
     
+    // Re-query the field to get the freshest DOM reference
+    const freshField = this.findScenarioEntryField() || field;
+    
     // Find the input container to place the approval near the input
-    const inputContainer = this.getFieldContainer(field);
-    if (!inputContainer) return;
+    const inputContainer = this.getFieldContainer(freshField);
+    if (!inputContainer || !inputContainer.isConnected) return;
     
     this.approvalElement = document.createElement('div');
     this.approvalElement.className = 'bd-autofill-approval';
