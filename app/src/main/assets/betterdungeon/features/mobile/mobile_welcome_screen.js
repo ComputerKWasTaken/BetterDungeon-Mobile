@@ -338,4 +338,4 @@
   });
 
   console.log('[BetterDungeon] Mobile Welcome Screen initialized');
-});
+})();
