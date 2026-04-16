@@ -13,46 +13,100 @@
 
   // ── Page Content ─────────────────────────────────────────────────
 
+  var iconUrl = (typeof chrome !== 'undefined' && chrome.runtime)
+    ? chrome.runtime.getURL('icons/icon128.png')
+    : '';
+
   var pages = [
     {
       icon: 'icon-sparkles',
       iconColor: 'var(--bd-accent-primary)',
+      accentRgb: '255, 149, 0',
       title: 'Welcome to BetterDungeon',
       subtitle: 'Your AI Dungeon experience, supercharged',
-      description: 'BetterDungeon adds powerful tools for writing, storytelling, and scenario building — all optimized for mobile.',
-      hint: 'Swipe or tap the arrow to continue'
+      description: 'BetterDungeon adds powerful tools for writing, storytelling, and scenario building, all optimized for mobile.',
+      hint: 'Swipe or tap the arrow to continue',
+      previewHtml:
+        '<div class="bd-welcome-preview bd-welcome-preview-logo">' +
+          '<img src="' + iconUrl + '" class="bd-welcome-logo-img" alt="BetterDungeon">' +
+        '</div>'
     },
     {
       icon: 'icon-terminal',
       iconColor: 'var(--bd-orange)',
+      accentRgb: '249, 115, 22',
       title: 'Command & Try Modes',
       subtitle: 'New ways to interact with the AI',
       description: 'Use <strong>Command Mode</strong> to send direct instructions to the AI without them appearing in the story. <strong>Try Mode</strong> adds dice-roll mechanics with configurable success odds.',
-      hint: 'Find these in the input mode menu'
+      hint: 'Find these in the input mode menu',
+      previewHtml:
+        '<div class="bd-welcome-preview bd-welcome-preview-modes">' +
+          '<div class="bd-welcome-mock-btn" style="--mock-rgb: 249,115,22">' +
+            '<span class="icon-terminal" style="font-size:11px"></span> Command' +
+          '</div>' +
+          '<div class="bd-welcome-mock-btn" style="--mock-rgb: 168,85,247">' +
+            '<span class="icon-dices" style="font-size:11px"></span> Try' +
+          '</div>' +
+        '</div>'
     },
     {
       icon: 'icon-pen-line',
       iconColor: 'var(--bd-blue)',
+      accentRgb: '59, 130, 246',
       title: 'Markdown & Notes',
       subtitle: 'Rich text and private scratchpad',
       description: '<strong>Markdown</strong> renders bold, italic, headers, and more in your story text. <strong>Adventure Notes</strong> gives you a private scratchpad per adventure that the AI never sees.',
-      hint: 'Markdown renders automatically in the story view'
+      hint: 'Markdown renders automatically in the story view',
+      previewHtml:
+        '<div class="bd-welcome-preview bd-welcome-preview-text">' +
+          '<div class="bd-welcome-mock-text">' +
+            '<span class="bd-welcome-mock-h">The Quest Begins</span>' +
+            '<span class="bd-welcome-mock-bold">The knight</span> drew her ' +
+            '<span class="bd-welcome-mock-italic">enchanted blade</span>...' +
+          '</div>' +
+          '<div class="bd-welcome-mock-note">' +
+            '<span class="icon-notebook-pen" style="font-size:10px"></span> Notes' +
+          '</div>' +
+        '</div>'
     },
     {
       icon: 'icon-bookmark',
       iconColor: 'var(--bd-purple)',
+      accentRgb: '168, 85, 247',
       title: 'Presets & Triggers',
       subtitle: 'Save time, build worlds',
       description: '<strong>Plot Presets</strong> save your AI Instructions for reuse. <strong>Character Presets</strong> auto-fill scenario entry questions. <strong>Trigger Highlights</strong> show active Story Card keywords.',
-      hint: 'Manage presets in the Presets tab'
+      hint: 'Manage presets in the Presets tab',
+      previewHtml:
+        '<div class="bd-welcome-preview bd-welcome-preview-presets">' +
+          '<div class="bd-welcome-mock-preset">' +
+            '<span class="icon-bookmark" style="font-size:10px; color:var(--bd-purple)"></span>' +
+            ' Dark Fantasy Plot' +
+          '</div>' +
+          '<div class="bd-welcome-mock-preset">' +
+            '<span class="icon-bookmark" style="font-size:10px; color:var(--bd-amber)"></span>' +
+            ' Sci-Fi Setting' +
+          '</div>' +
+          '<div class="bd-welcome-mock-trigger">' +
+            '<span class="bd-welcome-mock-trigger-word">dragon</span>' +
+            '<span class="bd-welcome-mock-trigger-word">castle</span>' +
+          '</div>' +
+        '</div>'
     },
     {
-      icon: 'icon-settings',
-      iconColor: 'var(--bd-accent-primary)',
+      icon: 'icon-circle-check',
+      iconColor: 'var(--bd-success)',
+      accentRgb: '34, 197, 94',
       title: 'You\'re All Set!',
       subtitle: 'Access settings anytime',
       description: 'Tap the <strong>gear icon</strong> in the top bar to open BetterDungeon settings, toggle features, and manage your presets. Everything is saved automatically.',
-      hint: null
+      hint: null,
+      previewHtml:
+        '<div class="bd-welcome-preview bd-welcome-preview-done">' +
+          '<div class="bd-welcome-done-check">' +
+            '<span class="icon-party-popper" style="font-size:28px; color:var(--bd-accent-primary)"></span>' +
+          '</div>' +
+        '</div>'
     }
   ];
 
@@ -85,11 +139,12 @@
       if (i === 0) pageEl.classList.add('active');
 
       pageEl.innerHTML =
-        '<div class="bd-welcome-icon-wrap">' +
+        '<div class="bd-welcome-icon-wrap" style="--icon-rgb:' + page.accentRgb + '">' +
           '<span class="bd-welcome-icon ' + page.icon + '" style="color:' + page.iconColor + '"></span>' +
         '</div>' +
         '<h1 class="bd-welcome-title">' + page.title + '</h1>' +
         '<p class="bd-welcome-subtitle">' + page.subtitle + '</p>' +
+        (page.previewHtml || '') +
         '<p class="bd-welcome-description">' + page.description + '</p>' +
         (page.hint ? '<p class="bd-welcome-hint">' + page.hint + '</p>' : '');
 
@@ -283,4 +338,4 @@
   });
 
   console.log('[BetterDungeon] Mobile Welcome Screen initialized');
-})();
+});
