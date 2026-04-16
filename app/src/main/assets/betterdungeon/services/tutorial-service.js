@@ -16,8 +16,8 @@ class TutorialService {
       {
         id: 'welcome',
         type: 'modal',
-        title: 'Welcome to BetterDungeon!',
-        content: 'This quick tour will introduce you to the features that enhance your AI Dungeon experience.',
+        title: 'Welcome to BetterDungeon Mobile!',
+        content: 'This quick tour will introduce you to the features that enhance your AI Dungeon experience on mobile.',
         icon: 'icon-wand-sparkles'
       },
       // Features Tab Navigation
@@ -49,21 +49,13 @@ class TutorialService {
         expandCard: true
       },
       // === Gameplay Section ===
-      {
-        id: 'hotkeys',
-        type: 'spotlight',
-        target: '[data-feature="hotkey"]',
-        title: 'Keyboard Shortcuts',
-        content: 'Quick hotkeys for common actions! Press T to take a turn, C to continue, and number keys to switch modes. Fully customizable via the "Customize Hotkeys" button!',
-        position: 'bottom',
-        expandCard: true
-      },
+      // NOTE: Hotkeys feature is excluded from the mobile port (requires a physical keyboard).
       {
         id: 'input-history',
         type: 'spotlight',
         target: '[data-feature="inputHistory"]',
         title: 'Input History',
-        content: 'Terminal-style input history! Press Ctrl + Up/Down arrow keys while the input box is focused to cycle through your recent actions.',
+        content: 'Cycle through your previous inputs using the \u25B2/\u25BC buttons that appear above the input bar. Remembers up to 50 recent actions and their input modes!',
         position: 'bottom',
         expandCard: true
       },
@@ -101,7 +93,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="triggerHighlight"]',
         title: 'Trigger Highlighting',
-        content: 'Visualizes story card triggers in the context viewer. Hover over highlights to see which cards are active!',
+        content: 'Visualizes story card triggers in the context viewer. Tap highlights to see which card they belong to!',
         position: 'bottom',
         expandCard: true
       },
@@ -169,7 +161,7 @@ class TutorialService {
       id: 'complete',
       type: 'modal',
       title: 'You\'re All Set!',
-      content: 'You now know the essentials of BetterDungeon. Toggle features on/off anytime, and enjoy your enhanced AI Dungeon experience!',
+      content: 'You now know the essentials of BetterDungeon Mobile. Toggle features on/off anytime, and enjoy your enhanced AI Dungeon experience!',
       icon: 'icon-badge-check'
     };
     
