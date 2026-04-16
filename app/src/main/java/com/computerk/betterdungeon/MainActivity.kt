@@ -34,7 +34,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "BetterDungeon"
-        private const val AI_DUNGEON_URL = "https://play.aidungeon.com"
+        private const val AI_DUNGEON_URL = "https://alpha.aidungeon.com"
     }
 
     private lateinit var mainWebView: WebView
@@ -276,7 +276,7 @@ class MainActivity : AppCompatActivity() {
                 chrome.tabs.query = function(queryInfo, callback) {
                     var fakeTabs = [{
                         id: 1,
-                        url: 'https://play.aidungeon.com',
+                        url: '$AI_DUNGEON_URL',
                         active: true,
                         currentWindow: true
                     }];

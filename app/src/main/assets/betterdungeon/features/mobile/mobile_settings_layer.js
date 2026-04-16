@@ -6,11 +6,13 @@
 
     console.log('[BetterDungeon] Starting Mobile Settings Layer Injection');
 
+    // Home page button: matches the transparent icon-only nav button style used by
+    // Search, Daily Rewards, and Notifications in the Alpha UI top bar.
     const gearHomeHtml = `
-<div class="bd-mobile-settings is_View _btc-0active-transparent _brc-0active-transparent _bbc-0active-transparent _blc-0active-transparent _pos-relative _fd-column _btw-1px _brw-1px _bbw-1px _blw-1px _btc-transparent _brc-transparent _bbc-transparent _blc-transparent _btlr-t-radius-64 _btrr-t-radius-64 _bbrr-t-radius-64 _bblr-t-radius-64 _bbs-solid _bts-solid _bls-solid _brs-solid"><div aria-label="BetterDungeon Settings" role="button" class="is_Button is_View _btc-0hover-transparent _brc-0hover-transparent _bbc-0hover-transparent _blc-0hover-transparent _bxsh-0hover-0px0px0pxrg933189164 _btc-0active-transparent _brc-0active-transparent _bbc-0active-transparent _blc-0active-transparent _bxsh-0active-0px0px0pxrg933189164 _cur-pointer _ussel-none _pos-relative _jc-center _ai-center _h-t-size-5 _btlr-t-radius-10 _btrr-t-radius-10 _bbrr-t-radius-10 _bblr-t-radius-10 _pr-t-space-0 _pl-t-space-0 _fd-row _bg-background _btc-borderColor _brc-borderColor _bbc-borderColor _blc-borderColor _btw-1px _brw-1px _bbw-1px _blw-1px _gap-t-space-1 _outlineColor-coreA0 _pt-t-space-0 _pb-t-space-0 _w-t-size-5 _mah-t-size-5 _maw-t-size-5 _ox-hidden _oy-hidden _bbs-solid _bts-solid _bls-solid _brs-solid _bxsh-0px0px0pxva26674076"><div class="is_View _pos-relative _fd-column _t-2--6537 _l-0px _ai-center _jc-center">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="url(#bd-gradient-cog)" xmlns="http://www.w3.org/2000/svg">
+<div class="bd-mobile-settings is_View _btc-0active-transparent _brc-0active-transparent _bbc-0active-transparent _blc-0active-transparent _pos-relative _fd-column _jc-center _btw-1px _brw-1px _bbw-1px _blw-1px _btc-transparent _brc-transparent _bbc-transparent _blc-transparent _btlr-t-radius-64 _btrr-t-radius-64 _bbrr-t-radius-64 _bblr-t-radius-64 _bbs-solid _bts-solid _bls-solid _brs-solid" style="align-self: center;"><div aria-label="BetterDungeon Settings" role="button" class="is_Button is_View _bg-0hover-transparent _btc-0hover-transparent _brc-0hover-transparent _bbc-0hover-transparent _blc-0hover-transparent _bxsh-0hover-0px0px0pxrg933189164 _bg-0active-transparent _btc-0active-transparent _brc-0active-transparent _bbc-0active-transparent _blc-0active-transparent _bxsh-0active-0px0px0pxrg933189164 _bg-0focus-transparent _btc-0focus-transparent _brc-0focus-transparent _bbc-0focus-transparent _blc-0focus-transparent _bxsh-0focus-0px0px0pxrg933189164 _cur-pointer _ussel-none _pos-relative _jc-center _ai-center _h-42px _btlr-t-radius-10 _btrr-t-radius-10 _bbrr-t-radius-10 _bblr-t-radius-10 _pr-t-space-0 _pl-t-space-0 _fd-row _bg-transparent _btc-borderColor _brc-borderColor _bbc-borderColor _blc-borderColor _btw-1px _brw-1px _bbw-1px _blw-1px _gap-t-space-1 _outlineColor-coreA0 _pt-t-space-0 _pb-t-space-0 _w-45px _mah-t-size-5 _maw-t-size-5 _ox-hidden _oy-hidden _bbs-solid _bts-solid _bls-solid _brs-solid _bxsh-0px0px0pxva26674076"><div aria-hidden="true" class="is_View _pos-relative _fd-column _ai-center _jc-center">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="url(#bd-gradient-cog-home)" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bd-gradient-cog" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="bd-gradient-cog-home" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="var(--bd-accent-primary)" />
       <stop offset="100%" stop-color="var(--bd-accent-secondary)" />
     </linearGradient>
@@ -45,15 +47,20 @@
     }
 
     function injectSettingsButtons() {
-        // 1. Home Page Target
-        const homeMenuTarget = document.querySelector('div[aria-label="Daily Rewards"]')?.closest('.is_Row');
+        // 1. Home Page Target — right side of the top bar, before the rightmost nav button.
+        //    When logged in the right slot holds "Notifications"; when logged out it holds
+        //    "Sign in". We try both so the gear appears regardless of auth state.
+        const homeMenuTarget = (
+            document.querySelector('div[aria-label="Notifications"]') ??
+            document.querySelector('div[aria-label="Sign in"]')
+        )?.closest('.is_Row');
         if (homeMenuTarget && !homeMenuTarget.querySelector('.bd-mobile-settings')) {
             const template = document.createElement('template');
             template.innerHTML = gearHomeHtml.trim();
             const node = template.content.firstChild;
             node.addEventListener('click', onSettingsClick);
-            // Insert before the user avatar menu (usually the last child)
-            homeMenuTarget.insertBefore(node, homeMenuTarget.lastElementChild);
+            // Insert before Notifications so order is: ⚙️ | 🔔
+            homeMenuTarget.insertBefore(node, homeMenuTarget.firstElementChild);
         }
 
         // 2. Adventure Page Target (next to the Model Switcher / Undo / Redo)
