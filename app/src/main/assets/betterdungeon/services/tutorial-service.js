@@ -55,7 +55,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="inputHistory"]',
         title: 'Input History',
-        content: 'Cycle through your previous inputs using the \u25B2/\u25BC buttons that appear above the input bar. Remembers up to 50 recent actions and their input modes!',
+        content: 'Cycle through your previous inputs using the \u25B2/\u25BC buttons that appear above the input bar. Remembers up to 50 recent actions and their input modes for each adventure!',
         position: 'bottom',
         expandCard: true
       },

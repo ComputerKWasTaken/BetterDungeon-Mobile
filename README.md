@@ -31,7 +31,7 @@ All the features you know from the browser extension, optimized for mobile.
 
 ### 🧭 Control & Navigation
 
-- **Input History** — Cycle through your previous inputs with a touch-friendly history bar. Remembers up to 50 recent actions and their respective input modes.
+- **Input History** — Cycle through your previous inputs with a touch-friendly history bar. Remembers up to 50 recent actions and their respective input modes, scoped per adventure.
 - **Input Mode Colors** — Color-coded input box so you always know what mode you're in. Fully customizable colors for each mode.
 
 ### ✨ Writing & Formatting
