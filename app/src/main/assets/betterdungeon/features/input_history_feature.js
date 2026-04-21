@@ -496,10 +496,19 @@ class InputHistoryFeature {
       [data-bd-history-parent] {
         overflow: visible !important;
       }
+      #bd-history-counter {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+      }
       #bd-history-counter .icon-history {
-        font-size: 12px;
+        font-size: 13px;
         line-height: 1;
         display: inline-block;
+        vertical-align: middle;
+        position: relative;
+        top: 0.5px;
       }
     `;
     document.head.appendChild(style);
@@ -570,7 +579,7 @@ class InputHistoryFeature {
 
     bar.innerHTML = `
       <span id="bd-history-prev" role="button" aria-label="Previous input" style="${btnStyle}">&#9650;</span>
-      <span id="bd-history-counter" aria-label="Input history" style="min-width:24px; text-align:center; font-variant-numeric:tabular-nums; font-weight:600; font-size:10px; letter-spacing:0.3px;"></span>
+      <span id="bd-history-counter" aria-label="Input history" style="min-width:24px; min-height:20px; text-align:center; font-variant-numeric:tabular-nums; font-weight:600; font-size:10px; letter-spacing:0.3px;"></span>
       <span id="bd-history-next" role="button" aria-label="Next input" style="${btnStyle}">&#9660;</span>
     `;
 
