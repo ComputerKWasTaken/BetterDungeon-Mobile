@@ -19,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
 
 /**
  * Main activity that hosts the AI Dungeon WebView and injects BetterDungeon.
@@ -84,11 +85,25 @@ class MainActivity : AppCompatActivity() {
 
             // The main WebView is intentionally edge-to-edge (no system-bar padding)
             // so AI Dungeon fills the screen like a native app. However, we must
-            // apply the IME (keyboard) inset as bottom padding, otherwise the
+            // shrink its layout height when the keyboard opens, otherwise the
             // keyboard overlaps AI Dungeon's input UI (mode chips, send button,
             // etc.) on API 30+ where edge-to-edge disables the automatic
             // adjustResize behavior.
-            mainWebView.setPadding(0, 0, 0, ime.bottom)
+            //
+            // We use `bottomMargin` rather than `setPadding` because padding on a
+            // WebView does not reliably trigger a web-viewport resize in Chrome
+            // WebView — the WebView still reports the original `window.innerHeight`
+            // and CSS units like `100vh`/`100dvh` don't shrink, so fixed-position
+            // UI (like AI Dungeon's input bar) stays anchored to the old viewport
+            // bottom and remains behind the keyboard. Changing the actual layout
+            // height via margin forces `onSizeChanged` and a proper viewport reflow.
+            val currentBottomMargin =
+                (mainWebView.layoutParams as? MarginLayoutParams)?.bottomMargin
+            if (currentBottomMargin != ime.bottom) {
+                mainWebView.updateLayoutParams<MarginLayoutParams> {
+                    bottomMargin = ime.bottom
+                }
+            }
 
             insets
         }
