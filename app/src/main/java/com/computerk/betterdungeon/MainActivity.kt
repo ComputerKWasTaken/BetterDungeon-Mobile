@@ -56,20 +56,7 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
-        // Apply window insets to popup so it isn't hidden by system bars
         popupContainer = findViewById(R.id.popup_container)
-
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main_container)) { _, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            
-            // Apply padding to popup container so its WebView isn't under system bars
-            popupContainer.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            
-            // Note: We intentionally DO NOT pad the main Webview or the main_container itself
-            // so that AI Dungeon can take up the full height of the screen like a native app.
-            
-            insets
-        }
 
         // Initialize components
         bridge = BetterDungeonBridge(this)
@@ -78,6 +65,33 @@ class MainActivity : AppCompatActivity() {
         setupMainWebView()
         setupPopupWebView()
         setupBackNavigation()
+
+        // Apply window insets so system bars and the on-screen keyboard don't
+        // overlap our UI. Must be installed after `mainWebView` is initialized.
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main_container)) { _, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+
+            // Pad the popup container so its WebView isn't under system bars.
+            // When the keyboard is open, use the IME inset for the bottom so the
+            // popup's content (e.g. editable fields) isn't hidden behind it.
+            popupContainer.setPadding(
+                systemBars.left,
+                systemBars.top,
+                systemBars.right,
+                maxOf(systemBars.bottom, ime.bottom)
+            )
+
+            // The main WebView is intentionally edge-to-edge (no system-bar padding)
+            // so AI Dungeon fills the screen like a native app. However, we must
+            // apply the IME (keyboard) inset as bottom padding, otherwise the
+            // keyboard overlaps AI Dungeon's input UI (mode chips, send button,
+            // etc.) on API 30+ where edge-to-edge disables the automatic
+            // adjustResize behavior.
+            mainWebView.setPadding(0, 0, 0, ime.bottom)
+
+            insets
+        }
 
         // Wire up bridge references for cross-WebView communication
         bridge.mainWebView = mainWebView
