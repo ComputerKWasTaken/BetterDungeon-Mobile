@@ -34,7 +34,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "BetterDungeon"
-        private const val AI_DUNGEON_URL = "https://alpha.aidungeon.com"
+        private const val AI_DUNGEON_URL = "https://play.aidungeon.com"
     }
 
     private lateinit var mainWebView: WebView
