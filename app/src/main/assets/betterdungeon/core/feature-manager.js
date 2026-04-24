@@ -75,6 +75,10 @@ class FeatureManager {
     if (typeof InputHistoryFeature !== 'undefined') {
       this.featureClasses.set('inputHistory', InputHistoryFeature);
     }
+
+    if (typeof TextToSpeechFeature !== 'undefined') {
+      this.featureClasses.set('textToSpeech', TextToSpeechFeature);
+    }
   }
 
   async loadFeaturesFromStorage() {
@@ -84,7 +88,7 @@ class FeatureManager {
       // Always-on QOL features that don't need user toggling
       const alwaysEnabled = ['storyCardAnalytics', 'betterScripts'];
       // Features that are disabled by default
-      const defaultOff = ['autoSee'];
+      const defaultOff = ['autoSee', 'textToSpeech'];
       
       const enabled = alwaysEnabled.includes(id) || 
                       savedStates[id] === true || 
