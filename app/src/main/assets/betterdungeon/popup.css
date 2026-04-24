@@ -496,6 +496,16 @@ body {
   font-size: 12px;
 }
 
+.tts-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tts-action-btn {
+  margin-top: 8px;
+}
+
 /* === Toggle Switch === */
 .toggle {
   position: relative;
@@ -793,6 +803,16 @@ body {
 .alert-warning {
   background: var(--warning-muted);
   color: var(--warning);
+}
+
+.alert-info {
+  background: var(--accent-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-accent);
+}
+
+.alert-info [class^="icon-"] {
+  color: var(--accent);
 }
 
 /* === Buttons === */

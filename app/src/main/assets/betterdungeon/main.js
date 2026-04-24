@@ -85,8 +85,26 @@ class BetterDungeon {
         return true;
       } else if (message.type === 'SET_BETTERSCRIPTS_DEBUG') {
         this.handleSetBetterScriptsDebug(message.enabled);
+      } else if (message.type === 'SET_TEXT_TO_SPEECH_SETTINGS') {
+        this.handleSetTextToSpeechSettings(message.settings);
+      } else if (message.type === 'STOP_TEXT_TO_SPEECH') {
+        this.handleStopTextToSpeech();
       }
     });
+  }
+
+  handleSetTextToSpeechSettings(settings) {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.setSettings === 'function') {
+      textToSpeechFeature.setSettings(settings);
+    }
+  }
+
+  handleStopTextToSpeech() {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.stop === 'function') {
+      textToSpeechFeature.stop();
+    }
   }
 
   handleSetAutoScan(enabled) {
