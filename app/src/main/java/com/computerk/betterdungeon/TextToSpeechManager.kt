@@ -115,20 +115,20 @@ class TextToSpeechManager(context: Context) {
         if (text.isBlank()) return false
 
         try {
-            // Voice selection
+            // Voice selection. IMPORTANT: do NOT call setLanguage after setVoice — on
+            // Google TTS (and others) that resets the voice back to the default for
+            // the locale, which is why every non-default voice was sounding identical.
             val targetName = voiceId?.takeIf { it.isNotBlank() && it != "auto" }
             if (targetName != null) {
                 val match = engine.voices?.firstOrNull { it.name == targetName }
                 if (match != null) {
                     engine.voice = match
-                    engine.language = match.locale
+                } else {
+                    // Fall back to default if the requested voice isn't installed.
+                    engine.defaultVoice?.let { engine.voice = it }
                 }
             } else {
-                val defaultVoice = engine.defaultVoice
-                if (defaultVoice != null) {
-                    engine.voice = defaultVoice
-                    engine.language = defaultVoice.locale
-                }
+                engine.defaultVoice?.let { engine.voice = it }
             }
 
             engine.setSpeechRate(clamp(rate, 0.1f, 3.0f))
