@@ -390,6 +390,23 @@ function initTextToSpeechSettings() {
     window.speechSynthesis.addEventListener('voiceschanged', populateTextToSpeechVoices);
   }
 
+  // Native TTS engine may still be initializing; repopulate once it's ready.
+  if (window.BetterDungeonBridge && typeof window.BetterDungeonBridge.ttsIsAvailable === 'function') {
+    let attempts = 0;
+    const maxAttempts = 10;
+    const retry = () => {
+      attempts += 1;
+      if (isNativeTtsBridgeAvailable() && getNativeTtsVoices().length > 0) {
+        populateTextToSpeechVoices();
+        return;
+      }
+      if (attempts < maxAttempts) {
+        setTimeout(retry, 500);
+      }
+    };
+    setTimeout(retry, 500);
+  }
+
   voiceSelect.addEventListener('change', () => {
     const selectedOption = voiceSelect.selectedOptions[0];
     currentTextToSpeechSettings.voiceURI = voiceSelect.value;
@@ -469,11 +486,39 @@ function saveTextToSpeechSettings() {
   });
 }
 
+function isNativeTtsBridgeAvailable() {
+  const bridge = window.BetterDungeonBridge;
+  if (!bridge || typeof bridge.ttsSpeak !== 'function') return false;
+  try {
+    return typeof bridge.ttsIsAvailable !== 'function' || bridge.ttsIsAvailable();
+  } catch (e) {
+    return false;
+  }
+}
+
+function getNativeTtsVoices() {
+  const bridge = window.BetterDungeonBridge;
+  if (!bridge || typeof bridge.ttsGetVoices !== 'function') return [];
+  try {
+    const json = bridge.ttsGetVoices() || '[]';
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
 function populateTextToSpeechVoices() {
   const voiceSelect = document.getElementById('tts-voice-select');
-  if (!voiceSelect || !('speechSynthesis' in window)) return;
+  if (!voiceSelect) return;
 
-  const voices = window.speechSynthesis.getVoices() || [];
+  const useNative = isNativeTtsBridgeAvailable();
+  const voices = useNative
+    ? getNativeTtsVoices()
+    : (('speechSynthesis' in window) ? (window.speechSynthesis.getVoices() || []) : []);
+
+  if (!useNative && !('speechSynthesis' in window)) return;
+
   const selectedValue = currentTextToSpeechSettings.voiceURI || 'auto';
 
   voiceSelect.innerHTML = '';
@@ -507,6 +552,30 @@ function formatTextToSpeechVoiceLabel(voice) {
 
 function testTextToSpeechVoice(btn) {
   const originalText = btn.innerHTML;
+  const sample = 'The storm rolls over the mountains as your adventure continues.';
+
+  if (isNativeTtsBridgeAvailable()) {
+    try {
+      window.BetterDungeonBridge.ttsStop();
+      const voiceId = currentTextToSpeechSettings.voiceURI || 'auto';
+      const ok = window.BetterDungeonBridge.ttsSpeak(
+        sample,
+        voiceId,
+        currentTextToSpeechSettings.rate,
+        currentTextToSpeechSettings.pitch,
+        currentTextToSpeechSettings.volume,
+        true
+      );
+      if (ok) {
+        showButtonStatus(btn, 'success', 'Playing', originalText);
+      } else {
+        showButtonStatus(btn, 'error', 'Failed', originalText);
+      }
+    } catch (e) {
+      showButtonStatus(btn, 'error', 'Failed', originalText);
+    }
+    return;
+  }
 
   if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
     showButtonStatus(btn, 'error', 'Unavailable', originalText);
@@ -515,7 +584,7 @@ function testTextToSpeechVoice(btn) {
 
   stopPopupTextToSpeech();
 
-  const utterance = new SpeechSynthesisUtterance('The storm rolls over the mountains as your adventure continues.');
+  const utterance = new SpeechSynthesisUtterance(sample);
   const voice = resolvePopupTextToSpeechVoice();
 
   if (voice) {
@@ -534,6 +603,9 @@ function testTextToSpeechVoice(btn) {
 }
 
 function stopPopupTextToSpeech() {
+  if (isNativeTtsBridgeAvailable()) {
+    try { window.BetterDungeonBridge.ttsStop(); } catch (e) { /* noop */ }
+  }
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }

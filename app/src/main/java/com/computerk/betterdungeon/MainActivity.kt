@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var bridge: BetterDungeonBridge
     private lateinit var injectionEngine: InjectionEngine
+    private lateinit var ttsManager: TextToSpeechManager
 
     private var popupLoaded = false
 
@@ -74,6 +75,7 @@ class MainActivity : AppCompatActivity() {
         // Initialize components
         bridge = BetterDungeonBridge(this)
         injectionEngine = InjectionEngine(this)
+        ttsManager = TextToSpeechManager(this)
 
         setupMainWebView()
         setupPopupWebView()
@@ -82,6 +84,7 @@ class MainActivity : AppCompatActivity() {
         // Wire up bridge references for cross-WebView communication
         bridge.mainWebView = mainWebView
         bridge.popupWebView = popupWebView
+        bridge.ttsManager = ttsManager
         bridge.onClosePopup = {
             hidePopup()
         }
@@ -95,6 +98,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        ttsManager.shutdown()
         mainWebView.destroy()
         popupWebView.destroy()
         super.onDestroy()
