@@ -112,13 +112,13 @@ class StoryCardAnalyticsFeature {
     const storyCardsTab = document.querySelector('[aria-label="Selected tab Story Cards"]');
     if (!storyCardsTab) return;
 
-    // Verify we have a Filters button
-    const filtersBtn = document.querySelector('[aria-label="Filters"]');
-    if (!filtersBtn) return;
+    // Find the Create Story Card button to locate the toolbar row
+    const createBtn = document.querySelector('[aria-label="Create Story Card"]');
+    if (!createBtn) return;
 
-    // The Filters button is wrapped in a span which is in a row
-    const filtersWrapper = filtersBtn.closest('span');
-    if (!filtersWrapper) return;
+    // The toolbar row containing Create Story Card, view toggles, etc.
+    const toolbarRow = createBtn.closest('.is_Row');
+    if (!toolbarRow) return;
 
     // Build the button
     this.toolbarButton = document.createElement('div');
@@ -154,8 +154,8 @@ class StoryCardAnalyticsFeature {
       }
     });
 
-    // Insert after the Filters wrapper
-    filtersWrapper.insertAdjacentElement('afterend', this.toolbarButton);
+    // Insert below the toolbar row (own row, not inline)
+    toolbarRow.insertAdjacentElement('afterend', this.toolbarButton);
   }
 
   removeToolbarButton() {
@@ -784,21 +784,21 @@ class StoryCardAnalyticsFeature {
         -moz-osx-font-smoothing: grayscale;
       }
 
-      /* Toolbar Dashboard Button — styled to match the Create Story Card button */
+      /* Toolbar Dashboard Button — placed below the Story Cards toolbar row */
       .bd-toolbar-dashboard-btn {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 6px;
+        width: 100%;
         padding: 0 10px;
         height: var(--size-5, 32px);
-        background: var(--background, rgba(0, 0, 0, 0.3));
-        border: none;
+        background: rgba(255, 149, 0, 0.1);
+        border: 1px solid rgba(255, 149, 0, 0.25);
         border-radius: var(--radius-1, 6px);
         cursor: pointer;
         user-select: none;
         transition: all 0.15s ease;
-        flex-shrink: 0;
         outline: none;
       }
 
