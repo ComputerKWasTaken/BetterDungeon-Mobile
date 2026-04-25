@@ -112,44 +112,13 @@ class StoryCardAnalyticsFeature {
     const storyCardsTab = document.querySelector('[aria-label="Selected tab Story Cards"]');
     if (!storyCardsTab) return;
 
-    // --- Anchor strategy ---
-    // Primary: use the "Create Story Card" button (wrapped in a theme <span>) as the anchor.
-    // Fallback: locate the toolbar row inside the Story Cards content area
-    //           (the first Row with justify-content: space-between after the tabs).
-    let anchor = null;
-    let insertPosition = 'afterend';
-
+    // Find the Create Story Card button to locate the toolbar row
     const createBtn = document.querySelector('[aria-label="Create Story Card"]');
-    if (createBtn) {
-      const createWrapper = createBtn.closest('span');
-      if (createWrapper) {
-        anchor = createWrapper;
-      } else {
-        anchor = createBtn;
-      }
-    }
+    if (!createBtn) return;
 
-    // Fallback: walk up from the Story Cards tab to the tablist's parent,
-    // then look for the first Row-like sibling that acts as the toolbar.
-    if (!anchor) {
-      const tabList = storyCardsTab.closest('[role="tablist"]');
-      if (tabList) {
-        // The toolbar row is typically a sibling (or close descendant) of the
-        // tablist container that uses space-between layout.
-        const container = tabList.closest('.is_Row, .is_Column')?.parentElement;
-        if (container) {
-          const toolbarRow = container.parentElement?.querySelector(
-            '.is_Row[class*="_jc-space-betwe"]'
-          );
-          if (toolbarRow) {
-            anchor = toolbarRow;
-            insertPosition = 'beforeend'; // append inside the row
-          }
-        }
-      }
-    }
-
-    if (!anchor) return;
+    // The toolbar row containing Create Story Card, view toggles, etc.
+    const toolbarRow = createBtn.closest('.is_Row');
+    if (!toolbarRow) return;
 
     // Build the button
     this.toolbarButton = document.createElement('div');
@@ -185,8 +154,8 @@ class StoryCardAnalyticsFeature {
       }
     });
 
-    // Insert the button
-    anchor.insertAdjacentElement(insertPosition, this.toolbarButton);
+    // Insert below the toolbar row (own row, not inline)
+    toolbarRow.insertAdjacentElement('afterend', this.toolbarButton);
   }
 
   removeToolbarButton() {
@@ -815,21 +784,20 @@ class StoryCardAnalyticsFeature {
         -moz-osx-font-smoothing: grayscale;
       }
 
-      /* Toolbar Dashboard Button — styled to match the Create Story Card button */
+      /* Toolbar Dashboard Button — placed below the Story Cards toolbar row */
       .bd-toolbar-dashboard-btn {
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        justify-content: center;
+        align-self: flex-start;
         gap: 6px;
         padding: 0 10px;
         height: var(--size-5, 32px);
-        background: var(--background, rgba(0, 0, 0, 0.3));
-        border: none;
+        background: rgba(255, 149, 0, 0.1);
+        border: 1px solid rgba(255, 149, 0, 0.25);
         border-radius: var(--radius-1, 6px);
         cursor: pointer;
         user-select: none;
         transition: all 0.15s ease;
-        flex-shrink: 0;
         outline: none;
       }
 
