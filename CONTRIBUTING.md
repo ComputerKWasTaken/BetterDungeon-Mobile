@@ -86,6 +86,12 @@ Each JS file is wrapped in a `try/catch` block so a failure in one feature doesn
 
 ### Changelog
 
+### v1.1
+- Fixed Story Card Dashboard button for AI Dungeon's reworked Story Card menu
+- Updated DOM selectors: Filters button removed, "Add Story Card" renamed to "Create Story Card"
+- Restyled Dashboard button to match the new Create Story Card button design
+- Updated Story Card Scanner to recognize the new "Create Story Card" button
+
 ### v1.0
 - Initial release
 - Full port of all BetterDungeon browser extension features to Android WebView
