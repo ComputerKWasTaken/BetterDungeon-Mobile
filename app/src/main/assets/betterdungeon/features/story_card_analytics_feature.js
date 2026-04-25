@@ -93,17 +93,8 @@ class StoryCardAnalyticsFeature {
 
   // Inject Dashboard button into the Story Cards toolbar if not already present
   tryInjectToolbarButton() {
-    // Check the DOM for any existing dashboard button (by data attribute),
-    // not just our cached reference — React may have re-rendered the toolbar
-    // which removes the old element from the DOM while our JS reference goes stale.
     const existingBtn = document.querySelector('[data-bd-dashboard-btn]');
-    if (existingBtn) {
-      // Verify it is actually attached and visible (not orphaned in a detached tree)
-      if (document.contains(existingBtn)) {
-        this.toolbarButton = existingBtn;
-        return;
-      }
-      // Stale node — remove it so we can create a fresh one
+    if (existingBtn && !document.contains(existingBtn)) {
       existingBtn.remove();
     }
     this.toolbarButton = null;
@@ -112,50 +103,68 @@ class StoryCardAnalyticsFeature {
     const storyCardsTab = document.querySelector('[aria-label="Selected tab Story Cards"]');
     if (!storyCardsTab) return;
 
-    // Find the Create Story Card button to locate the toolbar row
-    const createBtn = document.querySelector('[aria-label="Create Story Card"]');
+    // Find the visible Create Story Card button to locate the active toolbar row
+    const createBtn = Array.from(document.querySelectorAll('[aria-label="Create Story Card"]'))
+      .find((button) => {
+        const rect = button.getBoundingClientRect();
+        const style = window.getComputedStyle(button);
+        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      });
     if (!createBtn) return;
 
     // The toolbar row containing Create Story Card, view toggles, etc.
     const toolbarRow = createBtn.closest('.is_Row');
     if (!toolbarRow) return;
 
-    // Build the button
-    this.toolbarButton = document.createElement('div');
-    this.toolbarButton.setAttribute('role', 'button');
-    this.toolbarButton.setAttribute('aria-label', 'Story Card Dashboard');
-    this.toolbarButton.setAttribute('data-bd-dashboard-btn', '');
-    this.toolbarButton.className = 'bd-toolbar-dashboard-btn';
-    this.toolbarButton.tabIndex = 0;
-    this.toolbarButton.innerHTML = `
-      <span class="bd-toolbar-btn-icon icon-chart-column"></span>
-      <span class="bd-toolbar-btn-label">Dashboard</span>
-    `;
+    let dashboardRow = document.querySelector('[data-bd-dashboard-row]');
+    if (!dashboardRow) {
+      dashboardRow = document.createElement('div');
+      dashboardRow.setAttribute('data-bd-dashboard-row', '');
+      dashboardRow.className = 'bd-toolbar-dashboard-row';
+    }
 
-    // Touch-first event handling for mobile (matches wireButton pattern)
-    const btn = this.toolbarButton;
-    btn.addEventListener('click', () => this.openDashboard());
-    btn.addEventListener('touchstart', () => {
-      btn.style.transform = 'scale(0.95)';
-      btn.style.opacity = '0.8';
-    }, { passive: true });
-    btn.addEventListener('touchend', () => {
-      btn.style.transform = '';
-      btn.style.opacity = '';
-    }, { passive: true });
-    btn.addEventListener('touchcancel', () => {
-      btn.style.transform = '';
-      btn.style.opacity = '';
-    }, { passive: true });
-    btn.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        this.openDashboard();
-      }
-    });
+    if (existingBtn && document.contains(existingBtn)) {
+      this.toolbarButton = existingBtn;
+    } else {
+      this.toolbarButton = document.createElement('div');
+      this.toolbarButton.setAttribute('role', 'button');
+      this.toolbarButton.setAttribute('aria-label', 'Story Card Dashboard');
+      this.toolbarButton.setAttribute('data-bd-dashboard-btn', '');
+      this.toolbarButton.className = 'bd-toolbar-dashboard-btn';
+      this.toolbarButton.tabIndex = 0;
+      this.toolbarButton.innerHTML = `
+        <span class="bd-toolbar-btn-icon icon-chart-column"></span>
+        <span class="bd-toolbar-btn-label">Dashboard</span>
+      `;
 
-    // Insert below the toolbar row (own row, not inline)
-    toolbarRow.insertAdjacentElement('afterend', this.toolbarButton);
+      const btn = this.toolbarButton;
+      btn.addEventListener('click', () => this.openDashboard());
+      btn.addEventListener('touchstart', () => {
+        btn.style.transform = 'scale(0.95)';
+        btn.style.opacity = '0.8';
+      }, { passive: true });
+      btn.addEventListener('touchend', () => {
+        btn.style.transform = '';
+        btn.style.opacity = '';
+      }, { passive: true });
+      btn.addEventListener('touchcancel', () => {
+        btn.style.transform = '';
+        btn.style.opacity = '';
+      }, { passive: true });
+      btn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.openDashboard();
+        }
+      });
+    }
+
+    dashboardRow.appendChild(this.toolbarButton);
+
+    // Insert below the active toolbar row (own row, not inline)
+    if (dashboardRow.parentElement !== toolbarRow.parentElement || dashboardRow.previousElementSibling !== toolbarRow) {
+      toolbarRow.insertAdjacentElement('afterend', dashboardRow);
+    }
   }
 
   removeToolbarButton() {
@@ -782,6 +791,13 @@ class StoryCardAnalyticsFeature {
         font-style: normal;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+      }
+
+      .bd-toolbar-dashboard-row {
+        display: flex;
+        justify-content: flex-start;
+        width: 100%;
+        margin-top: 8px;
       }
 
       /* Toolbar Dashboard Button — placed below the Story Cards toolbar row */
