@@ -50,17 +50,24 @@
         // 1. Home Page Target — right side of the top bar, before the rightmost nav button.
         //    When logged in the right slot holds "Notifications"; when logged out it holds
         //    "Sign in". We try both so the gear appears regardless of auth state.
-        const homeMenuTarget = (
+        const anchorEl = (
             document.querySelector('div[aria-label="Notifications"]') ??
             document.querySelector('div[aria-label="Sign in"]')
-        )?.closest('.is_Row');
+        );
+        const homeMenuTarget = anchorEl?.closest('.is_Row');
         if (homeMenuTarget && !homeMenuTarget.querySelector('.bd-mobile-settings')) {
             const template = document.createElement('template');
             template.innerHTML = gearHomeHtml.trim();
             const node = template.content.firstChild;
             node.addEventListener('click', onSettingsClick);
-            // Insert before Notifications so order is: ⚙️ | 🔔
-            homeMenuTarget.insertBefore(node, homeMenuTarget.firstElementChild);
+            // Walk up from the anchor element to its direct child within the
+            // row so the gear is always placed immediately before it, even when
+            // closest('.is_Row') resolves to a wider parent row.
+            let insertTarget = anchorEl;
+            while (insertTarget.parentElement && insertTarget.parentElement !== homeMenuTarget) {
+                insertTarget = insertTarget.parentElement;
+            }
+            homeMenuTarget.insertBefore(node, insertTarget);
         }
 
         // 2. Adventure Page Target (next to the Model Switcher / Undo / Redo)
