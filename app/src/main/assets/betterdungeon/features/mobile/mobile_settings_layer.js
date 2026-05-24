@@ -45,7 +45,6 @@
             console.warn('[BetterDungeon] BetterDungeonBridge is not available.');
         }
     }
-
     function injectSettingsButtons() {
         // 1. Home Page Target — right side of the top bar, before the rightmost nav button.
         //    When logged in the right slot holds "Notifications"; when logged out it holds
@@ -54,20 +53,16 @@
             document.querySelector('div[aria-label="Notifications"]') ??
             document.querySelector('div[aria-label="Sign in"]')
         );
-        const homeMenuTarget = anchorEl?.closest('.is_Row');
-        if (homeMenuTarget && !homeMenuTarget.querySelector('.bd-mobile-settings')) {
-            const template = document.createElement('template');
-            template.innerHTML = gearHomeHtml.trim();
-            const node = template.content.firstChild;
-            node.addEventListener('click', onSettingsClick);
-            // Walk up from the anchor element to its direct child within the
-            // row so the gear is always placed immediately before it, even when
-            // closest('.is_Row') resolves to a wider parent row.
-            let insertTarget = anchorEl;
-            while (insertTarget.parentElement && insertTarget.parentElement !== homeMenuTarget) {
-                insertTarget = insertTarget.parentElement;
+        if (anchorEl) {
+            const buttonWrapper = anchorEl.parentElement;
+            const parentRow = buttonWrapper?.parentElement;
+            if (parentRow && !parentRow.querySelector('.bd-mobile-settings')) {
+                const template = document.createElement('template');
+                template.innerHTML = gearHomeHtml.trim();
+                const node = template.content.firstChild;
+                node.addEventListener('click', onSettingsClick);
+                parentRow.insertBefore(node, buttonWrapper);
             }
-            homeMenuTarget.insertBefore(node, insertTarget);
         }
 
         // 2. Adventure Page Target (next to the Model Switcher / Undo / Redo)
