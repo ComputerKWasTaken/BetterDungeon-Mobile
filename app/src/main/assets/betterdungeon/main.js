@@ -4,8 +4,10 @@
 class BetterDungeon {
   constructor() {
     this.debug = false;
-    this.featureManager = new FeatureManager();
     this.aiDungeonService = new AIDungeonService();
+    this.featureManager = new FeatureManager({
+      aiDungeonService: this.aiDungeonService,
+    });
     this.init();
   }
 
@@ -41,6 +43,10 @@ class BetterDungeon {
         this.handleSetAutoSeeTriggerMode(message.mode);
       } else if (message.type === 'SET_AUTO_SEE_TURN_INTERVAL') {
         this.handleSetAutoSeeTurnInterval(message.interval);
+      } else if (message.type === 'SET_TEXT_TO_SPEECH_SETTINGS') {
+        this.handleSetTextToSpeechSettings(message.settings);
+      } else if (message.type === 'STOP_TEXT_TO_SPEECH') {
+        this.handleStopTextToSpeech();
       } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
         this.handleApplyInstructionsWithLoading().then(sendResponse);
         return true;
@@ -83,27 +89,58 @@ class BetterDungeon {
       } else if (message.type === 'OPEN_STORY_CARD_ANALYTICS') {
         this.handleOpenStoryCardAnalytics().then(sendResponse);
         return true;
-      } else if (message.type === 'SET_BETTERSCRIPTS_DEBUG') {
-        this.handleSetBetterScriptsDebug(message.enabled);
-      } else if (message.type === 'SET_TEXT_TO_SPEECH_SETTINGS') {
-        this.handleSetTextToSpeechSettings(message.settings);
-      } else if (message.type === 'STOP_TEXT_TO_SPEECH') {
-        this.handleStopTextToSpeech();
+      } else if (message.type === 'SET_ULTRASCRIPTS_DEBUG') {
+        window.Ultrascripts?.core?.setDebug?.(message.enabled);
+        sendResponse({ success: true, debugEnabled: !!message.enabled });
+        return true;
+      } else if (message.type === 'SET_SCRIPTURE_WIDGET_DISPLAY') {
+        const display = window.ScriptureModule?.setWidgetDisplayOptions?.(message.display, { persist: true }) || null;
+        sendResponse({ success: true, display });
+        return true;
+      } else if (message.type === 'SET_ULTRASCRIPTS_MODULE_ENABLED') {
+        window.Ultrascripts?.registry?.setModuleEnabled?.(message.moduleId, message.enabled);
+        sendResponse({
+          success: true,
+          moduleId: message.moduleId,
+          enabled: !!message.enabled,
+          registry: window.Ultrascripts?.registry?.inspect?.() || null,
+        });
+        return true;
+      } else if (message.type === 'GET_ULTRASCRIPTS_STATE') {
+        sendResponse({
+          ultrascriptsEnabled: this.featureManager.isFeatureEnabled('ultrascripts'),
+          core: window.Ultrascripts?.core?.inspect?.() || null,
+          registry: window.Ultrascripts?.registry?.inspect?.() || null,
+          modules: window.Ultrascripts?.registry?.list?.() || [],
+        });
+        return true;
+      } else if (message.type === 'GET_WEBFETCH_CONSENT') {
+        this.handleGetWebFetchConsent().then(sendResponse);
+        return true;
+      } else if (message.type === 'SET_WEBFETCH_CONSENT') {
+        this.handleSetWebFetchConsent(message.origin, message.decision).then(sendResponse);
+        return true;
       }
     });
   }
 
-  handleSetTextToSpeechSettings(settings) {
-    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
-    if (textToSpeechFeature && typeof textToSpeechFeature.setSettings === 'function') {
-      textToSpeechFeature.setSettings(settings);
+  async handleGetWebFetchConsent() {
+    try {
+      const consent = window.UltrascriptsWebFetchConsent;
+      if (!consent?.inspect) return { success: false, error: 'WebFetch consent broker not available' };
+      return { success: true, consent: await consent.inspect() };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
     }
   }
 
-  handleStopTextToSpeech() {
-    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
-    if (textToSpeechFeature && typeof textToSpeechFeature.stop === 'function') {
-      textToSpeechFeature.stop();
+  async handleSetWebFetchConsent(origin, decision) {
+    try {
+      const consent = window.UltrascriptsWebFetchConsent;
+      if (!consent?.setOrigin) return { success: false, error: 'WebFetch consent broker not available' };
+      return { success: true, result: await consent.setOrigin(origin, decision) };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
     }
   }
 
@@ -121,13 +158,6 @@ class BetterDungeon {
     }
   }
 
-  handleSetBetterScriptsDebug(enabled) {
-    const betterScriptsFeature = this.featureManager.features.get('betterScripts');
-    if (betterScriptsFeature && typeof betterScriptsFeature.setDebugMode === 'function') {
-      betterScriptsFeature.setDebugMode(enabled);
-    }
-  }
-
   handleSetAutoSeeTriggerMode(mode) {
     const autoSeeFeature = this.featureManager.features.get('autoSee');
     if (autoSeeFeature && typeof autoSeeFeature.setTriggerMode === 'function') {
@@ -139,6 +169,20 @@ class BetterDungeon {
     const autoSeeFeature = this.featureManager.features.get('autoSee');
     if (autoSeeFeature && typeof autoSeeFeature.setTurnInterval === 'function') {
       autoSeeFeature.setTurnInterval(interval);
+    }
+  }
+
+  handleSetTextToSpeechSettings(settings) {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.setSettings === 'function') {
+      textToSpeechFeature.setSettings(settings);
+    }
+  }
+
+  handleStopTextToSpeech() {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.stop === 'function') {
+      textToSpeechFeature.stop();
     }
   }
 
@@ -325,7 +369,7 @@ class BetterDungeon {
   }
 }
 
-// Global instance — exposed on window so features inside other try{} blocks can access it
+// Global instance
 let betterDungeonInstance = null;
 
 // Initialize when DOM is ready

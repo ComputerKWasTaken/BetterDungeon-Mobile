@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=380">
   <title>BetterDungeon</title>
   <link rel="stylesheet" href="fonts/lucide/lucide.css">
   <link rel="stylesheet" href="core/theme-variables.css">
@@ -29,6 +29,10 @@
       <span class="nav-icon icon-sparkles"></span>
       <span class="nav-label">Features</span>
     </button>
+    <button class="nav-item" data-tab="ultrascripts">
+      <span class="nav-icon icon-radio-tower"></span>
+      <span class="nav-label">Ultrascripts</span>
+    </button>
     <button class="nav-item" data-tab="presets">
       <span class="nav-icon icon-bookmark"></span>
       <span class="nav-label">Presets</span>
@@ -45,14 +49,14 @@
       <div class="section whats-new-section" id="whats-new-banner">
         <div class="whats-new-compact" id="whats-new-compact">
           <div class="whats-new-compact-left">
-            <span class="whats-new-compact-icon icon-smartphone"></span>
+            <span class="whats-new-compact-icon icon-sparkles"></span>
             <div class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">BetterDungeon arrives on Android &mdash; touch-optimized &amp; feature-complete</span>
+              <span class="whats-new-compact-summary">Android version now available, bug fixes &amp; more</span>
             </div>
           </div>
           <div class="whats-new-compact-right">
-            <span class="whats-new-badge">New</span>
+            <span class="whats-new-badge">Latest</span>
             <button class="whats-new-toggle" id="whats-new-toggle" aria-label="Expand">
               <span class="icon-chevron-down"></span>
             </button>
@@ -62,23 +66,15 @@
           <div class="whats-new-list">
             <div class="whats-new-item">
               <span class="whats-new-item-icon icon-smartphone" style="color: #22c55e;"></span>
-              <div><strong>Now on Android</strong> &mdash; BetterDungeon is officially available as a native Android app</div>
+              <div><strong>Now on Android</strong> &mdash; BetterDungeon is officially available as a native Android app. Download now to get the BetterDungeon experience on the go</div>
             </div>
             <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-settings" style="color: #a855f7;"></span>
-              <div><strong>Touch-Optimized Interface</strong> &mdash; Settings popup redesigned from the ground up for mobile screens</div>
+              <span class="whats-new-item-icon icon-code" style="color: #a855f7;"></span>
+              <div><strong>Ultrascripts Preview</strong> &mdash; Scripture widgets now ride on story-card state instead of hidden story text, keeping widget values aligned with undo, retry, edit, and continue.</div>
             </div>
             <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-save" style="color: #3b82f6;"></span>
-              <div><strong>Persistent Storage</strong> &mdash; Settings, notes, and presets automatically saved between sessions</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-monitor" style="color: #f59e0b;"></span>
-              <div><strong>Also on PC</strong> &mdash; BetterDungeon is available as a browser extension for desktop too</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-sparkles" style="color: var(--accent);"></span>
-              <div><strong>Full Feature Parity</strong> &mdash; Command, Try, Markdown, Notes, Presets &amp; more, all carried over</div>
+              <span class="whats-new-item-icon icon-wrench" style="color: #6b7280;"></span>
+              <div><strong>Bug Fixes</strong> &mdash; Various stability improvements</div>
             </div>
           </div>
         </div>
@@ -163,6 +159,14 @@
               <span class="quick-toggle-name">Triggers</span>
               <label class="toggle sm">
                 <input type="checkbox" data-quick-toggle="triggerHighlight">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="storyCardModalDock">
+              <span class="quick-toggle-dot" style="background: var(--bd-icon-modal-dock);"></span>
+              <span class="quick-toggle-name">Modal Dock</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="storyCardModalDock">
                 <span class="toggle-slider"></span>
               </label>
             </div>
@@ -330,7 +334,7 @@
                   </span>
                   <h3 class="feature-title">Input History</h3>
                 </div>
-                <p class="feature-desc">Recall previous inputs with touch navigation</p>
+                <p class="feature-desc">Terminal-style input history with arrow keys</p>
               </div>
               <label class="toggle">
                 <input type="checkbox" id="feature-inputHistory" checked>
@@ -338,8 +342,8 @@
               </label>
             </div>
             <div class="feature-details">
-              <p>Use the <strong>&#9650;/&#9660; buttons</strong> above the input bar to cycle through your previously sent inputs. The bar appears automatically once you've sent your first input.</p>
-              <p class="feature-hint"><span class="icon-history"></span> Remembers up to 50 of your recent actions and their respective input modes, scoped to each adventure.</p>
+              <p>Press <strong>Ctrl</strong> + <strong>Up/Down</strong> arrow keys while the input box is focused to cycle through your previously sent inputs.</p>
+              <p class="feature-hint"><span class="icon-history"></span> Remembers up to 50 of your recent actions and their respective input modes.</p>
             </div>
           </article>
 
@@ -535,45 +539,26 @@
             </div>
           </article>
 
-
-          <!-- BetterScripts -->
-          <article class="feature-card" data-feature="betterScripts">
+          <!-- Story Card Modal Dock -->
+          <article class="feature-card" data-feature="storyCardModalDock">
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-icon-scripts);">
-                    <span class="icon-code"></span>
+                  <span class="feature-icon" style="color: var(--bd-icon-modal-dock);">
+                    <span class="icon-panel-right"></span>
                   </span>
-                  <h3 class="feature-title">BetterScripts</h3>
+                  <h3 class="feature-title">Story Card Modal Dock</h3>
                 </div>
-                <p class="feature-desc">Script-to-extension widget communication</p>
+                <p class="feature-desc">Docks story card editor to the side</p>
               </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-storyCardModalDock" checked>
+                <span class="toggle-slider"></span>
+              </label>
             </div>
             <div class="feature-details">
-              <p>Enables AI Dungeon scripts to create <strong>dynamic UI widgets</strong> displaying HP bars, stats, and game state.</p>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Scripts send commands via invisible zero-width Unicode protocol messages.</p>
-              
-              <div class="syntax-box">
-                <div class="syntax-row"><code>stat</code><span>Label + value</span></div>
-                <div class="syntax-row"><code>bar</code><span>Progress bar</span></div>
-                <div class="syntax-row"><code>panel</code><span>Multi-stat container</span></div>
-                <div class="syntax-row"><code>text</code><span>Simple text display</span></div>
-                <div class="syntax-row"><code>custom</code><span>Custom HTML widgets</span></div>
-              </div>
-
-              <div class="feature-option">
-                <span class="option-label">Debug Mode</span>
-                <label class="toggle sm">
-                  <input type="checkbox" id="betterscripts-debug">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <p class="feature-hint"><span class="icon-bug"></span> Shows protocol messages in the story and enables verbose console logging.</p>
-
-              <a href="https://better-repository.netlify.app/scripts" target="_blank" rel="noopener noreferrer" class="btn btn-action">
-                <span class="icon-external-link"></span>
-                View Example Scripts
-              </a>
+              <p>Docks the story card modal to the <strong>right side of the screen</strong>, allowing you to scroll through your story while editing Story Cards.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Great for checking context without closing the editor.</p>
             </div>
           </article>
 
@@ -701,11 +686,29 @@
 
               <div class="alert alert-info alert-compact">
                 <span class="icon-sparkles"></span>
-                <span>Uses your device's built-in TTS voices, no API key or paid service required.</span>
+                <span>Uses free browser voices, no API key or paid service required.</span>
               </div>
             </div>
           </article>
 
+          <!-- Auto Enable Scripts -->
+          <article class="feature-card" data-feature="autoEnableScripts">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-auto-scripts);">
+                    <span class="icon-terminal"></span>
+                  </span>
+                  <h3 class="feature-title">Auto Enable Scripts</h3>
+                </div>
+                <p class="feature-desc">Automatically re-enables scripts in scenario editor</p>
+              </div>
+            </div>
+            <div class="feature-details">
+              <p>Automatically retoggles the "Enable Scripts" option in the <strong>Scenario Creation page</strong> when it gets disabled.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Saves you from manually re-enabling scripts every time.</p>
+            </div>
+          </article>
 
         </div>
       </div>
@@ -717,6 +720,418 @@
         <p class="empty-desc">Try a different search term</p>
       </div>
 
+    </section>
+
+    <!-- Ultrascripts Tab -->
+    <section class="tab-panel" id="tab-ultrascripts">
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-activity" style="color: var(--bd-icon-scripts);"></span>
+          <h2 class="section-title">Runtime</h2>
+          <span class="section-count" id="count-ultrascripts-runtime">1/1</span>
+        </div>
+        <div class="section-body">
+          <article class="feature-card expanded ultrascripts-card" data-feature="ultrascripts">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-scripts);">
+                    <span class="icon-radio-tower"></span>
+                  </span>
+                  <h3 class="feature-title">Ultrascripts</h3>
+                </div>
+                <p class="feature-desc">Two-way script modules and live capabilities</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-ultrascripts" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <div class="ultrascripts-status-panel" id="ultrascripts-status-panel">
+                <span class="ultrascripts-status-dot" id="ultrascripts-status-dot"></span>
+                <div>
+                  <strong id="ultrascripts-status-label">Checking Ultrascripts</strong>
+                  <span id="ultrascripts-status-detail">Open AI Dungeon to inspect live module state.</span>
+                </div>
+                <button class="btn btn-icon btn-ghost" id="ultrascripts-refresh" aria-label="Refresh Ultrascripts status" title="Refresh">
+                  <span class="icon-refresh-cw"></span>
+                </button>
+              </div>
+              <div class="feature-option ultrascripts-debug-option">
+                <span class="option-label"><span class="icon-bug"></span> Ultrascripts Debug</span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="ultrascripts-debug">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-layers" style="color: var(--bd-section-formatting);"></span>
+          <h2 class="section-title">Script Surface</h2>
+          <span class="section-count" id="count-ultrascripts-script-surface">4/4</span>
+        </div>
+        <div class="section-body">
+          <div class="ultrascripts-module-list">
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="scripture">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-icon-scripts);">
+                      <span class="icon-book-open-text"></span>
+                    </span>
+                    <h3 class="feature-title">Scripture</h3>
+                  </div>
+                  <p class="feature-desc">Live visual UI for script-driven displays</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="scripture" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Scripture lets adventure scripts render interface elements outside the story text, including stat bars, counters, panels, status readouts, and custom HTML widgets.</p>
+                <p class="feature-hint"><span class="icon-book-open-text"></span> Useful for RPG HUDs, relationship meters, timers, inventory panels, and scenario-specific dashboards.</p>
+                <div class="scripture-settings-panel">
+                  <div class="ultrascripts-panel-heading">
+                    <span><span class="icon-sliders-horizontal"></span> Widget Display</span>
+                  </div>
+                  <label class="scripture-setting-row" for="scripture-widget-size">
+                    <span>
+                      <strong>Size</strong>
+                      <small>Scales Scripture widgets without changing the script's state.</small>
+                    </span>
+                    <select class="form-select form-select-sm" id="scripture-widget-size" aria-label="Scripture widget size">
+                      <option value="compact">Compact</option>
+                      <option value="normal">Normal</option>
+                      <option value="comfortable">Comfortable</option>
+                      <option value="large">Large</option>
+                    </select>
+                  </label>
+                  <label class="scripture-setting-row" for="scripture-widget-height">
+                    <span>
+                      <strong>Max Height</strong>
+                      <small>Controls how much vertical space the widget bar may use before scrolling.</small>
+                    </span>
+                    <select class="form-select form-select-sm" id="scripture-widget-height" aria-label="Scripture widget max height">
+                      <option value="short">Short</option>
+                      <option value="medium">Medium</option>
+                      <option value="tall">Tall</option>
+                    </select>
+                  </label>
+                  <label class="scripture-setting-row" for="scripture-widget-layout">
+                    <span>
+                      <strong>Layout</strong>
+                      <small>Balanced keeps left, center, and right zones; stacked gives every zone full width.</small>
+                    </span>
+                    <select class="form-select form-select-sm" id="scripture-widget-layout" aria-label="Scripture widget layout">
+                      <option value="balanced">Balanced</option>
+                      <option value="stacked">Stacked</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="webfetch">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-blue);">
+                      <span class="icon-globe-lock"></span>
+                    </span>
+                    <h3 class="feature-title">WebFetch</h3>
+                  </div>
+                  <p class="feature-desc">Consent-gated web requests and simple search</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="webfetch" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>WebFetch gives scripts conservative web access for live context: safe GET requests, basic search, origin allow/deny decisions, rate limits, and blocked local/private targets.</p>
+                <p class="feature-hint"><span class="icon-globe-lock"></span> Useful for current facts, public reference pages, lightweight lookups, and web-aware scripted tools.</p>
+                <div class="ultrascripts-consent-panel">
+                  <div class="ultrascripts-panel-heading">
+                    <span><span class="icon-shield-check"></span> Origin Permissions</span>
+                    <button class="btn btn-icon btn-ghost" id="webfetch-consent-refresh" aria-label="Refresh WebFetch origins" title="Refresh origins">
+                      <span class="icon-refresh-cw"></span>
+                    </button>
+                  </div>
+                  <div class="ultrascripts-consent-list" id="webfetch-consent-list"></div>
+                  <div class="ultrascripts-consent-editor">
+                    <input type="text" class="form-input" id="webfetch-origin-input" placeholder="https://example.com">
+                    <select class="form-select form-select-sm" id="webfetch-decision-select" aria-label="WebFetch origin decision">
+                      <option value="allow">Allow</option>
+                      <option value="deny">Deny</option>
+                      <option value="clear">Clear</option>
+                    </select>
+                    <button class="btn btn-icon btn-primary" id="webfetch-consent-save" aria-label="Save WebFetch origin" title="Save origin">
+                      <span class="icon-check"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="clock">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-mode-story);">
+                      <span class="icon-clock"></span>
+                    </span>
+                    <h3 class="feature-title">Clock</h3>
+                  </div>
+                  <p class="feature-desc">Reliable time, time zones, and formatting</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="clock" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Clock gives scripts the user's current local time, IANA time-zone conversion, ISO timestamps, offsets, and deterministic formatted dates.</p>
+                <p class="feature-hint"><span class="icon-clock"></span> Useful for daily events, timed encounters, schedules, cooldowns, holidays, and world clocks.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="sdk">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--accent);">
+                      <span class="icon-layers"></span>
+                    </span>
+                    <h3 class="feature-title">SDK</h3>
+                  </div>
+                  <p class="feature-desc">BetterDungeon version and configuration context</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="sdk" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>SDK gives scripts curated BetterDungeon metadata that complements heartbeat without duplicating Ultrascripts discovery, including version info and safe configuration context.</p>
+                <p class="feature-hint"><span class="icon-layers"></span> Useful when a script needs to react to how the player has BetterDungeon configured while leaving heartbeat as the one module/ops truth.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-brain-circuit" style="color: var(--bd-indigo);"></span>
+          <h2 class="section-title">AI</h2>
+          <span class="section-count" id="count-ultrascripts-ai">1/1</span>
+        </div>
+        <div class="section-body">
+          <div class="ultrascripts-module-list">
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="ai">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-indigo);">
+                      <span class="icon-bot-message-square"></span>
+                    </span>
+                    <h3 class="feature-title">AI</h3>
+                  </div>
+                  <p class="feature-desc">OpenRouter model calls for scripts</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="ai" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>AI lets scripts ask a hosted model for bounded side tasks such as summarizing clues, classifying intent, generating structured data, or running private reasoning that should not interrupt the story turn.</p>
+                <p class="feature-hint"><span class="icon-brain-circuit"></span> Uses your own OpenRouter key. Scripts can call the module, but the key stays inside BetterDungeon and is never written to Story Cards.</p>
+                <div class="ultrascripts-provider-panel">
+                  <div class="ultrascripts-panel-heading">
+                    <span><span class="icon-key-round"></span> OpenRouter</span>
+                    <button class="btn btn-icon btn-ghost" id="ai-test" aria-label="Test AI connection" title="Test connection">
+                      <span class="icon-plug-zap"></span>
+                    </button>
+                  </div>
+                  <div class="ultrascripts-provider-fields">
+                    <input type="password" class="form-input" id="ai-openrouter-key" autocomplete="off" placeholder="OpenRouter API key">
+                    <input type="text" class="form-input" id="ai-default-model" autocomplete="off" placeholder="OpenRouter model ID, e.g. google/gemini-2.0-flash-exp:free">
+                    <a class="ultrascripts-ai-model-link" href="https://openrouter.ai/models?output_modalities=text&amp;max_price=0" target="_blank" rel="noopener noreferrer">
+                      <span class="icon-external-link"></span>
+                      Browse free text models on OpenRouter
+                    </a>
+                  </div>
+                  <div class="ultrascripts-ai-cost-panel">
+                    <div class="ultrascripts-ai-cost-heading">
+                      <span><span class="icon-shield-check"></span> Cost Controls</span>
+                    </div>
+                    <div class="ultrascripts-ai-cost-toggle">
+                      <span>Free models only</span>
+                      <label class="toggle xs" title="Block paid OpenRouter models">
+                        <input type="checkbox" id="ai-cost-free-only" checked>
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                    <button class="ultrascripts-ai-cost-advanced-toggle" id="ai-cost-advanced-toggle" type="button" aria-expanded="false">
+                      <span class="icon-chevron-down"></span>
+                      Paid model safeguards
+                    </button>
+                    <div class="ultrascripts-ai-cost-grid hidden" id="ai-cost-advanced">
+                      <label>
+                        <span>Max input $ / 1M</span>
+                        <input type="number" class="form-input" id="ai-cost-max-input" min="0" max="1000" step="0.01">
+                      </label>
+                      <label>
+                        <span>Max output $ / 1M</span>
+                        <input type="number" class="form-input" id="ai-cost-max-output" min="0" max="1000" step="0.01">
+                      </label>
+                      <label>
+                        <span>Per-call estimate cap</span>
+                        <input type="number" class="form-input" id="ai-cost-per-call-cap" min="0" max="1000" step="0.01">
+                      </label>
+                      <label>
+                        <span>Daily spend cap</span>
+                        <input type="number" class="form-input" id="ai-cost-daily-cap" min="0" max="1000" step="0.01">
+                      </label>
+                      <label>
+                        <span>Monthly spend cap</span>
+                        <input type="number" class="form-input" id="ai-cost-monthly-cap" min="0" max="1000" step="0.01">
+                      </label>
+                    </div>
+                    <p class="ultrascripts-ai-cost-hint">Free models are simplest. Open paid safeguards only if you intentionally enable paid models.</p>
+                  </div>
+                  <div class="ultrascripts-provider-actions">
+                    <button class="btn btn-primary btn-sm" id="ai-save" type="button">
+                      <span class="icon-check"></span>
+                      Save
+                    </button>
+                    <button class="btn btn-ghost btn-sm" id="ai-clear-key" type="button">
+                      <span class="icon-x"></span>
+                      Clear Key
+                    </button>
+                  </div>
+                  <div class="ultrascripts-provider-status idle" id="ai-status">Add an OpenRouter key to enable hosted model calls.</div>
+                </div>
+              </div>
+            </article>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-map" style="color: var(--bd-section-tools);"></span>
+          <h2 class="section-title">World &amp; Device Context</h2>
+          <span class="section-count" id="count-ultrascripts-context">4/4</span>
+        </div>
+        <div class="section-body">
+          <div class="ultrascripts-module-list">
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="geolocation">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-pink);">
+                      <span class="icon-map-pin"></span>
+                    </span>
+                    <h3 class="feature-title">Geolocation</h3>
+                  </div>
+                  <p class="feature-desc">Permission-based real-world location context</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="geolocation" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Geolocation lets scripts request the user's browser-approved location, returning coordinates, accuracy, and permission state only after the normal browser prompt allows it.</p>
+                <p class="feature-hint"><span class="icon-map-pin"></span> Useful for local mysteries, travel scenes, real-world scavenger hooks, and location-aware setting details.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="weather">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-cyan);">
+                      <span class="icon-cloud-sun"></span>
+                    </span>
+                    <h3 class="feature-title">Weather</h3>
+                  </div>
+                  <p class="feature-desc">Current conditions and forecast lookup</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="weather" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Weather gives scripts a focused weather path without general web scraping, using place names or coordinates to return current conditions and short forecasts.</p>
+                <p class="feature-hint"><span class="icon-cloud-sun"></span> Useful for atmospheric scenes, survival mechanics, travel planning, seasonal events, and grounded local flavor.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="network">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-green);">
+                      <span class="icon-wifi"></span>
+                    </span>
+                    <h3 class="feature-title">Network</h3>
+                  </div>
+                  <p class="feature-desc">Connection status and quality hints</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="network" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Network reports online status and browser connection hints like effective type, round-trip time, downlink estimate, and data-saver preference when available.</p>
+                <p class="feature-hint"><span class="icon-wifi"></span> Useful for scripts that can choose lighter requests, avoid live lookups, or explain degraded behavior cleanly.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="system">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-orange);">
+                      <span class="icon-cpu"></span>
+                    </span>
+                    <h3 class="feature-title">System</h3>
+                  </div>
+                  <p class="feature-desc">Coarse device, browser, display, and power hints</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="system" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>System exposes broad environment details such as device class, platform family, locale, screen size, touch support, browser family, and battery state when supported.</p>
+                <p class="feature-hint"><span class="icon-cpu"></span> Useful for adapting script UI, reducing work on mobile or low-power devices, and tailoring experiences by device context.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <a href="https://better-repository.netlify.app/scripts" target="_blank" rel="noopener noreferrer" class="btn btn-action">
+          <span class="icon-external-link"></span>
+          View Example Scripts
+        </a>
+      </div>
     </section>
 
     <!-- Presets Tab -->
@@ -900,7 +1315,7 @@
           <div class="field-add">
             <input type="text" class="form-input" id="new-field-key" placeholder="Field name (e.g. age)">
             <input type="text" class="form-input" id="new-field-value" placeholder="Value (e.g. 25)">
-            <button class="btn btn-icon" id="add-field-btn" aria-label="Add field" title="Add field">
+            <button class="btn btn-icon btn-primary" id="add-field-btn" aria-label="Add field" title="Add field">
               <span class="icon-plus"></span>
             </button>
           </div>
@@ -1032,9 +1447,13 @@
         <span class="icon-lightbulb" id="tutorial-tooltip-icon"></span>
       </div>
       <h4 class="tutorial-tooltip-title" id="tutorial-tooltip-title">Feature Title</h4>
+      <button class="btn btn-icon btn-ghost tutorial-topic-toggle" id="tutorial-topics" type="button" aria-label="Browse tutorial topics" title="Topics">
+        <span class="icon-list"></span>
+      </button>
     </div>
     <div class="tutorial-tooltip-body">
       <p class="tutorial-tooltip-content" id="tutorial-tooltip-content">Description goes here.</p>
+      <div class="tutorial-topic-panel hidden" id="tutorial-topic-panel"></div>
     </div>
     <div class="tutorial-tooltip-footer">
       <div class="tutorial-progress">
@@ -1059,6 +1478,7 @@
       </div>
       <h3 class="tutorial-modal-title" id="tutorial-modal-title">Welcome to BetterDungeon!</h3>
       <p class="tutorial-modal-text" id="tutorial-modal-text">This quick tour will introduce you to the features.</p>
+      <div class="tutorial-modal-topics" id="tutorial-modal-topics"></div>
       <div class="tutorial-modal-actions">
         <button class="btn btn-primary" id="tutorial-modal-primary">Start Tour</button>
         <button class="btn btn-ghost" id="tutorial-modal-secondary">Maybe Later</button>

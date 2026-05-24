@@ -34,12 +34,31 @@ class InjectionEngine(private val context: Context) {
          */
         private val JS_FILES = listOf(
             "utils/webview-polyfill.js",   // Must be first — sets up chrome.* shim
+            "services/ultrascripts/ws-stream.js", // Early stream shimming
             "utils/dom.js",
             "utils/storage.js",
             "services/ai-dungeon-service.js",
+            "services/ultrascripts/write-queue.js",
+            "services/ultrascripts/envelope.js",
+            "services/ultrascripts/core.js",
+            "services/ultrascripts/module-registry.js",
+            "services/ultrascripts/ops-dispatcher.js",
+            "modules/webfetch/consent.js",
+            "modules/webfetch/module.js",
+            "modules/clock/module.js",
+            "modules/geolocation/module.js",
+            "modules/weather/module.js",
+            "modules/network/module.js",
+            "modules/system/module.js",
+            "modules/sdk/module.js",
+            "modules/ai/module.js",
+            "modules/scripture/validators.js",
+            "modules/scripture/renderer.js",
+            "modules/scripture/module.js",
             "services/loading-screen.js",
             "services/story-card-cache.js",
             "services/story-card-scanner.js",
+            "features/ultrascripts_feature.js",
             "core/feature-manager.js",
             "features/markdown_feature.js",
             "features/command_feature.js",
@@ -52,7 +71,6 @@ class InjectionEngine(private val context: Context) {
             "features/auto_see_feature.js",
             "features/story_card_analytics_feature.js",
             "features/notes_feature.js",
-            "features/better_scripts_feature.js",
             "features/input_history_feature.js",
             "features/text_to_speeech_feature.js",
             "features/mobile/mobile_welcome_screen.js",
@@ -78,6 +96,22 @@ class InjectionEngine(private val context: Context) {
 
         // Then inject JS
         injectJs(webView)
+    }
+
+    /**
+     * Inject ws-interceptor.js early into the WebView.
+     * Should be called from WebViewClient.onPageStarted().
+     */
+    fun injectEarly(webView: WebView) {
+        Log.i(TAG, "Injecting WebSocket interceptor early...")
+        val js = readAsset("$ASSET_BASE/services/ultrascripts/ws-interceptor.js")
+        if (js != null) {
+            // We evaluate it immediately to shim window.WebSocket at document_start
+            webView.evaluateJavascript(js, null)
+            Log.d(TAG, "Early WebSocket interceptor injected")
+        } else {
+            Log.w(TAG, "Failed to load ws-interceptor.js for early injection")
+        }
     }
 
     /**

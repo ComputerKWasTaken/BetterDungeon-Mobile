@@ -16,8 +16,8 @@ class TutorialService {
       {
         id: 'welcome',
         type: 'modal',
-        title: 'Welcome to BetterDungeon Mobile!',
-        content: 'This quick tour will introduce you to the features that enhance your AI Dungeon experience on mobile.',
+        title: 'Welcome to BetterDungeon!',
+        content: 'This quick tour will introduce you to the features that enhance your AI Dungeon experience.',
         icon: 'icon-wand-sparkles'
       },
       // Features Tab Navigation
@@ -49,13 +49,21 @@ class TutorialService {
         expandCard: true
       },
       // === Gameplay Section ===
-      // NOTE: Hotkeys feature is excluded from the mobile port (requires a physical keyboard).
+      {
+        id: 'hotkeys',
+        type: 'spotlight',
+        target: '[data-feature="hotkey"]',
+        title: 'Keyboard Shortcuts',
+        content: 'Quick hotkeys for common actions! Press T to take a turn, C to continue, and number keys to switch modes. Fully customizable via the "Customize Hotkeys" button!',
+        position: 'bottom',
+        expandCard: true
+      },
       {
         id: 'input-history',
         type: 'spotlight',
         target: '[data-feature="inputHistory"]',
         title: 'Input History',
-        content: 'Cycle through your previous inputs using the \u25B2/\u25BC buttons that appear above the input bar. Remembers up to 50 recent actions and their input modes for each adventure!',
+        content: 'Terminal-style input history! Press Ctrl + Up/Down arrow keys while the input box is focused to cycle through your recent actions.',
         position: 'bottom',
         expandCard: true
       },
@@ -93,7 +101,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="triggerHighlight"]',
         title: 'Trigger Highlighting',
-        content: 'Visualizes story card triggers in the context viewer. Tap highlights to see which card they belong to!',
+        content: 'Visualizes story card triggers in the context viewer. Hover over highlights to see which cards are active!',
         position: 'bottom',
         expandCard: true
       },
@@ -107,11 +115,20 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'better-scripts',
+        id: 'story-card-modal-dock',
         type: 'spotlight',
-        target: '[data-feature="betterScripts"]',
-        title: 'BetterScripts',
-        content: 'Enables scripts to display dynamic UI widgets like HP bars, stats, and game state. Scripts using this feature will just work!',
+        target: '[data-feature="storyCardModalDock"]',
+        title: 'Story Card Modal Dock',
+        content: 'Docks the story card editor to the side so you can scroll through your story while editing. Toggle this off if you prefer the original modal.',
+        position: 'top',
+        expandCard: true
+      },
+      {
+        id: 'scripture',
+        type: 'spotlight',
+        target: '[data-feature="scripture"]',
+        title: 'Scripture',
+        content: 'Enables Ultrascripts scripts to display dynamic UI widgets like HP bars, stats, and game state.',
         position: 'top',
         expandCard: true
       },
@@ -123,7 +140,129 @@ class TutorialService {
         title: 'Auto See',
         content: 'Automatically triggers a See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals!',
         position: 'top',
+        action: 'switchTab',
+        actionTarget: 'features',
         expandCard: true
+      },
+      // Ultrascripts Tab Navigation
+      {
+        id: 'ultrascripts-tab',
+        type: 'spotlight',
+        target: '[data-tab="ultrascripts"]',
+        title: 'Ultrascripts Tab',
+        content: 'Ultrascripts is BetterDungeon\'s bridge for script superpowers: scripts ask for a capability, and BetterDungeon safely returns structured results.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts'
+      },
+      {
+        id: 'ultrascripts-runtime',
+        type: 'spotlight',
+        target: '[data-feature="ultrascripts"]',
+        title: 'Ultrascripts Runtime',
+        content: 'Keep Ultrascripts enabled when you want scripts to use BetterDungeon modules. The status panel shows whether the live adventure bridge is connected.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ultrascripts-modules',
+        type: 'spotlight',
+        target: '[data-ultrascripts-module-card="scripture"]',
+        title: 'Modules',
+        content: 'Each module is a focused capability for scripts, such as UI widgets, web lookups, time, device context, or AI. Toggle only the ones you want available.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ultrascripts-script-flow',
+        type: 'spotlight',
+        target: '[data-ultrascripts-module-card="webfetch"]',
+        title: 'How Scripts Call Ultrascripts',
+        content: 'Scripts write ultrascripts:out requests with id, module, op, and args. BetterDungeon runs the operation and writes results to ultrascripts:in:<module>.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-card',
+        type: 'spotlight',
+        target: '[data-ultrascripts-module-card="ai"]',
+        title: 'AI',
+        content: 'AI is the main attraction for many scripts: it lets a script ask a hosted model for side tasks without interrupting the main story turn.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-key',
+        type: 'spotlight',
+        target: '#ai-openrouter-key',
+        title: 'OpenRouter Key',
+        content: 'Add your OpenRouter key here. BetterDungeon stores it in extension settings and keeps it out of Story Cards, so scripts never see the key.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-model',
+        type: 'spotlight',
+        target: '#ai-default-model',
+        title: 'Default Model',
+        content: 'Set the model AI should use by default. Scripts can still request a specific model, but a default keeps simple calls easy.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-cost-controls',
+        type: 'spotlight',
+        target: '.ultrascripts-ai-cost-panel',
+        title: 'AI Cost Controls',
+        content: 'Free models are the default path. If you intentionally use paid models, open the safeguards section to add optional price and spend caps.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-test',
+        type: 'spotlight',
+        target: '#ai-test',
+        title: 'Test Connection',
+        content: 'After saving your key and model, use this plug button to verify the AI connection before relying on it in a scenario.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-script-usage',
+        type: 'spotlight',
+        target: '#ai-status',
+        title: 'Using AI in Scripts',
+        content: 'Send module ai, op chat, messages, and optional maxTokens or responseFormat. responseFormat supports text, json_object, and json_schema for structured outputs.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ultrascripts-examples',
+        type: 'spotlight',
+        target: '#tab-ultrascripts .btn-action',
+        title: 'Example Scripts',
+        content: 'Use the example scripts as starting points for Ultrascripts request envelopes, response handling, and module-specific patterns.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts'
       },
       // Presets Tab Navigation
       {
@@ -155,13 +294,44 @@ class TutorialService {
         position: 'top'
       }
     ];
+
+    this.topics = [
+      {
+        id: 'features',
+        title: 'Features',
+        description: 'Core tools and story helpers',
+        icon: 'icon-sparkles',
+        stepId: 'features-tab'
+      },
+      {
+        id: 'ultrascripts',
+        title: 'Ultrascripts',
+        description: 'Runtime, modules, and script flow',
+        icon: 'icon-radio-tower',
+        stepId: 'ultrascripts-tab'
+      },
+      {
+        id: 'ai',
+        title: 'AI',
+        description: 'OpenRouter and model calls',
+        icon: 'icon-bot-message-square',
+        stepId: 'ai-card'
+      },
+      {
+        id: 'presets',
+        title: 'Presets',
+        description: 'Plot and character presets',
+        icon: 'icon-bookmark',
+        stepId: 'presets-tab'
+      }
+    ];
     
     // Completion modal is separate from steps - shown after all steps are done
     this.completionModal = {
       id: 'complete',
       type: 'modal',
       title: 'You\'re All Set!',
-      content: 'You now know the essentials of BetterDungeon Mobile. Toggle features on/off anytime, and enjoy your enhanced AI Dungeon experience!',
+      content: 'You now know the essentials of BetterDungeon. Toggle features on/off anytime, and enjoy your enhanced AI Dungeon experience!',
       icon: 'icon-badge-check'
     };
     
@@ -245,7 +415,21 @@ class TutorialService {
     if (index >= 0 && index < this.steps.length) {
       this.currentStep = index;
       this.showCurrentStep();
+      return true;
     }
+    return false;
+  }
+
+  goToStepId(stepId) {
+    const index = this.steps.findIndex(step => step.id === stepId);
+    if (index === -1) return false;
+    return this.goToStep(index);
+  }
+
+  goToTopic(topicId) {
+    const topic = this.topics.find(item => item.id === topicId);
+    if (!topic) return false;
+    return this.goToStepId(topic.stepId);
   }
 
   showCurrentStep() {
@@ -261,6 +445,32 @@ class TutorialService {
   
   getCompletionModal() {
     return this.completionModal;
+  }
+
+  getTopics() {
+    return this.topics.map((topic, index) => {
+      const startIndex = this.steps.findIndex(step => step.id === topic.stepId);
+      const nextTopic = this.topics[index + 1];
+      const nextIndex = nextTopic
+        ? this.steps.findIndex(step => step.id === nextTopic.stepId)
+        : this.steps.length;
+
+      return {
+        ...topic,
+        startIndex,
+        stepCount: Math.max(1, nextIndex - startIndex)
+      };
+    }).filter(topic => topic.startIndex >= 0);
+  }
+
+  getTopicForStep(index = this.currentStep) {
+    const topics = this.getTopics();
+    let currentTopic = null;
+    for (const topic of topics) {
+      if (topic.startIndex <= index) currentTopic = topic;
+      else break;
+    }
+    return currentTopic;
   }
 
   getProgress() {

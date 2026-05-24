@@ -14,7 +14,16 @@ const STORAGE_KEYS = {
   characters: 'betterDungeon_characterPresets',
   autoScan: 'betterDungeon_autoScanTriggers',
   autoApply: 'betterDungeon_autoApplyInstructions',
-  betterScriptsDebug: 'betterDungeon_betterScriptsDebug',
+  ultrascriptsDebug: 'ultrascripts_debug',
+  ultrascriptsModules: 'ultrascripts_enabled_modules',
+  scriptureWidgetDisplay: 'ultrascripts_mod_scripture_widget_display',
+  webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
+  aiOpenRouterKey: 'ultrascripts_ai_openrouter_api_key',
+  aiOpenRouterDefaultModel: 'ultrascripts_ai_openrouter_default_model',
+  aiCostControls: 'ultrascripts_ai_cost_controls',
+  legacyAiBudget: 'ultrascripts_ai_budget',
+  legacyProviderAiOpenRouterKey: 'ultrascripts_provider_ai_openrouter_api_key',
+  legacyProviderAiOpenRouterDefaultModel: 'ultrascripts_provider_ai_openrouter_default_model',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -67,6 +76,7 @@ const DEFAULT_HOTKEY_BINDINGS = {
 };
 
 const DEFAULT_FEATURES = {
+  ultrascripts: true,
   markdown: true,
   command: true,
   try: true,
@@ -77,12 +87,41 @@ const DEFAULT_FEATURES = {
   characterPreset: true,
   autoSee: false,
   notes: true,
+  storyCardModalDock: true,
   inputHistory: true,
   textToSpeech: false
 };
 
+const ULTRASCRIPTS_PUBLIC_MODULES = [
+  'scripture',
+  'webfetch',
+  'clock',
+  'sdk',
+  'geolocation',
+  'weather',
+  'network',
+  'system',
+  'ai'
+];
+
 const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
+};
+
+const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
+  size: 'normal',
+  maxHeight: 'medium',
+  layout: 'balanced'
+};
+
+const DEFAULT_AI_COST_CONTROLS = {
+  freeModelsOnly: true,
+  advancedOpen: false,
+  maxPromptPricePerMillion: 0,
+  maxCompletionPricePerMillion: 0,
+  perCallEstimateCap: 0,
+  dailySpendCap: 0,
+  monthlySpendCap: 0,
 };
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
@@ -131,11 +170,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initTextToSpeechSettings();
   initHotkeys();
   initModeColors();
+  initUltrascriptsSettings();
   initWhatsNew();
   initCollapsibleSections();
   initFeatureSearch();
   initQuickToggles();
   updateSectionCounts();
+  updateUltrascriptsSectionCounts();
   initTutorial();
 });
 
@@ -203,16 +244,22 @@ function initToggles() {
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
     const savedFeatures = (result || {})[STORAGE_KEYS.features] || {};
     const features = { ...DEFAULT_FEATURES, ...savedFeatures };
-
+    
     Object.entries(features).forEach(([id, enabled]) => {
       const toggle = document.getElementById(`feature-${id}`);
-      if (toggle) toggle.checked = enabled;
+      if (toggle) {
+        toggle.checked = enabled;
+      }
 
       const quickToggle = document.querySelector(`[data-quick-toggle="${id}"]`);
-      if (quickToggle) quickToggle.checked = enabled;
+      if (quickToggle) {
+        quickToggle.checked = enabled;
+      }
     });
 
+    setUltrascriptsModuleControlsEnabled(features.ultrascripts !== false);
     updateSectionCounts();
+    updateUltrascriptsSectionCounts();
   });
 
   // Load auto-scan setting
@@ -247,17 +294,501 @@ function initToggles() {
     notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
   });
 
-  // BetterScripts debug toggle
-  chrome.storage.sync.get(STORAGE_KEYS.betterScriptsDebug, (result) => {
-    const toggle = document.getElementById('betterscripts-debug');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.betterScriptsDebug] ?? false;
+  // Ultrascripts debug toggle
+  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsDebug, (result) => {
+    const toggle = document.getElementById('ultrascripts-debug');
+    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.ultrascriptsDebug] ?? false;
   });
 
-  document.getElementById('betterscripts-debug')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.betterScriptsDebug]: e.target.checked });
-    notifyContentScript('SET_BETTERSCRIPTS_DEBUG', { enabled: e.target.checked });
+  document.getElementById('ultrascripts-debug')?.addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsDebug]: e.target.checked });
+    notifyContentScript('SET_ULTRASCRIPTS_DEBUG', { enabled: e.target.checked });
   });
 
+}
+
+function initUltrascriptsSettings() {
+  loadUltrascriptsModuleToggles();
+  loadScriptureWidgetDisplay();
+  loadWebFetchConsentList();
+  loadAiSettings();
+  refreshUltrascriptsState();
+
+  document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
+    toggle.addEventListener('change', () => {
+      updateUltrascriptsSectionCounts();
+      saveUltrascriptsModuleState(toggle.dataset.ultrascriptsModuleToggle, toggle.checked);
+    });
+  });
+
+  document.getElementById('ultrascripts-refresh')?.addEventListener('click', refreshUltrascriptsState);
+  document.getElementById('scripture-widget-size')?.addEventListener('change', saveScriptureWidgetDisplay);
+  document.getElementById('scripture-widget-height')?.addEventListener('change', saveScriptureWidgetDisplay);
+  document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
+  document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
+  document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
+  document.getElementById('ai-save')?.addEventListener('click', saveAiSettings);
+  document.getElementById('ai-clear-key')?.addEventListener('click', clearAiKey);
+  document.getElementById('ai-test')?.addEventListener('click', testAiConnection);
+  document.getElementById('ai-cost-advanced-toggle')?.addEventListener('click', () => {
+    const controls = getAiCostControlsFromForm();
+    const advancedOpen = !controls.advancedOpen;
+    setAiCostAdvancedOpen(advancedOpen);
+    localStorageSet({
+      [STORAGE_KEYS.aiCostControls]: {
+        ...controls,
+        advancedOpen,
+      }
+    });
+  });
+}
+
+function defaultUltrascriptsModuleState() {
+  return ULTRASCRIPTS_PUBLIC_MODULES.reduce((out, id) => {
+    out[id] = true;
+    return out;
+  }, {});
+}
+
+function normalizeUltrascriptsModuleState(saved = {}) {
+  const raw = saved && typeof saved === 'object' ? saved : {};
+  const modules = { ...defaultUltrascriptsModuleState(), ...raw };
+  if (Object.prototype.hasOwnProperty.call(raw, 'providerAI')) {
+    if (!Object.prototype.hasOwnProperty.call(raw, 'ai')) {
+      modules.ai = !!raw.providerAI;
+    }
+    delete modules.providerAI;
+  }
+  return modules;
+}
+
+function loadUltrascriptsModuleToggles() {
+  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.ultrascriptsModules] || {};
+    const modules = normalizeUltrascriptsModuleState(saved);
+
+    document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
+      const moduleId = toggle.dataset.ultrascriptsModuleToggle;
+      toggle.checked = modules[moduleId] !== false;
+    });
+    if (Object.prototype.hasOwnProperty.call(saved, 'providerAI')) {
+      chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
+    }
+    updateUltrascriptsSectionCounts();
+  });
+}
+
+function saveUltrascriptsModuleState(moduleId, enabled) {
+  if (!ULTRASCRIPTS_PUBLIC_MODULES.includes(moduleId)) return;
+
+  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.ultrascriptsModules] || {};
+    const modules = { ...normalizeUltrascriptsModuleState(saved), [moduleId]: !!enabled };
+
+    chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules }, () => {
+      sendToActiveAIDungeon('SET_ULTRASCRIPTS_MODULE_ENABLED', { moduleId, enabled: !!enabled })
+        .then(refreshUltrascriptsState)
+        .catch(() => {
+          updateUltrascriptsStatus(null, 'Changes will apply next time Ultrascripts starts.');
+        });
+    });
+  });
+}
+
+function normalizeScriptureWidgetDisplay(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(raw.size || '').toLowerCase())
+    ? String(raw.size).toLowerCase()
+    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.size;
+  const maxHeight = ['short', 'medium', 'tall'].includes(String(raw.maxHeight || '').toLowerCase())
+    ? String(raw.maxHeight).toLowerCase()
+    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.maxHeight;
+  const layout = ['balanced', 'stacked'].includes(String(raw.layout || '').toLowerCase())
+    ? String(raw.layout).toLowerCase()
+    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.layout;
+  return { size, maxHeight, layout };
+}
+
+function loadScriptureWidgetDisplay() {
+  chrome.storage.sync.get(STORAGE_KEYS.scriptureWidgetDisplay, (result) => {
+    const display = normalizeScriptureWidgetDisplay((result || {})[STORAGE_KEYS.scriptureWidgetDisplay]);
+    const size = document.getElementById('scripture-widget-size');
+    const height = document.getElementById('scripture-widget-height');
+    const layout = document.getElementById('scripture-widget-layout');
+    if (size) size.value = display.size;
+    if (height) height.value = display.maxHeight;
+    if (layout) layout.value = display.layout;
+  });
+}
+
+function getScriptureWidgetDisplayFromForm() {
+  return normalizeScriptureWidgetDisplay({
+    size: document.getElementById('scripture-widget-size')?.value,
+    maxHeight: document.getElementById('scripture-widget-height')?.value,
+    layout: document.getElementById('scripture-widget-layout')?.value,
+  });
+}
+
+function saveScriptureWidgetDisplay() {
+  const display = getScriptureWidgetDisplayFromForm();
+  chrome.storage.sync.set({ [STORAGE_KEYS.scriptureWidgetDisplay]: display }, () => {
+    notifyContentScript('SET_SCRIPTURE_WIDGET_DISPLAY', { display });
+  });
+}
+
+async function refreshUltrascriptsState() {
+  try {
+    const state = await sendToActiveAIDungeon('GET_ULTRASCRIPTS_STATE');
+    updateUltrascriptsStatus(state);
+  } catch {
+    updateUltrascriptsStatus(null, 'Open AI Dungeon to inspect live module state.');
+  }
+}
+
+function updateUltrascriptsStatus(state, fallbackDetail = '') {
+  const dot = document.getElementById('ultrascripts-status-dot');
+  const label = document.getElementById('ultrascripts-status-label');
+  const detail = document.getElementById('ultrascripts-status-detail');
+  if (!dot || !label || !detail) return;
+
+  dot.classList.remove('online', 'offline');
+
+  if (!state) {
+    dot.classList.add('offline');
+    label.textContent = 'Ultrascripts not connected';
+    detail.textContent = fallbackDetail || 'Open AI Dungeon to inspect live module state.';
+    return;
+  }
+
+  const mounted = (state.modules || []).filter(module => module.mounted && ULTRASCRIPTS_PUBLIC_MODULES.includes(module.id));
+  const enabled = (state.modules || []).filter(module => module.enabled && ULTRASCRIPTS_PUBLIC_MODULES.includes(module.id));
+  const ultrascriptsOn = state.ultrascriptsEnabled !== false && state.core?.enabled !== false;
+
+  dot.classList.add(ultrascriptsOn ? 'online' : 'offline');
+  label.textContent = ultrascriptsOn ? 'Ultrascripts online' : 'Ultrascripts off';
+  detail.textContent = `${mounted.length}/${ULTRASCRIPTS_PUBLIC_MODULES.length} modules mounted, ${enabled.length} enabled.`;
+}
+
+function normalizeWebFetchStore(value) {
+  const out = {};
+  if (!value || typeof value !== 'object') return out;
+  Object.entries(value).forEach(([origin, entry]) => {
+    if (!entry || typeof entry !== 'object') return;
+    if (entry.decision !== 'allow' && entry.decision !== 'deny') return;
+    out[origin] = {
+      decision: entry.decision,
+      updatedAt: Number(entry.updatedAt || Date.now())
+    };
+  });
+  return out;
+}
+
+function loadWebFetchConsentList() {
+  chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
+    const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
+    renderWebFetchConsentList(store);
+  });
+}
+
+function renderWebFetchConsentList(store) {
+  const list = document.getElementById('webfetch-consent-list');
+  if (!list) return;
+
+  list.innerHTML = '';
+  const entries = Object.entries(store).sort(([a], [b]) => a.localeCompare(b));
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'ultrascripts-consent-empty';
+    empty.textContent = 'No saved origins';
+    list.appendChild(empty);
+    return;
+  }
+
+  entries.forEach(([origin, entry]) => {
+    const row = document.createElement('div');
+    row.className = 'ultrascripts-consent-row';
+
+    const originEl = document.createElement('span');
+    originEl.className = 'ultrascripts-consent-origin';
+    originEl.title = origin;
+    originEl.textContent = origin;
+
+    const badge = document.createElement('span');
+    badge.className = `ultrascripts-consent-badge ${entry.decision}`;
+    badge.textContent = entry.decision;
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'btn btn-icon btn-ghost';
+    clearBtn.type = 'button';
+    clearBtn.title = 'Clear origin';
+    clearBtn.setAttribute('aria-label', `Clear ${origin}`);
+    clearBtn.innerHTML = '<span class="icon-x"></span>';
+    clearBtn.addEventListener('click', () => setWebFetchConsent(origin, 'clear'));
+
+    row.append(originEl, badge, clearBtn);
+    list.appendChild(row);
+  });
+}
+
+function saveWebFetchConsentFromForm() {
+  const input = document.getElementById('webfetch-origin-input');
+  const select = document.getElementById('webfetch-decision-select');
+  if (!input || !select) return;
+
+  let origin = '';
+  try {
+    origin = new URL(input.value.trim()).origin;
+  } catch {
+    showToast('Enter a valid origin', 'error');
+    return;
+  }
+
+  setWebFetchConsent(origin, select.value).then(() => {
+    input.value = '';
+  });
+}
+
+async function setWebFetchConsent(origin, decision) {
+  try {
+    const response = await sendToActiveAIDungeon('SET_WEBFETCH_CONSENT', { origin, decision });
+    if (response?.success === false) throw new Error(response.error || 'WebFetch consent update failed');
+  } catch {
+    await setWebFetchConsentInStorage(origin, decision);
+  }
+
+  loadWebFetchConsentList();
+  showToast('WebFetch origin updated', 'success');
+}
+
+function setWebFetchConsentInStorage(origin, decision) {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
+      const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
+      if (decision === 'clear') {
+        delete store[origin];
+      } else {
+        store[origin] = { decision, updatedAt: Date.now() };
+      }
+      chrome.storage.sync.set({ [STORAGE_KEYS.webfetchAllowlist]: store }, resolve);
+    });
+  });
+}
+
+function localStorageGet(keys) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.get(keys, (result) => {
+        resolve(result || {});
+      });
+    } catch {
+      resolve({});
+    }
+  });
+}
+
+function localStorageSet(items) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.set(items, resolve);
+    } catch {
+      resolve();
+    }
+  });
+}
+
+function localStorageRemove(keys) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.remove(keys, resolve);
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function loadAiSettings() {
+  const keyInput = document.getElementById('ai-openrouter-key');
+  const modelInput = document.getElementById('ai-default-model');
+  const freeOnlyInput = document.getElementById('ai-cost-free-only');
+  const advancedToggle = document.getElementById('ai-cost-advanced-toggle');
+  const advancedPanel = document.getElementById('ai-cost-advanced');
+  const maxInputPriceInput = document.getElementById('ai-cost-max-input');
+  const maxOutputPriceInput = document.getElementById('ai-cost-max-output');
+  const perCallCapInput = document.getElementById('ai-cost-per-call-cap');
+  const dailyCapInput = document.getElementById('ai-cost-daily-cap');
+  const monthlyCapInput = document.getElementById('ai-cost-monthly-cap');
+  if (!keyInput && !modelInput && !freeOnlyInput) return;
+
+  const result = await localStorageGet([
+    STORAGE_KEYS.aiOpenRouterKey,
+    STORAGE_KEYS.aiOpenRouterDefaultModel,
+    STORAGE_KEYS.aiCostControls,
+    STORAGE_KEYS.legacyAiBudget,
+    STORAGE_KEYS.legacyProviderAiOpenRouterKey,
+    STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
+  ]);
+  const savedKey = String(result[STORAGE_KEYS.aiOpenRouterKey] || '').trim();
+  const legacyKey = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterKey] || '').trim();
+  const savedModel = String(result[STORAGE_KEYS.aiOpenRouterDefaultModel] || '').trim();
+  const legacyModel = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel] || '').trim();
+  const hasKey = !!(savedKey || legacyKey);
+  const model = savedModel || legacyModel;
+
+  if ((!savedKey && legacyKey) || (!savedModel && legacyModel)) {
+    const updates = {};
+    if (!savedKey && legacyKey) updates[STORAGE_KEYS.aiOpenRouterKey] = legacyKey;
+    if (!savedModel && legacyModel) updates[STORAGE_KEYS.aiOpenRouterDefaultModel] = legacyModel;
+    await localStorageSet(updates);
+    await localStorageRemove([
+      STORAGE_KEYS.legacyProviderAiOpenRouterKey,
+      STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
+    ]);
+  }
+
+  if (keyInput) {
+    keyInput.value = '';
+    keyInput.placeholder = hasKey ? 'Saved API key - leave blank to keep' : 'OpenRouter API key';
+  }
+  if (modelInput) {
+    modelInput.value = model;
+  }
+  const controls = normalizeAiCostControls(result[STORAGE_KEYS.aiCostControls] || result[STORAGE_KEYS.legacyAiBudget]);
+  if (freeOnlyInput) freeOnlyInput.checked = controls.freeModelsOnly;
+  if (advancedToggle || advancedPanel) setAiCostAdvancedOpen(controls.advancedOpen);
+  if (maxInputPriceInput) maxInputPriceInput.value = String(controls.maxPromptPricePerMillion);
+  if (maxOutputPriceInput) maxOutputPriceInput.value = String(controls.maxCompletionPricePerMillion);
+  if (perCallCapInput) perCallCapInput.value = String(controls.perCallEstimateCap);
+  if (dailyCapInput) dailyCapInput.value = String(controls.dailySpendCap);
+  if (monthlyCapInput) monthlyCapInput.value = String(controls.monthlySpendCap);
+
+  updateAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
+}
+
+function clampMoney(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n * 1000000) / 1000000));
+}
+
+function normalizeAiCostControls(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  return {
+    freeModelsOnly: raw.freeModelsOnly !== false,
+    advancedOpen: raw.advancedOpen === true,
+    maxPromptPricePerMillion: clampMoney(raw.maxPromptPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxPromptPricePerMillion, 0, 1000),
+    maxCompletionPricePerMillion: clampMoney(raw.maxCompletionPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxCompletionPricePerMillion, 0, 1000),
+    perCallEstimateCap: clampMoney(raw.perCallEstimateCap, DEFAULT_AI_COST_CONTROLS.perCallEstimateCap, 0, 1000),
+    dailySpendCap: clampMoney(raw.dailySpendCap, DEFAULT_AI_COST_CONTROLS.dailySpendCap, 0, 1000),
+    monthlySpendCap: clampMoney(raw.monthlySpendCap, DEFAULT_AI_COST_CONTROLS.monthlySpendCap, 0, 1000),
+  };
+}
+
+function getAiCostControlsFromForm() {
+  return normalizeAiCostControls({
+    freeModelsOnly: document.getElementById('ai-cost-free-only')?.checked !== false,
+    advancedOpen: document.getElementById('ai-cost-advanced-toggle')?.getAttribute('aria-expanded') === 'true',
+    maxPromptPricePerMillion: document.getElementById('ai-cost-max-input')?.value,
+    maxCompletionPricePerMillion: document.getElementById('ai-cost-max-output')?.value,
+    perCallEstimateCap: document.getElementById('ai-cost-per-call-cap')?.value,
+    dailySpendCap: document.getElementById('ai-cost-daily-cap')?.value,
+    monthlySpendCap: document.getElementById('ai-cost-monthly-cap')?.value,
+  });
+}
+
+function setAiCostAdvancedOpen(open) {
+  const expanded = !!open;
+  const toggle = document.getElementById('ai-cost-advanced-toggle');
+  const panel = document.getElementById('ai-cost-advanced');
+  if (toggle) toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  if (panel) panel.classList.toggle('hidden', !expanded);
+}
+
+function updateAiStatus(configured, detail, tone = 'idle') {
+  const status = document.getElementById('ai-status');
+  if (!status) return;
+  status.classList.remove('ok', 'error', 'idle');
+  status.classList.add(tone);
+  status.textContent = configured ? detail : detail;
+}
+
+async function saveAiSettings(options = {}) {
+  const keyInput = document.getElementById('ai-openrouter-key');
+  const modelInput = document.getElementById('ai-default-model');
+  const key = String(keyInput?.value || '').trim();
+  const model = String(modelInput?.value || '').trim();
+  const costControls = getAiCostControlsFromForm();
+  const updates = {
+    [STORAGE_KEYS.aiOpenRouterDefaultModel]: model,
+    [STORAGE_KEYS.aiCostControls]: costControls,
+  };
+
+  if (key) {
+    updates[STORAGE_KEYS.aiOpenRouterKey] = key;
+  }
+
+  await localStorageSet(updates);
+  await localStorageRemove(STORAGE_KEYS.legacyAiBudget);
+  if (key) {
+    await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterKey);
+  }
+  await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel);
+  if (keyInput) keyInput.value = '';
+  await loadAiSettings();
+  if (!options.silent) showToast('AI settings saved', 'success');
+}
+
+async function clearAiKey() {
+  await localStorageRemove([
+    STORAGE_KEYS.aiOpenRouterKey,
+    STORAGE_KEYS.legacyProviderAiOpenRouterKey
+  ]);
+  await loadAiSettings();
+  showToast('OpenRouter key cleared', 'success');
+}
+
+function sendAiBackgroundRequest(request) {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendMessage({ type: 'ULTRASCRIPTS_AI_REQUEST', request }, (response) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          reject(new Error(lastError.message));
+          return;
+        }
+        if (response?.ok) {
+          resolve(response.data);
+          return;
+        }
+        reject(response?.error || new Error('AI request failed'));
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function testAiConnection() {
+  const btn = document.getElementById('ai-test');
+  if (btn) btn.disabled = true;
+  updateAiStatus(false, 'Testing OpenRouter...', 'idle');
+
+  try {
+    await saveAiSettings({ silent: true });
+    const result = await sendAiBackgroundRequest({
+      provider: 'openrouter',
+      op: 'testConnection',
+      timeoutMs: 30000
+    });
+    const count = typeof result?.modelCount === 'number' ? result.modelCount : 0;
+    updateAiStatus(true, `OpenRouter connected. ${count} models visible.`, 'ok');
+    showToast('AI connection verified', 'success');
+  } catch (error) {
+    const message = error?.message || 'AI connection failed';
+    updateAiStatus(false, message, 'error');
+    showToast(message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function saveFeatureState(featureId, enabled) {
@@ -269,8 +800,20 @@ function saveFeatureState(featureId, enabled) {
     
     chrome.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
       notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
+      if (featureId === 'ultrascripts') {
+        setUltrascriptsModuleControlsEnabled(enabled);
+        updateUltrascriptsSectionCounts();
+        setTimeout(refreshUltrascriptsState, 300);
+      }
     });
   });
+}
+
+function setUltrascriptsModuleControlsEnabled(enabled) {
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-advanced-toggle, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
+    .forEach(control => {
+      control.disabled = !enabled;
+    });
 }
 
 // ============================================
@@ -1445,18 +1988,13 @@ async function saveNewPreset() {
 
     if (response?.success) {
       showToast('Preset saved!', 'success');
+      loadPresets();
     } else {
       showToast(response?.error || 'Failed to save', 'error');
     }
   } catch {
     showToast('Error saving preset', 'error');
   }
-
-  // Always refresh the preset list after a save attempt.
-  // The main WebView writes to SharedPreferences before responding;
-  // refreshing here ensures the list stays in sync even when the
-  // cross-WebView response is lost or delayed by the native bridge.
-  loadPresets();
 }
 
 function openPresetEditModal(preset) {
@@ -2026,14 +2564,13 @@ function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
   if (!banner) return;
 
-  // Read the version number from the header's first text node (before the badge)
-  const versionEl = document.querySelector('.header-version');
-  const currentVersion = versionEl?.firstChild?.textContent?.trim() || '';
+  // Read the live version string from the header so there's one source of truth
+  const currentVersion = document.querySelector('.header-version')?.textContent?.trim() || '';
 
-  // Update the banner title for the mobile port
+  // Update the banner title to include the version
   const titleEl = document.getElementById('whats-new-title');
   if (titleEl && currentVersion) {
-    titleEl.textContent = `What's New — ${currentVersion} Mobile`;
+    titleEl.textContent = `What's New in ${currentVersion}`;
   }
 
   // Expand/collapse toggle for compact What's New
@@ -2221,6 +2758,7 @@ function initQuickToggles() {
       const qt = document.querySelector(`[data-quick-toggle="${featureId}"]`);
       if (qt) qt.checked = mainToggle.checked;
       updateSectionCounts();
+      updateUltrascriptsSectionCounts();
     });
   });
 }
@@ -2234,7 +2772,7 @@ function updateSectionCounts() {
     'input-modes': ['command', 'try'],
     'controls': ['hotkey', 'inputHistory', 'inputModeColor'],
     'writing': ['markdown', 'notes'],
-    'scenario': ['triggerHighlight'],
+    'scenario': ['triggerHighlight', 'storyCardModalDock'],
     'automations': ['autoSee', 'textToSpeech']
   };
 
@@ -2254,6 +2792,32 @@ function updateSectionCounts() {
     }).length;
 
     countEl.textContent = `${enabled}/${visibleFeatures.length}`;
+  });
+}
+
+function updateUltrascriptsSectionCounts() {
+  const runtimeCount = document.getElementById('count-ultrascripts-runtime');
+  const ultrascriptsToggle = document.getElementById('feature-ultrascripts');
+  if (runtimeCount) {
+    runtimeCount.textContent = `${ultrascriptsToggle?.checked ? 1 : 0}/1`;
+  }
+
+  const sectionMap = {
+    'ultrascripts-script-surface': ['scripture', 'webfetch', 'clock', 'sdk'],
+    'ultrascripts-context': ['geolocation', 'weather', 'network', 'system'],
+    'ultrascripts-ai': ['ai']
+  };
+
+  Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {
+    const countEl = document.getElementById(`count-${sectionId}`);
+    if (!countEl) return;
+
+    const enabled = moduleIds.filter(id => {
+      const toggle = document.querySelector(`[data-ultrascripts-module-toggle="${id}"]`);
+      return toggle && toggle.checked;
+    }).length;
+
+    countEl.textContent = `${enabled}/${moduleIds.length}`;
   });
 }
 
@@ -2293,6 +2857,9 @@ function setupTutorialHandlers() {
   document.getElementById('tutorial-next')?.addEventListener('click', () => tutorialService?.next());
   document.getElementById('tutorial-prev')?.addEventListener('click', () => tutorialService?.previous());
   document.getElementById('tutorial-skip')?.addEventListener('click', exitTutorial);
+  document.getElementById('tutorial-topics')?.addEventListener('click', toggleTutorialTopics);
+  document.getElementById('tutorial-topic-panel')?.addEventListener('click', handleTutorialTopicClick);
+  document.getElementById('tutorial-modal-topics')?.addEventListener('click', handleTutorialTopicClick);
   
   document.getElementById('tutorial-modal-primary')?.addEventListener('click', () => {
     // Check if we're on the completion modal (shown after all steps)
@@ -2373,14 +2940,24 @@ function showTutorialModal(step) {
 
   const primaryBtn = document.getElementById('tutorial-modal-primary');
   const secondaryBtn = document.getElementById('tutorial-modal-secondary');
+  const topicList = document.getElementById('tutorial-modal-topics');
 
   if (step.isComplete) {
     primaryBtn.textContent = 'Got It!';
     secondaryBtn.style.display = 'none';
+    topicList?.classList.add('hidden');
+    if (topicList) topicList.innerHTML = '';
   } else {
-    primaryBtn.textContent = 'Start Tour';
+    primaryBtn.textContent = 'Start from Beginning';
     secondaryBtn.style.display = 'block';
     secondaryBtn.textContent = 'Maybe Later';
+    if (step.id === 'welcome' && topicList) {
+      renderTutorialTopics(topicList, { includeHeading: true });
+      topicList.classList.remove('hidden');
+    } else {
+      topicList?.classList.add('hidden');
+      if (topicList) topicList.innerHTML = '';
+    }
   }
 
   modal.classList.add('visible');
@@ -2388,6 +2965,86 @@ function showTutorialModal(step) {
 
 function closeTutorialModal() {
   document.getElementById('tutorial-modal')?.classList.remove('visible');
+}
+
+function renderTutorialTopics(container, options = {}) {
+  if (!container || !tutorialService?.getTopics) return;
+
+  const topics = tutorialService.getTopics();
+  const currentTopic = tutorialService.getTopicForStep?.();
+  container.innerHTML = '';
+
+  if (options.includeHeading) {
+    const heading = document.createElement('div');
+    heading.className = 'tutorial-topic-heading';
+    heading.textContent = 'Jump to a topic';
+    container.appendChild(heading);
+  }
+
+  topics.forEach(topic => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tutorial-topic-button';
+    button.dataset.tutorialTopic = topic.id;
+    button.setAttribute('aria-label', `Jump to ${topic.title}`);
+    if (currentTopic?.id === topic.id) button.classList.add('active');
+
+    const icon = document.createElement('span');
+    icon.className = 'tutorial-topic-icon';
+    icon.innerHTML = `<span class="${topic.icon || 'icon-circle'}"></span>`;
+
+    const copy = document.createElement('span');
+    copy.className = 'tutorial-topic-copy';
+
+    const title = document.createElement('span');
+    title.className = 'tutorial-topic-title';
+    title.textContent = topic.title;
+
+    const desc = document.createElement('span');
+    desc.className = 'tutorial-topic-desc';
+    desc.textContent = topic.description;
+
+    copy.appendChild(title);
+    copy.appendChild(desc);
+
+    const arrow = document.createElement('span');
+    arrow.className = 'tutorial-topic-arrow';
+    arrow.innerHTML = '<span class="icon-chevron-right"></span>';
+
+    button.appendChild(icon);
+    button.appendChild(copy);
+    button.appendChild(arrow);
+    container.appendChild(button);
+  });
+}
+
+function handleTutorialTopicClick(event) {
+  const button = event.target.closest('[data-tutorial-topic]');
+  if (!button || !tutorialService) return;
+
+  closeTutorialModal();
+  document.getElementById('tutorial-topic-panel')?.classList.add('hidden');
+  tutorialService.goToTopic(button.dataset.tutorialTopic);
+}
+
+function toggleTutorialTopics() {
+  const panel = document.getElementById('tutorial-topic-panel');
+  if (!panel) return;
+
+  renderTutorialTopics(panel);
+  panel.classList.toggle('hidden');
+  repositionTutorialTooltip();
+}
+
+function repositionTutorialTooltip() {
+  const tooltip = document.getElementById('tutorial-tooltip');
+  const step = tutorialService?.getCurrentStep?.();
+  if (!tooltip || !step?.target) return;
+
+  requestAnimationFrame(() => {
+    const target = document.querySelector(step.target);
+    if (target) positionTooltip(tooltip, target.getBoundingClientRect(), step.position || 'bottom');
+  });
 }
 
 function showSpotlight(step, currentIndex, totalSteps) {
@@ -2499,6 +3156,7 @@ function positionTooltip(tooltip, targetRect, position) {
 function updateTooltipContent(step, currentIndex, totalSteps) {
   document.getElementById('tutorial-tooltip-title').textContent = step.title;
   document.getElementById('tutorial-tooltip-content').textContent = step.content;
+  renderTutorialTopics(document.getElementById('tutorial-topic-panel'));
 
   const progress = ((currentIndex + 1) / totalSteps) * 100;
   document.getElementById('tutorial-progress-fill').style.width = `${progress}%`;
@@ -2508,12 +3166,13 @@ function updateTooltipContent(step, currentIndex, totalSteps) {
   const nextBtn = document.getElementById('tutorial-next');
   
   if (prevBtn) prevBtn.style.display = currentIndex > 1 ? 'block' : 'none';
-  if (nextBtn) nextBtn.textContent = currentIndex === totalSteps - 2 ? 'Finish' : 'Next';
+  if (nextBtn) nextBtn.textContent = currentIndex === totalSteps - 1 ? 'Finish' : 'Next';
 }
 
 function cleanupTutorialStep() {
   document.getElementById('tutorial-overlay')?.classList.remove('active');
   document.getElementById('tutorial-tooltip')?.classList.remove('visible');
+  document.getElementById('tutorial-topic-panel')?.classList.add('hidden');
   document.querySelectorAll('.tutorial-highlighted').forEach(el => el.classList.remove('tutorial-highlighted'));
 
   if (previouslyExpandedCard) {
@@ -2562,6 +3221,27 @@ function notifyContentScript(type, data = {}) {
   });
 }
 
+function sendToActiveAIDungeon(type, data = {}) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
+        reject(new Error('AI Dungeon tab is not active'));
+        return;
+      }
+
+      chrome.tabs.sendMessage(tab.id, { type, ...data }, (response) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          reject(new Error(lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    });
+  });
+}
+
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
   if (!container) return;
@@ -2584,4 +3264,3 @@ document.querySelectorAll('.feature-credit a').forEach(link => {
     chrome.tabs.create({ url: link.href });
   });
 });
-

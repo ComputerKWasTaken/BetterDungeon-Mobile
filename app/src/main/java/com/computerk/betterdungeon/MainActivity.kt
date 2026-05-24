@@ -141,6 +141,14 @@ class MainActivity : AppCompatActivity() {
         mainWebView.addJavascriptInterface(bridge, BetterDungeonBridge.JS_INTERFACE_NAME)
 
         mainWebView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                Log.d(TAG, "Page started loading: $url")
+                if (url.contains("aidungeon.com")) {
+                    injectionEngine.injectEarly(view)
+                }
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 Log.d(TAG, "Page loaded: $url")
