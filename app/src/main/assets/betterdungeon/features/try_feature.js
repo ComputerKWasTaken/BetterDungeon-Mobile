@@ -464,14 +464,14 @@ class TryFeature {
     bar.id = 'bd-success-bar-container';
     bar.style.cssText = `
       position: absolute;
-      bottom: 2px;
-      left: 12px;
-      right: 12px;
+      bottom: calc(100% + 32px);
+      left: 8px;
+      right: 8px;
       display: flex;
       align-items: center;
       gap: 4px;
       padding: 2px 8px;
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       border-radius: 6px;

@@ -756,15 +756,15 @@ class CommandFeature {
     bar.id = 'bd-command-submode-bar';
     bar.style.cssText = `
       position: absolute;
-      bottom: 8px;
-      left: 12px;
+      bottom: calc(100% + 32px);
+      left: 8px;
       display: inline-flex;
       align-items: center;
       gap: 4px;
       padding: 2px 8px;
-      background: rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border-radius: 10px;
       font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
       font-size: 9px;
