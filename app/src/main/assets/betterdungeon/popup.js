@@ -175,8 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initCollapsibleSections();
   initFeatureSearch();
   initQuickToggles();
-  updateSectionCounts();
-  updateUltrascriptsSectionCounts();
   initTutorial();
 });
 
@@ -258,8 +256,6 @@ function initToggles() {
     });
 
     setUltrascriptsModuleControlsEnabled(features.ultrascripts !== false);
-    updateSectionCounts();
-    updateUltrascriptsSectionCounts();
   });
 
   // Load auto-scan setting
@@ -316,7 +312,6 @@ function initUltrascriptsSettings() {
 
   document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
     toggle.addEventListener('change', () => {
-      updateUltrascriptsSectionCounts();
       saveUltrascriptsModuleState(toggle.dataset.ultrascriptsModuleToggle, toggle.checked);
     });
   });
@@ -374,7 +369,6 @@ function loadUltrascriptsModuleToggles() {
     if (Object.prototype.hasOwnProperty.call(saved, 'providerAI')) {
       chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
     }
-    updateUltrascriptsSectionCounts();
   });
 }
 
@@ -802,7 +796,6 @@ function saveFeatureState(featureId, enabled) {
       notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
       if (featureId === 'ultrascripts') {
         setUltrascriptsModuleControlsEnabled(enabled);
-        updateUltrascriptsSectionCounts();
         setTimeout(refreshUltrascriptsState, 300);
       }
     });
@@ -2564,13 +2557,11 @@ function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
   if (!banner) return;
 
-  // Read the live version string from the header so there's one source of truth
-  const currentVersion = document.querySelector('.header-version')?.textContent?.trim() || '';
-
-  // Update the banner title to include the version
+  // Keep the mobile release wording independent from the header platform badge.
   const titleEl = document.getElementById('whats-new-title');
-  if (titleEl && currentVersion) {
-    titleEl.textContent = `What's New in ${currentVersion}`;
+  const releaseLabel = titleEl?.dataset.releaseLabel;
+  if (titleEl && releaseLabel) {
+    titleEl.textContent = `What's New in ${releaseLabel}`;
   }
 
   // Expand/collapse toggle for compact What's New
@@ -2757,67 +2748,7 @@ function initQuickToggles() {
       const featureId = mainToggle.id.replace('feature-', '');
       const qt = document.querySelector(`[data-quick-toggle="${featureId}"]`);
       if (qt) qt.checked = mainToggle.checked;
-      updateSectionCounts();
-      updateUltrascriptsSectionCounts();
     });
-  });
-}
-
-// ============================================
-// SECTION FEATURE COUNTS
-// ============================================
-
-function updateSectionCounts() {
-  const sectionMap = {
-    'input-modes': ['command', 'try'],
-    'controls': ['hotkey', 'inputHistory', 'inputModeColor'],
-    'writing': ['markdown', 'notes'],
-    'scenario': ['triggerHighlight', 'storyCardModalDock'],
-    'automations': ['autoSee', 'textToSpeech']
-  };
-
-  Object.entries(sectionMap).forEach(([sectionId, featureIds]) => {
-    const countEl = document.getElementById(`count-${sectionId}`);
-    if (!countEl) return;
-
-    // Filter out hidden features from both enabled count and total count
-    const visibleFeatures = featureIds.filter(id => {
-      const card = document.querySelector(`[data-feature="${id}"]`);
-      return card && !card.classList.contains('mobile-hidden');
-    });
-
-    const enabled = visibleFeatures.filter(id => {
-      const toggle = document.getElementById(`feature-${id}`);
-      return toggle && toggle.checked;
-    }).length;
-
-    countEl.textContent = `${enabled}/${visibleFeatures.length}`;
-  });
-}
-
-function updateUltrascriptsSectionCounts() {
-  const runtimeCount = document.getElementById('count-ultrascripts-runtime');
-  const ultrascriptsToggle = document.getElementById('feature-ultrascripts');
-  if (runtimeCount) {
-    runtimeCount.textContent = `${ultrascriptsToggle?.checked ? 1 : 0}/1`;
-  }
-
-  const sectionMap = {
-    'ultrascripts-script-surface': ['scripture', 'webfetch', 'clock', 'sdk'],
-    'ultrascripts-context': ['geolocation', 'weather', 'network', 'system'],
-    'ultrascripts-ai': ['ai']
-  };
-
-  Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {
-    const countEl = document.getElementById(`count-${sectionId}`);
-    if (!countEl) return;
-
-    const enabled = moduleIds.filter(id => {
-      const toggle = document.querySelector(`[data-ultrascripts-module-toggle="${id}"]`);
-      return toggle && toggle.checked;
-    }).length;
-
-    countEl.textContent = `${enabled}/${moduleIds.length}`;
   });
 }
 
