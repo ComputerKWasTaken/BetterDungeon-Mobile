@@ -144,6 +144,12 @@ class InjectionEngine(private val context: Context) {
 
         val injection = """
             (function() {
+                var existing = document.getElementById('better-dungeon-styles');
+                if (existing) {
+                    existing.textContent = '$escapedCss';
+                    console.log('[BetterDungeon] CSS refreshed');
+                    return;
+                }
                 var style = document.createElement('style');
                 style.id = 'better-dungeon-styles';
                 style.textContent = '$escapedCss';
@@ -206,6 +212,11 @@ class InjectionEngine(private val context: Context) {
 
         val combined = StringBuilder()
         combined.append("(function() {\n'use strict';\n\n")
+        combined.append("if (window.__betterDungeonBundleInjected === true && window.betterDungeonInstance && window.betterDungeonInstance.destroyed !== true) {\n")
+        combined.append("  console.log('[BetterDungeon] Bundle already injected; skipping duplicate injection');\n")
+        combined.append("  return;\n")
+        combined.append("}\n")
+        combined.append("window.__betterDungeonBundleInjected = true;\n\n")
 
         for (file in JS_FILES) {
             val content = readAsset("$ASSET_BASE/$file")

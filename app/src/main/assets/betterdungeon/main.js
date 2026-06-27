@@ -4,6 +4,7 @@
 class BetterDungeon {
   constructor() {
     this.debug = false;
+    this.destroyed = false;
     this.aiDungeonService = new AIDungeonService();
     this.featureManager = new FeatureManager({
       aiDungeonService: this.aiDungeonService,
@@ -331,24 +332,32 @@ class BetterDungeon {
   }
 
   destroy() {
+    this.destroyed = true;
     this.featureManager.destroy();
   }
 }
 
-// Global instance
-let betterDungeonInstance = null;
-
 // Initialize when DOM is ready
 function initBetterDungeon() {
-  if (betterDungeonInstance) {
-    betterDungeonInstance.destroy();
+  const existing = window.betterDungeonInstance;
+  if (existing && existing.destroyed !== true) {
+    console.log('[BetterDungeon] Existing instance detected; skipping duplicate initialization');
+    return existing;
   }
-  betterDungeonInstance = new BetterDungeon();
-  window.betterDungeonInstance = betterDungeonInstance;
+
+  const instance = new BetterDungeon();
+  window.betterDungeonInstance = instance;
+  return instance;
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initBetterDungeon);
+  if (!window.__betterDungeonInitListenerRegistered) {
+    window.__betterDungeonInitListenerRegistered = true;
+    document.addEventListener('DOMContentLoaded', () => {
+      window.__betterDungeonInitListenerRegistered = false;
+      initBetterDungeon();
+    }, { once: true });
+  }
 } else {
   initBetterDungeon();
 }
