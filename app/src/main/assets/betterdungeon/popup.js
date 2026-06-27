@@ -1653,7 +1653,7 @@ function initPresets() {
 }
 
 async function loadPresets() {
-  // Read from local storage (content script writes here after syncâ†’local migration)
+  // Read from local storage; mobile keeps sync/local in the same native store.
   chrome.storage.local.get(STORAGE_KEYS.presets, (localResult) => {
     const localPresets = (localResult || {})[STORAGE_KEYS.presets];
 
@@ -1715,11 +1715,11 @@ function createPresetCard(preset) {
         <h4 class="preset-name">${escapeHtml(preset.name)}</h4>
         <div class="preset-meta">
           <span class="preset-uses">${preset.useCount} uses</span>
-          <span class="preset-components">${components.join(' â€¢ ')}</span>
+          <span class="preset-components">${components.join(' / ')}</span>
         </div>
       </div>
       <div class="preset-menu-wrapper">
-        <button class="preset-menu-btn" aria-label="Options">â‹®</button>
+        <button class="preset-menu-btn" aria-label="Options">...</button>
         <div class="preset-menu">
           <button class="preset-menu-item preset-edit-btn">Edit</button>
           <button class="preset-menu-item danger preset-delete-btn">Delete</button>
@@ -2558,7 +2558,7 @@ function initQuickToggles() {
     }
   });
 
-  // Quick toggle â†’ main toggle sync
+  // Quick toggle -> main toggle sync
   quickToggles.forEach(qt => {
     qt.addEventListener('change', () => {
       const featureId = qt.dataset.quickToggle;
@@ -2570,7 +2570,7 @@ function initQuickToggles() {
     });
   });
 
-  // Main toggle â†’ quick toggle sync (observe changes)
+  // Main toggle -> quick toggle sync (observe changes)
   document.querySelectorAll('.feature-card [id^="feature-"]').forEach(mainToggle => {
     mainToggle.addEventListener('change', () => {
       const featureId = mainToggle.id.replace('feature-', '');

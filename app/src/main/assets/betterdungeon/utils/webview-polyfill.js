@@ -254,9 +254,9 @@
   var GEMINI_OUTPUT_TYPES = ['text', 'json'];
   var GEMINI_AUTO_STEPDOWN_MODELS = [
     'gemini-3.5-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-3.0-flash',
-    'gemini-2.5-flash'
+    'gemini-3.1-flash-lite',
+    'gemma-4-31b-it',
+    'gemma-4-26b-a4b-it'
   ];
   var GEMINI_STORAGE_KEYS = {
     apiKey: 'ultrascripts_ai_gemini_api_key',

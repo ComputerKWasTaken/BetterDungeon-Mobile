@@ -41,7 +41,6 @@ class CharacterPresetFeature {
 
   async init() {
     await this.loadPresets();
-    await this.clearLegacyStorage();
     await this.loadActivePreset();
     document.addEventListener('ultrascripts:scenario:start', this.boundScenarioStartHandler);
     this.setupObserver();
@@ -159,8 +158,6 @@ class CharacterPresetFeature {
   }
 
   async clearLegacyStorage() {
-    await this._chromeRemove('sync', this.storageKey);
-    await this._chromeRemove('sync', this.activePresetKey);
     await this._chromeRemove('local', 'betterDungeon_sessionCharacter');
     await this._chromeRemove('local', 'betterDungeon_scenarioSession');
     // Generated answers are intentionally memory-only; remove persisted caches from older builds.
@@ -280,6 +277,7 @@ class CharacterPresetFeature {
     this.observer = new MutationObserver((mutations) => {
       if (this.isApplying) return;
       for (const mutation of mutations) {
+        if (this.isOwnPanelMutation(mutation)) continue;
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
           this.debouncedCheck();
           break;
@@ -291,6 +289,21 @@ class CharacterPresetFeature {
       childList: true,
       subtree: true,
     });
+  }
+
+  isOwnPanelMutation(mutation) {
+    if (mutation.target?.closest?.('.bd-character-ai-panel')) return true;
+    for (const node of mutation.addedNodes || []) {
+      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
+        return true;
+      }
+    }
+    for (const node of mutation.removedNodes || []) {
+      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   startPolling() {
@@ -325,12 +338,32 @@ class CharacterPresetFeature {
       }
     }
 
+    const visibleQuestion = this.normalizeFieldText(questionText);
+    const inputQuestion = this.normalizeFieldText(ariaLabel);
+    const question = visibleQuestion || inputQuestion;
+    const fieldId = this.stableFieldId(question, inputQuestion);
+
     return {
       input,
       label: questionText,
       ariaLabel,
-      question: ariaLabel.trim(),
+      question,
+      fieldId,
     };
+  }
+
+  normalizeFieldText(value) {
+    return String(value || '')
+      .replace(/\s+/g, ' ')
+      .replace(/^\s*(?:question|prompt|answer)\s*[:#-]?\s*/i, '')
+      .trim();
+  }
+
+  stableFieldId(questionText, inputText) {
+    const primary = this.normalizeFieldText(questionText);
+    const fallback = this.normalizeFieldText(inputText);
+    const value = primary || fallback || 'scenario-prefill-field';
+    return value.toLowerCase();
   }
 
   getFieldContainer(field) {
@@ -353,12 +386,13 @@ class CharacterPresetFeature {
     const field = this.findScenarioEntryField();
 
     if (field) {
+      this.reconcileFieldWithScenario(field);
       if (this._fieldGraceTimer) {
         clearTimeout(this._fieldGraceTimer);
         this._fieldGraceTimer = null;
       }
 
-      const fieldId = field.ariaLabel;
+      const fieldId = field.fieldId || field.ariaLabel;
       if (this.currentFieldLabel !== fieldId || !this.panelElement?.isConnected) {
         this.currentFieldLabel = fieldId;
         this.currentFieldKey = field.question;
@@ -442,6 +476,7 @@ class CharacterPresetFeature {
     try {
       await this.prepareScenarioState();
       if (token !== this._handleToken) return;
+      this.reconcileFieldWithScenario(field);
 
       if (this.status === 'ready') {
         this.showAnswerPanel(field);
@@ -507,6 +542,36 @@ class CharacterPresetFeature {
 
     this.status = 'needCharacter';
     this.statusMessage = '';
+  }
+
+  reconcileFieldWithScenario(field) {
+    if (!field || !this.scenario?.placeholders?.length) return field;
+    const match = this.findPlaceholderMatch([
+      field.question,
+      field.ariaLabel,
+      field.label,
+    ]);
+    if (match) {
+      field.question = match;
+      field.fieldId = this.stableFieldId(match, field.ariaLabel);
+    }
+    return field;
+  }
+
+  findPlaceholderMatch(candidates = []) {
+    const placeholders = this.scenario?.placeholders || [];
+    if (!placeholders.length) return null;
+
+    const normalizedCandidates = candidates
+      .map(value => this.normalizeFieldText(value).toLowerCase())
+      .filter(Boolean);
+
+    for (const placeholder of placeholders) {
+      const normalized = this.normalizeFieldText(placeholder).toLowerCase();
+      if (normalizedCandidates.includes(normalized)) return placeholder;
+    }
+
+    return null;
   }
 
   async loadScenario(shortId) {
@@ -778,9 +843,26 @@ class CharacterPresetFeature {
     const container = document.body;
     if (!container) return null;
 
+    const fieldId = field?.fieldId || field?.ariaLabel || field?.question || '';
+    const htmlSignature = String(this.hashString(html));
+    if (this.panelElement?.isConnected) {
+      const sameField = this.panelElement.dataset.fieldId === fieldId;
+      if (sameField && this.panelElement.dataset.htmlSignature === htmlSignature) {
+        return this.panelElement;
+      }
+      if (sameField) {
+        this.panelElement.innerHTML = html;
+        this.panelElement.dataset.htmlSignature = htmlSignature;
+        this.panelElement.classList.add('bd-character-ai-panel-visible');
+        return this.panelElement;
+      }
+    }
+
     this.removePanel();
     const panel = document.createElement('div');
     panel.className = 'bd-character-ai-panel';
+    panel.dataset.fieldId = fieldId;
+    panel.dataset.htmlSignature = htmlSignature;
     panel.innerHTML = html;
     container.appendChild(panel);
     this.panelElement = panel;

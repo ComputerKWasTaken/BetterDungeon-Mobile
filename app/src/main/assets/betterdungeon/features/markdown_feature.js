@@ -9,7 +9,8 @@ class MarkdownFeature {
     this.storyContainerSelector = '#gameplay-output';
     this.storyTextSelectors = [
       '#gameplay-output span[id="transition-opacity"]',
-      '#gameplay-output span[id="transition-opacity"] > span'
+      '#gameplay-output span[id="transition-opacity"] > span',
+      '#gameplay-output [aria-label^="Last action:"]'
     ].join(', ');
 
     // DOM observation state
@@ -106,7 +107,8 @@ class MarkdownFeature {
   }
 
   async applyInstructionsWithLoadingScreen() {
-    if (typeof loadingScreen === 'undefined') {
+    const screen = this.getLoadingScreen();
+    if (!screen) {
       console.error('MarkdownFeature: Loading screen not available');
       return { success: false, error: 'Loading screen not available' };
     }
@@ -116,10 +118,11 @@ class MarkdownFeature {
       .catch(() => null)
       .then(() => {
         if (token !== this.applyRunId) return { success: false, canceled: true };
-        return loadingScreen.queueOperation(() => this._doApplyInstructions({
+        return screen.queueOperation(() => this._doApplyInstructions({
           token,
           forceApply: true,
           showOverlay: true,
+          loadingScreen: screen,
         }));
       });
 
@@ -143,7 +146,7 @@ class MarkdownFeature {
   }
 
   async _doApplyInstructions(options = {}) {
-    const { token, forceApply = false, showOverlay = false } = options;
+    const { token, forceApply = false, showOverlay = false, loadingScreen = this.getLoadingScreen() } = options;
 
     if (showOverlay) {
       loadingScreen.show({
@@ -425,8 +428,32 @@ class MarkdownFeature {
     return document.querySelector(this.storyContainerSelector);
   }
 
+  getLoadingScreen() {
+    if (typeof window !== 'undefined' && window.loadingScreen) return window.loadingScreen;
+    if (typeof loadingScreen !== 'undefined') return loadingScreen;
+    return null;
+  }
+
   findStoryTextElements(container = document) {
-    return container.querySelectorAll(this.storyTextSelectors);
+    const candidates = Array.from(container.querySelectorAll(this.storyTextSelectors));
+    const documents = Array.from(container.querySelectorAll('[role="document"], [aria-label^="Last action:"]'));
+    for (const doc of documents) {
+      candidates.push(...this.findMarkdownLeafElements(doc));
+    }
+
+    return Array.from(new Set(candidates))
+      .filter(element => this.isStoryTextElement(element));
+  }
+
+  findMarkdownLeafElements(root) {
+    if (!root) return [];
+    const elements = Array.from(root.querySelectorAll('span, p, div'));
+    return elements.filter(element => {
+      if (element.children.length > 0) return false;
+      if (this.isInputElement(element)) return false;
+      if (element.closest('button, textarea, input, [role="toolbar"]')) return false;
+      return this.hasMarkdownSyntax(element.textContent || '');
+    });
   }
 
   isStoryTextElement(element) {
@@ -436,6 +463,8 @@ class MarkdownFeature {
     if (!gameplayOutput || !gameplayOutput.contains(element)) return false;
 
     if (element.id === 'transition-opacity') return true;
+    if (element.matches?.('[aria-label^="Last action:"]') && this.hasMarkdownSyntax(element.textContent || '')) return true;
+    if (element.closest?.('[role="document"], [aria-label^="Last action:"]') && element.children.length === 0) return true;
 
     const parent = element.parentElement;
     if (parent && parent.id === 'transition-opacity' && element.tagName === 'SPAN') {
@@ -539,6 +568,10 @@ class MarkdownFeature {
     };
     return text.replace(/[&<>]/g, char => escapeMap[char]);
   }
+}
+
+if (typeof window !== 'undefined') {
+  window.MarkdownFeature = MarkdownFeature;
 }
 
 // Export for use in other modules
