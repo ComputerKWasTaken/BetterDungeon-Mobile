@@ -24,12 +24,14 @@ class CharacterPresetFeature {
     this.currentFieldLabel = null;
     this.currentFieldKey = null;
     this.panelElement = null;
+    this.lastPanelRenderKey = null;
     this.manualDismissedQuestions = new Set();
     this.observer = null;
     this.checkInterval = null;
     this._checkDebounceTimer = null;
     this._fieldGraceTimer = null;
     this._handleToken = 0;
+    this.generationRouteShortId = null;
     this.isApplying = false;
     this.debug = false;
     this.boundScenarioStartHandler = (event) => this.handleScenarioStartEvent(event);
@@ -198,6 +200,18 @@ class CharacterPresetFeature {
       session.answers &&
       typeof session.answers === 'object'
     );
+  }
+
+  isReadyRouteSession(session) {
+    if (!this.isValidSession(session) || session.status !== 'ready') return false;
+    const routeShortId = this.parseScenarioShortIdFromUrl();
+    if (!routeShortId) return false;
+    return !session.routeShortId || session.routeShortId === routeShortId;
+  }
+
+  isGeneratingForCurrentRoute() {
+    const routeShortId = this.parseScenarioShortIdFromUrl();
+    return !!(routeShortId && this.status === 'generating' && this.generationRouteShortId === routeShortId);
   }
 
   createId() {
@@ -407,9 +421,11 @@ class CharacterPresetFeature {
       this._fieldGraceTimer = setTimeout(() => {
         this._fieldGraceTimer = null;
         if (!this.findScenarioEntryField()) {
-          this.currentFieldLabel = null;
-          this.currentFieldKey = null;
-          this.removePanel();
+          if (!this.parseScenarioShortIdFromUrl()) {
+            this.currentFieldLabel = null;
+            this.currentFieldKey = null;
+            this.removePanel();
+          }
         }
       }, 800);
     }
@@ -429,11 +445,12 @@ class CharacterPresetFeature {
     if (!this.isScenarioStartShape(scenario)) return;
     const routeShortId = this.parseScenarioShortIdFromUrl();
     if (!routeShortId) return;
+    const keepCurrentWorkflow = this.isReadyRouteSession(this.session) || this.isGeneratingForCurrentRoute();
 
     // Multiple-choice starts keep the root URL while fetching selected child nodes.
     this.latestScenarioStart = scenario;
     this.latestScenarioStartRootShortId = routeShortId;
-    if (this.scenarioShortId && this.scenarioShortId !== scenario.shortId) {
+    if (this.scenarioShortId && this.scenarioShortId !== scenario.shortId && !keepCurrentWorkflow) {
       this.scenario = null;
       this.scenarioSignature = null;
       this.scenarioShortId = null;
@@ -504,6 +521,25 @@ class CharacterPresetFeature {
       return;
     }
 
+    if (this.isGeneratingForCurrentRoute()) {
+      this.status = 'generating';
+      this.statusMessage = '';
+      return;
+    }
+
+    await this.loadPresets();
+    await this.loadActivePreset();
+
+    if (this.isReadyRouteSession(this.session)) {
+      const character = this.presets.find(p => p.id === this.session.characterId);
+      if (character) {
+        this.status = 'ready';
+        this.statusMessage = '';
+        return;
+      }
+      this.clearSession();
+    }
+
     if (!this.scenario || this.scenarioShortId !== shortId) {
       await this.loadScenario(shortId);
     }
@@ -513,9 +549,6 @@ class CharacterPresetFeature {
       this.statusMessage = 'This scenario has no placeholder questions to prefill.';
       return;
     }
-
-    await this.loadPresets();
-    await this.loadActivePreset();
 
     if (this.sessionMatchesScenario(this.session)) {
       const character = this.presets.find(p => p.id === this.session.characterId);
@@ -585,6 +618,9 @@ class CharacterPresetFeature {
       : await gql.getScenarioStart(shortId, { timeoutMs: 30000, viewPublished: true });
     const placeholders = this.extractPlaceholders(scenario);
     const signature = this.computeScenarioSignature(scenario, placeholders);
+    const nextScenarioShortId = scenario.shortId || shortId;
+    const preserveReadySession = this.isReadyRouteSession(this.session);
+    const preserveDismissals = this.scenarioShortId === nextScenarioShortId && this.scenarioSignature === signature;
 
     this.scenario = {
       raw: scenario,
@@ -592,9 +628,9 @@ class CharacterPresetFeature {
       signature,
     };
     this.scenarioSignature = signature;
-    this.scenarioShortId = scenario.shortId || shortId;
-    this.session = null;
-    this.manualDismissedQuestions.clear();
+    this.scenarioShortId = nextScenarioShortId;
+    if (!preserveReadySession) this.session = null;
+    if (!preserveDismissals) this.manualDismissedQuestions.clear();
   }
 
   sessionMatchesScenario(session) {
@@ -703,6 +739,7 @@ class CharacterPresetFeature {
     }
 
     this.status = 'generating';
+    this.generationRouteShortId = this.parseScenarioShortIdFromUrl();
     this.showGeneratingPanel(field);
 
     try {
@@ -717,6 +754,12 @@ class CharacterPresetFeature {
         requestId: `character-prefill-${this.scenarioShortId}-${Date.now()}`,
       });
 
+      if (this.generationRouteShortId && this.generationRouteShortId !== this.parseScenarioShortIdFromUrl()) {
+        this.status = 'idle';
+        this.statusMessage = '';
+        return;
+      }
+
       this.session = this.normalizeAISession(character, result?.json);
       this.manualDismissedQuestions.clear();
       this.status = 'ready';
@@ -728,6 +771,8 @@ class CharacterPresetFeature {
       this.status = 'error';
       this.statusMessage = error?.message || 'Gemini could not generate placeholder answers.';
       this.showBlockedPanel(field, this.statusMessage);
+    } finally {
+      this.generationRouteShortId = null;
     }
   }
 
@@ -826,6 +871,7 @@ class CharacterPresetFeature {
     }
 
     return {
+      routeShortId: this.parseScenarioShortIdFromUrl(),
       scenarioShortId: this.scenarioShortId,
       scenarioSignature: this.scenarioSignature,
       characterId: character.id,
@@ -839,33 +885,40 @@ class CharacterPresetFeature {
   // UI
   // ============================================
 
-  renderPanel(field, html) {
+  renderPanel(field, html, renderKey = null) {
     const container = document.body;
     if (!container) return null;
 
     const fieldId = field?.fieldId || field?.ariaLabel || field?.question || '';
     const htmlSignature = String(this.hashString(html));
+    const stableRenderKey = renderKey || `${fieldId}:${htmlSignature}`;
     if (this.panelElement?.isConnected) {
-      const sameField = this.panelElement.dataset.fieldId === fieldId;
-      if (sameField && this.panelElement.dataset.htmlSignature === htmlSignature) {
+      if (this.panelElement.dataset.renderKey === stableRenderKey) {
+        this.panelElement.__bdCharacterPanelReused = true;
         return this.panelElement;
       }
-      if (sameField) {
-        this.panelElement.innerHTML = html;
-        this.panelElement.dataset.htmlSignature = htmlSignature;
-        this.panelElement.classList.add('bd-character-ai-panel-visible');
-        return this.panelElement;
-      }
+
+      this.panelElement.__bdCharacterPanelReused = false;
+      this.panelElement.innerHTML = html;
+      this.panelElement.dataset.fieldId = fieldId;
+      this.panelElement.dataset.htmlSignature = htmlSignature;
+      this.panelElement.dataset.renderKey = stableRenderKey;
+      this.panelElement.classList.add('bd-character-ai-panel-visible');
+      this.lastPanelRenderKey = stableRenderKey;
+      return this.panelElement;
     }
 
-    this.removePanel();
+    document.querySelectorAll('.bd-character-ai-panel').forEach(el => el.remove());
     const panel = document.createElement('div');
     panel.className = 'bd-character-ai-panel';
     panel.dataset.fieldId = fieldId;
     panel.dataset.htmlSignature = htmlSignature;
+    panel.dataset.renderKey = stableRenderKey;
+    panel.__bdCharacterPanelReused = false;
     panel.innerHTML = html;
     container.appendChild(panel);
     this.panelElement = panel;
+    this.lastPanelRenderKey = stableRenderKey;
     requestAnimationFrame(() => panel.classList.add('bd-character-ai-panel-visible'));
     return panel;
   }
@@ -873,6 +926,7 @@ class CharacterPresetFeature {
   removePanel() {
     const current = this.panelElement;
     this.panelElement = null;
+    this.lastPanelRenderKey = null;
     if (current) {
       current.classList.remove('bd-character-ai-panel-visible');
       setTimeout(() => current.remove(), 200);
@@ -883,7 +937,7 @@ class CharacterPresetFeature {
   }
 
   showCharacterPicker(field) {
-    const sessionCharacterId = this.sessionMatchesScenario(this.session) && this.presets.some(p => p.id === this.session.characterId)
+    const sessionCharacterId = (this.sessionMatchesScenario(this.session) || this.isReadyRouteSession(this.session)) && this.presets.some(p => p.id === this.session.characterId)
       ? this.session.characterId
       : null;
     const selectedId = sessionCharacterId || (this.activePresetId && this.presets.some(p => p.id === this.activePresetId)
@@ -898,6 +952,15 @@ class CharacterPresetFeature {
     const preview = selectedCharacter
       ? (selectedCharacter.description || selectedCharacter.name)
       : '';
+
+    const pickerKey = [
+      'picker',
+      field.fieldId || field.question,
+      selectedId || '',
+      this.activePresetId || '',
+      this.presets.map(character => `${character.id}:${character.updatedAt || 0}`).join('|'),
+      this.scenario?.placeholders?.length || 0,
+    ].join(':');
 
     const panel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
@@ -919,8 +982,8 @@ class CharacterPresetFeature {
           ${this.escapeHtml(preview)}
         </div>
       </div>
-    `);
-    if (!panel) return;
+    `, pickerKey);
+    if (!panel || panel.__bdCharacterPanelReused) return;
 
     const select = panel.querySelector('#bd-character-ai-select');
     const generate = panel.querySelector('#bd-character-ai-generate');
@@ -960,7 +1023,7 @@ class CharacterPresetFeature {
         </div>
         <div class="bd-character-ai-spinner"></div>
       </div>
-    `);
+    `, `generating:${field.fieldId || field.question}`);
   }
 
   showBlockedPanel(field, message) {
@@ -971,7 +1034,7 @@ class CharacterPresetFeature {
           <div class="bd-character-ai-subtitle">${this.escapeHtml(message || 'Character Presets cannot run right now.')}</div>
         </div>
       </div>
-    `);
+    `, `blocked:${field.fieldId || field.question}:${message || ''}`);
   }
 
   showAnswerPanel(field) {
@@ -997,7 +1060,8 @@ class CharacterPresetFeature {
         <div class="bd-character-ai-actions">
           <button id="bd-character-ai-manual" class="bd-character-ai-btn bd-character-ai-btn-secondary">Answer Manually</button>
         </div>
-      `);
+      `, `manual:${field.fieldId || field.question}:${answer?.reason || ''}`);
+      if (!panel || panel.__bdCharacterPanelReused) return;
       panel?.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -1028,8 +1092,8 @@ class CharacterPresetFeature {
         <button id="bd-character-ai-edit" class="bd-character-ai-btn bd-character-ai-btn-secondary">Edit</button>
         <button id="bd-character-ai-use" class="bd-character-ai-btn bd-character-ai-btn-primary">Use</button>
       </div>
-    `);
-    if (!panel) return;
+    `, `answer:${field.fieldId || field.question}:${question}:${answer.answer}:${answer.reason || ''}:${character?.id || ''}`);
+    if (!panel || panel.__bdCharacterPanelReused) return;
 
     panel.querySelector('#bd-character-ai-use')?.addEventListener('click', async (event) => {
       event.preventDefault();
@@ -1071,8 +1135,8 @@ class CharacterPresetFeature {
         <button id="bd-character-ai-cancel" class="bd-character-ai-btn bd-character-ai-btn-secondary">Cancel</button>
         <button id="bd-character-ai-use-edit" class="bd-character-ai-btn bd-character-ai-btn-primary">Use Edited</button>
       </div>
-    `);
-    if (!panel) return;
+    `, `edit:${field.fieldId || field.question}:${question}:${value}`);
+    if (!panel || panel.__bdCharacterPanelReused) return;
 
     const textarea = panel.querySelector('#bd-character-ai-edit-text');
     textarea?.focus();
