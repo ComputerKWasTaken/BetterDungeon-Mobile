@@ -85,30 +85,13 @@ class TextToSpeechFeature {
   }
 
   isSpeechAvailable() {
-    if (typeof window === 'undefined') return false;
-    if (this.isNativeBridgeAvailable()) return true;
-    return 'speechSynthesis' in window &&
-      typeof window.SpeechSynthesisUtterance !== 'undefined';
-  }
-
-  isNativeBridgeAvailable() {
-    const bridge = typeof window !== 'undefined' ? window.BetterDungeonBridge : null;
-    if (!bridge || typeof bridge.ttsSpeak !== 'function') return false;
-    try {
-      return typeof bridge.ttsIsAvailable !== 'function' || bridge.ttsIsAvailable();
-    } catch (e) {
-      return false;
-    }
-  }
-
-  hasWebSpeech() {
     return typeof window !== 'undefined' &&
       'speechSynthesis' in window &&
       typeof window.SpeechSynthesisUtterance !== 'undefined';
   }
 
   attachGlobalListeners() {
-    if (this.hasWebSpeech() && window.speechSynthesis?.addEventListener) {
+    if (window.speechSynthesis?.addEventListener) {
       window.speechSynthesis.addEventListener('voiceschanged', this.boundVoiceChangeHandler);
     }
 
@@ -118,7 +101,7 @@ class TextToSpeechFeature {
   }
 
   detachGlobalListeners() {
-    if (this.hasWebSpeech() && window.speechSynthesis?.removeEventListener) {
+    if (window.speechSynthesis?.removeEventListener) {
       window.speechSynthesis.removeEventListener('voiceschanged', this.boundVoiceChangeHandler);
     }
 
@@ -199,12 +182,7 @@ class TextToSpeechFeature {
   }
 
   async loadVoices() {
-    if (this.isNativeBridgeAvailable()) {
-      this.voices = this.getNativeVoices();
-      return this.voices;
-    }
-
-    if (!this.hasWebSpeech()) return [];
+    if (!this.isSpeechAvailable()) return [];
 
     this.voices = window.speechSynthesis.getVoices() || [];
     if (this.voices.length > 0) {
@@ -216,23 +194,8 @@ class TextToSpeechFeature {
     return this.voices;
   }
 
-  getNativeVoices() {
-    const bridge = window.BetterDungeonBridge;
-    if (!bridge || typeof bridge.ttsGetVoices !== 'function') return [];
-    try {
-      const json = bridge.ttsGetVoices() || '[]';
-      const parsed = JSON.parse(json);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      console.warn('[TextToSpeech] Failed to parse native voices:', e);
-      return [];
-    }
-  }
-
   handleVoicesChanged() {
-    if (this.hasWebSpeech()) {
-      this.voices = window.speechSynthesis.getVoices() || [];
-    }
+    this.voices = window.speechSynthesis.getVoices() || [];
   }
 
   startObserving() {
@@ -412,13 +375,6 @@ class TextToSpeechFeature {
     await this.loadVoices();
     if (!this.enabled) return;
 
-    if (this.isNativeBridgeAvailable()) {
-      this.speakNative(text);
-      return;
-    }
-
-    if (!this.hasWebSpeech()) return;
-
     const synth = window.speechSynthesis;
     if (this.settings.interrupt) {
       this.stop();
@@ -453,32 +409,8 @@ class TextToSpeechFeature {
     }
   }
 
-  speakNative(text) {
-    const bridge = window.BetterDungeonBridge;
-    if (!bridge || typeof bridge.ttsSpeak !== 'function') return;
-
-    const voice = this.resolveVoice();
-    const voiceId = voice?.voiceURI || voice?.name || this.settings.voiceURI || 'auto';
-
-    try {
-      bridge.ttsSpeak(
-        text,
-        voiceId,
-        this.settings.rate,
-        this.settings.pitch,
-        this.settings.volume,
-        !!this.settings.interrupt
-      );
-    } catch (e) {
-      this.log('Native TTS speak failed', e);
-    }
-  }
-
   resolveVoice() {
-    let voices = this.voices;
-    if ((!voices || voices.length === 0) && this.hasWebSpeech()) {
-      voices = window.speechSynthesis.getVoices();
-    }
+    const voices = this.voices.length > 0 ? this.voices : window.speechSynthesis.getVoices();
     if (!voices || voices.length === 0) return null;
 
     if (this.settings.voiceURI && this.settings.voiceURI !== 'auto') {
@@ -540,14 +472,7 @@ class TextToSpeechFeature {
 
   stop() {
     this.clearResumeWatch();
-    if (this.isNativeBridgeAvailable()) {
-      try {
-        window.BetterDungeonBridge.ttsStop();
-      } catch (e) {
-        this.log('Native TTS stop failed', e);
-      }
-    }
-    if (this.hasWebSpeech()) {
+    if (this.isSpeechAvailable()) {
       window.speechSynthesis.cancel();
     }
   }

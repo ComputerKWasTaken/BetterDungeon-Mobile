@@ -113,6 +113,7 @@
     applyCardsPayload(payload, { snapshot: true });
   }
 
+  // Delta updates
   function onCardsUpsert(payload) {
     applyCardsPayload(payload, { snapshot: false });
   }
@@ -213,7 +214,14 @@
       }
     }
 
-    emit('ultrascripts:actions:change', { actions: incoming, changed });
+    emit('ultrascripts:actions:change', {
+      actions: incoming,
+      changed,
+      key: payload?.key ?? null,
+      type: payload?.type ?? null,
+      retriedActionId: payload?.retriedActionId ?? null,
+      cachedOutputs: payload?.cachedOutputs || [],
+    });
 
     const prevTail = state.tail;
     if (newTail !== prevTail) {
@@ -267,6 +275,11 @@
             onAdventureBoundary(msg.payload.adventureId, msg.payload.shortId);
           }
           break;
+        case 'scenario:start':
+          if (msg.payload?.shortId) {
+            emit('ultrascripts:scenario:start', msg.payload);
+          }
+          break;
         case 'baseCredentials':
           if (msg.payload) {
             state.baseCredentials = msg.payload;
@@ -280,6 +293,31 @@
       console.warn(TAG, 'handler threw for kind', msg.kind, err);
     }
   });
+
+  // ---------- fallback injection ----------
+  //
+  // Most modern browsers accept `"world": "MAIN"` in MV3 content_scripts and the
+  // primary ws-interceptor.js path is active. On browsers that don't (older
+  // Firefox, some Android WebView versions), we inject the interceptor via a
+  // <script> tag at document-start. The interceptor's own install guard
+  // (window.__ultrascriptsWsInstalled) prevents double-install when both paths
+  // succeed on modern browsers.
+  try {
+    const api = typeof browser !== 'undefined'
+      ? browser
+      : (typeof chrome !== 'undefined' ? chrome : null);
+    const url = api?.runtime?.getURL?.('services/ultrascripts/ws-interceptor.js');
+    if (url) {
+      const scriptEl = document.createElement('script');
+      scriptEl.src = url;
+      scriptEl.async = false;
+      (document.head || document.documentElement).appendChild(scriptEl);
+      scriptEl.addEventListener('load', () => scriptEl.remove());
+      scriptEl.addEventListener('error', () => scriptEl.remove());
+    }
+  } catch (err) {
+    console.warn(TAG, 'fallback interceptor injection failed', err);
+  }
 
   // ---------- public API ----------
 

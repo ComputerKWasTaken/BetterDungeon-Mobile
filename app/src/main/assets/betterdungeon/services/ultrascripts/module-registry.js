@@ -2,7 +2,7 @@
 //
 // Ultrascripts module lifecycle. Modules register a definition:
 //   {
-//     id:              string   — unique identifier (e.g. 'scripture')
+//     id:              string   — unique identifier (e.g. 'widget')
 //     version:         string?  — semver
 //     label:           string?  — human-readable label for popup UI
 //     stateNames:      string[] — which ultrascripts:state:<name> cards it reads
@@ -59,7 +59,7 @@
           const saved = result?.[STORAGE_KEY];
           if (saved && typeof saved === 'object') {
             for (const [id, enabled] of Object.entries(saved)) {
-              enabledState.set(id === 'providerAI' ? 'ai' : id, !!enabled);
+              if (definitions.has(id)) enabledState.set(id, !!enabled);
             }
           }
           persistedLoaded = true;

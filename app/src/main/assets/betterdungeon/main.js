@@ -32,11 +32,6 @@ class BetterDungeon {
       } else if (message.type === 'APPLY_INSTRUCTIONS') {
         this.handleApplyInstructions().then(sendResponse);
         return true;
-      } else if (message.type === 'SCAN_STORY_CARDS') {
-        this.handleScanStoryCards().then(sendResponse);
-        return true;
-      } else if (message.type === 'SET_AUTO_SCAN') {
-        this.handleSetAutoScan(message.enabled);
       } else if (message.type === 'SET_AUTO_APPLY') {
         this.handleSetAutoApply(message.enabled);
       } else if (message.type === 'SET_AUTO_SEE_TRIGGER_MODE') {
@@ -93,10 +88,6 @@ class BetterDungeon {
         window.Ultrascripts?.core?.setDebug?.(message.enabled);
         sendResponse({ success: true, debugEnabled: !!message.enabled });
         return true;
-      } else if (message.type === 'SET_SCRIPTURE_WIDGET_DISPLAY') {
-        const display = window.ScriptureModule?.setWidgetDisplayOptions?.(message.display, { persist: true }) || null;
-        sendResponse({ success: true, display });
-        return true;
       } else if (message.type === 'SET_ULTRASCRIPTS_MODULE_ENABLED') {
         window.Ultrascripts?.registry?.setModuleEnabled?.(message.moduleId, message.enabled);
         sendResponse({
@@ -141,13 +132,6 @@ class BetterDungeon {
       return { success: true, result: await consent.setOrigin(origin, decision) };
     } catch (error) {
       return { success: false, error: error?.message || String(error) };
-    }
-  }
-
-  handleSetAutoScan(enabled) {
-    const triggerFeature = this.featureManager.features.get('triggerHighlight');
-    if (triggerFeature && typeof triggerFeature.setAutoScan === 'function') {
-      triggerFeature.setAutoScan(enabled);
     }
   }
 
@@ -319,27 +303,6 @@ class BetterDungeon {
     return { success: false, error: 'Story Card Analytics feature not available' };
   }
 
-  async handleScanStoryCards() {
-    // Get the trigger highlight feature instance
-    const triggerFeature = this.featureManager.features.get('triggerHighlight');
-    
-    if (!triggerFeature) {
-      return { success: false, error: 'Trigger Highlight feature not enabled' };
-    }
-
-    if (typeof triggerFeature.scanAllStoryCards !== 'function') {
-      return { success: false, error: 'Scan function not available' };
-    }
-
-    try {
-      const result = await triggerFeature.scanAllStoryCards();
-      return result;
-    } catch (error) {
-      console.error('[BetterDungeon] Scan error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
   async handleFeatureToggle(featureId, enabled) {
     await this.featureManager.toggleFeature(featureId, enabled);
   }
@@ -352,7 +315,10 @@ class BetterDungeon {
         return { success: false, error: instructionsResult.error };
       }
 
-      return await this.aiDungeonService.applyInstructionsToTextareas(instructionsResult.data);
+      return await this.aiDungeonService.applyInstructionsToTextareas(instructionsResult.data, {
+        forceApply: true,
+        authorsNoteText: instructionsResult.authorsNoteData || null,
+      });
     } catch (error) {
       console.error('[BetterDungeon] Error applying instructions:', error);
       return { success: false, error: error.message };
@@ -378,7 +344,6 @@ function initBetterDungeon() {
     betterDungeonInstance.destroy();
   }
   betterDungeonInstance = new BetterDungeon();
-  window.betterDungeonInstance = betterDungeonInstance;
 }
 
 if (document.readyState === 'loading') {

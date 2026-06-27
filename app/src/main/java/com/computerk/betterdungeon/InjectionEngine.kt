@@ -37,6 +37,8 @@ class InjectionEngine(private val context: Context) {
             "services/ultrascripts/ws-stream.js", // Early stream shimming
             "utils/dom.js",
             "utils/storage.js",
+            "utils/markdown-config.js",
+            "services/graphql-service.js",
             "services/ai-dungeon-service.js",
             "services/ultrascripts/write-queue.js",
             "services/ultrascripts/envelope.js",
@@ -51,10 +53,12 @@ class InjectionEngine(private val context: Context) {
             "modules/network/module.js",
             "modules/system/module.js",
             "modules/sdk/module.js",
+            "modules/ai/executor.js",
+            "modules/ai/gemini-backend.js",
             "modules/ai/module.js",
-            "modules/scripture/validators.js",
-            "modules/scripture/renderer.js",
-            "modules/scripture/module.js",
+            "modules/widget/validators.js",
+            "modules/widget/renderer.js",
+            "modules/widget/module.js",
             "services/loading-screen.js",
             "services/story-card-cache.js",
             "services/story-card-scanner.js",
@@ -64,15 +68,16 @@ class InjectionEngine(private val context: Context) {
             "features/command_feature.js",
             "features/try_feature.js",
             "features/trigger_highlight_feature.js",
-            "features/hotkey_feature.js",
             "features/plot_presets_feature.js",
             "features/input_mode_color_feature.js",
             "features/character_preset_feature.js",
             "features/auto_see_feature.js",
             "features/story_card_analytics_feature.js",
             "features/notes_feature.js",
+            "features/auto_enable_scripts_feature.js",
             "features/input_history_feature.js",
             "features/text_to_speeech_feature.js",
+            "features/custom_dynamic_feature.js",
             "features/mobile/mobile_welcome_screen.js",
             "features/mobile/mobile_settings_layer.js",
             "features/mobile/mobile_design_layer.js",
@@ -104,13 +109,19 @@ class InjectionEngine(private val context: Context) {
      */
     fun injectEarly(webView: WebView) {
         Log.i(TAG, "Injecting WebSocket interceptor early...")
-        val js = readAsset("$ASSET_BASE/services/ultrascripts/ws-interceptor.js")
-        if (js != null) {
-            // We evaluate it immediately to shim window.WebSocket at document_start
-            webView.evaluateJavascript(js, null)
-            Log.d(TAG, "Early WebSocket interceptor injected")
-        } else {
-            Log.w(TAG, "Failed to load ws-interceptor.js for early injection")
+        val files = listOf(
+            "services/ultrascripts/ws-interceptor.js",
+            "services/custom-dynamic-router.js"
+        )
+        for (file in files) {
+            val js = readAsset("$ASSET_BASE/$file")
+            if (js != null) {
+                // Evaluate immediately for document-start style hooks.
+                webView.evaluateJavascript(js, null)
+                Log.d(TAG, "Early script injected: $file")
+            } else {
+                Log.w(TAG, "Failed to load early script: $file")
+            }
         }
     }
 

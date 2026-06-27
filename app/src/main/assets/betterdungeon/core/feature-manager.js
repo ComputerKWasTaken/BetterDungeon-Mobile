@@ -43,10 +43,6 @@ class FeatureManager {
       this.featureClasses.set('triggerHighlight', TriggerHighlightFeature);
     }
 
-    if (typeof HotkeyFeature !== 'undefined') {
-      this.featureClasses.set('hotkey', HotkeyFeature);
-    }
-
     if (typeof PlotPresetsFeature !== 'undefined') {
       this.featureClasses.set('favoriteInstructions', PlotPresetsFeature);
     } else if (typeof FavoriteInstructionsFeature !== 'undefined') {
@@ -73,12 +69,20 @@ class FeatureManager {
       this.featureClasses.set('notes', NotesFeature);
     }
 
+    if (typeof AutoEnableScriptsFeature !== 'undefined') {
+      this.featureClasses.set('autoEnableScripts', AutoEnableScriptsFeature);
+    }
+
     if (typeof InputHistoryFeature !== 'undefined') {
       this.featureClasses.set('inputHistory', InputHistoryFeature);
     }
 
     if (typeof TextToSpeechFeature !== 'undefined') {
       this.featureClasses.set('textToSpeech', TextToSpeechFeature);
+    }
+
+    if (typeof CustomDynamicFeature !== 'undefined') {
+      this.featureClasses.set('customDynamic', CustomDynamicFeature);
     }
   }
 
@@ -87,9 +91,9 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics'];
+      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
       // Features that are disabled by default
-      const defaultOff = ['autoSee', 'textToSpeech'];
+      const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic'];
       
       const enabled = alwaysEnabled.includes(id) || 
                       savedStates[id] === true || 

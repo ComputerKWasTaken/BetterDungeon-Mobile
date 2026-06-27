@@ -1,51 +1,58 @@
-// modules/scripture/renderer.js
+// modules/widget/renderer.js
 //
-// DOM renderer for Scripture widgets. It intentionally keeps the legacy
+// DOM renderer for widgets. It intentionally keeps the legacy
 // BetterScripts CSS class names so existing widget styles remain pixel-stable
 // while the data source moves to Ultrascripts state cards.
 
 (function () {
-  if (window.ScriptureWidgetRenderer) return;
+  if (window.UltrascriptsWidgetRenderer) return;
 
-  const validators = () => window.ScriptureValidators;
-  const DEFAULT_DISPLAY_OPTIONS = {
-    size: 'normal',
-    maxHeight: 'medium',
-    layout: 'balanced',
-  };
+  const validators = () => window.UltrascriptsWidgetValidators;
+  const MINIMIZED_STORAGE_KEY = 'bd.widget.minimized';
+  const ACKED_VALUE_TTL_MS = 30000;
 
-  function normalizeDisplayOptions(options = {}) {
-    const raw = options && typeof options === 'object' ? options : {};
-    const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(raw.size || '').toLowerCase())
-      ? String(raw.size).toLowerCase()
-      : DEFAULT_DISPLAY_OPTIONS.size;
-    const maxHeight = ['short', 'medium', 'tall'].includes(String(raw.maxHeight || '').toLowerCase())
-      ? String(raw.maxHeight).toLowerCase()
-      : DEFAULT_DISPLAY_OPTIONS.maxHeight;
-    const layout = ['balanced', 'stacked'].includes(String(raw.layout || '').toLowerCase())
-      ? String(raw.layout).toLowerCase()
-      : DEFAULT_DISPLAY_OPTIONS.layout;
-    return { size, maxHeight, layout };
+  function cloneForCompare(value) {
+    if (value === undefined || value === null) return value;
+    if (typeof value !== 'object') return value;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return Array.isArray(value) ? value.slice() : { ...value };
+    }
   }
 
-  class ScriptureWidgetRenderer {
+  function valuesEqual(a, b) {
+    if (a === b) return true;
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  }
+
+  class UltrascriptsWidgetRenderer {
     constructor(options = {}) {
       this.logFn = typeof options.log === 'function' ? options.log : null;
       this.onInteraction = typeof options.onInteraction === 'function' ? options.onInteraction : null;
-      this.displayOptions = normalizeDisplayOptions(options.displayOptions);
       this.registeredWidgets = new Map();
       // Map<widgetId, { value?, seq }>. Any widget with an entry pulses amber
       // until its seq is <= ackSeq. Optional `value` carries the player's
       // optimistic change across re-renders.
       this.pendingInteractionValues = new Map();
+      // Map<widgetId, { value, previousValue, seq, expiresAt }>. Acknowledged
+      // values bridge the stale-history turn where the script has seen the
+      // interaction but its next published values have not caught up yet.
+      this.ackedInteractionValues = new Map();
       this.widgetContainer = null;
       this.widgetWrapper = null;
+      this.minimizeButton = null;
       this.widgetZones = { left: null, center: null, right: null };
       this.boundResizeHandler = null;
       this.resizeDebounceTimer = null;
       this.layoutObserver = null;
       this.gameTextMaskObserver = null;
       this.cachedLayout = null;
+      this.isMinimized = this.loadMinimizedPreference();
       this._densityRafId = null;
       this._lastLayoutLogKey = '';
       this._lastDensityLogKey = '';
@@ -58,7 +65,7 @@
 
     warn(...args) {
       if (this.logFn) this.logFn('warn', ...args);
-      else console.warn('[Scripture]', ...args);
+      else console.warn('[Widget]', ...args);
     }
 
     warnOnce(key, ...args) {
@@ -72,23 +79,19 @@
       return this.registeredWidgets.get(widgetId)?.config || fallback;
     }
 
-    setDisplayOptions(options = {}) {
-      this.displayOptions = normalizeDisplayOptions({ ...this.displayOptions, ...options });
-      this.applyDisplayOptions();
-      this.updateContainerPosition();
-      this.recalculateWidgetDensity();
-      return { ...this.displayOptions };
-    }
-
-    applyDisplayOptions() {
-      if (!this.widgetContainer) return;
-      this.widgetContainer.dataset.widgetSize = this.displayOptions.size;
-      this.widgetContainer.dataset.widgetHeight = this.displayOptions.maxHeight;
-      this.widgetContainer.dataset.widgetLayout = this.displayOptions.layout;
-    }
-
     isInteractiveType(type) {
       return validators().INTERACTIVE_WIDGET_TYPES?.has?.(type);
+    }
+
+    readConfigValue(config) {
+      if (!config) return undefined;
+      const field = validators().getPrimitiveStateField?.(config) || 'value';
+      return config[field];
+    }
+
+    withConfigValue(config, value) {
+      const field = validators().getPrimitiveStateField?.(config) || 'value';
+      return { ...config, [field]: value };
     }
 
     // Optimistically swap in the player's pending value so re-renders keep
@@ -100,7 +103,40 @@
       if (!this.isInteractiveType(config.type)) return config;
       const pending = this.pendingInteractionValues.get(config.id);
       if (pending.value === undefined) return config;
-      return { ...config, value: pending.value };
+      return this.withConfigValue(config, pending.value);
+    }
+
+    applyAckedInteractionValue(config) {
+      if (!config?.id || !this.ackedInteractionValues.has(config.id)) return config;
+      if (!this.isInteractiveType(config.type)) return config;
+
+      const accepted = this.ackedInteractionValues.get(config.id);
+      const now = Date.now();
+      if (!accepted || now > Number(accepted.expiresAt || 0)) {
+        this.ackedInteractionValues.delete(config.id);
+        return config;
+      }
+
+      const sourceValue = this.readConfigValue(config);
+      if (valuesEqual(sourceValue, accepted.value)) {
+        this.ackedInteractionValues.delete(config.id);
+        return config;
+      }
+
+      const sourceStillStale = accepted.previousValue === undefined
+        ? sourceValue === undefined
+        : valuesEqual(sourceValue, accepted.previousValue);
+
+      if (!sourceStillStale) {
+        this.ackedInteractionValues.delete(config.id);
+        return config;
+      }
+
+      return this.withConfigValue(config, accepted.value);
+    }
+
+    applyInteractionValue(config) {
+      return this.applyPendingInteractionValue(this.applyAckedInteractionValue(config));
     }
 
     // Clear pending state for any interactions the AI has now acknowledged.
@@ -108,8 +144,17 @@
     ackInteractions(ackSeq) {
       const n = Number(ackSeq || 0);
       if (!Number.isFinite(n)) return;
+      const now = Date.now();
       for (const [widgetId, pending] of [...this.pendingInteractionValues.entries()]) {
         if (Number(pending.seq || 0) <= n) {
+          if (pending.value !== undefined) {
+            this.ackedInteractionValues.set(widgetId, {
+              value: cloneForCompare(pending.value),
+              previousValue: cloneForCompare(pending.previousValue),
+              seq: Number(pending.seq || 0),
+              expiresAt: now + ACKED_VALUE_TTL_MS,
+            });
+          }
           this.pendingInteractionValues.delete(widgetId);
           const data = this.registeredWidgets.get(widgetId);
           if (data?.element && data.element.dataset.state === 'pending') {
@@ -117,22 +162,26 @@
           }
         }
       }
+      this.updateMinimizeButton();
     }
 
     // Mark a widget as pending. Optionally remembers an optimistic value so
     // re-renders keep showing the player's change until the AI acks. Without
     // a value (fire-and-forget interactions like button presses), the pulse
     // still appears but no value override is stored.
-    setPending(widgetId, record, value) {
+    setPending(widgetId, record, value, previousValue) {
       if (!widgetId || !record?.seq) return;
       const seq = Number(record.seq);
       const existing = this.pendingInteractionValues.get(widgetId);
       this.pendingInteractionValues.set(widgetId, {
-        value: value !== undefined ? value : existing?.value,
+        value: value !== undefined ? cloneForCompare(value) : existing?.value,
+        previousValue: previousValue !== undefined ? cloneForCompare(previousValue) : existing?.previousValue,
         seq: Math.max(seq, Number(existing?.seq || 0)),
       });
+      if (value !== undefined) this.ackedInteractionValues.delete(widgetId);
       const data = this.registeredWidgets.get(widgetId);
       if (data?.element) data.element.dataset.state = 'pending';
+      this.updateMinimizeButton();
     }
 
     emitInteraction(config, action, value, previousValue, extra = {}) {
@@ -160,7 +209,7 @@
       // value to persist visually across re-renders pass it via
       // extra.optimisticValue. Opt out entirely with extra.skipPending.
       if (record && !extra.skipPending && this.isInteractiveType(widgetType)) {
-        this.setPending(config.id, record, extra.optimisticValue);
+        this.setPending(config.id, record, extra.optimisticValue, previousValue);
       }
 
       return record;
@@ -171,7 +220,130 @@
       element.classList.toggle('bd-widget-disabled', disabled);
       element.setAttribute('aria-disabled', String(disabled));
       element.querySelectorAll('button, input, select, textarea').forEach(control => {
-        control.disabled = disabled;
+        control.disabled = disabled || control.dataset.widgetLocalDisabled === 'true';
+      });
+    }
+
+    setAccordionSectionOpen(section, isOpen) {
+      section.dataset.open = String(isOpen);
+      const trigger = section.querySelector('.bd-widget-accordion-trigger');
+      const panel = section.querySelector('.bd-widget-accordion-panel');
+      if (trigger) trigger.setAttribute('aria-expanded', String(isOpen));
+      if (panel) panel.hidden = !isOpen;
+    }
+
+    setDropdownOpen(widget, isOpen) {
+      widget.dataset.open = String(isOpen);
+      const trigger = widget.querySelector('.bd-widget-dropdown-trigger');
+      const menu = widget.querySelector('.bd-widget-dropdown-menu');
+      if (trigger) trigger.setAttribute('aria-expanded', String(isOpen));
+      if (menu) menu.hidden = !isOpen;
+    }
+
+    loadMinimizedPreference() {
+      try {
+        return window.localStorage?.getItem(MINIMIZED_STORAGE_KEY) === '1';
+      } catch {
+        return false;
+      }
+    }
+
+    saveMinimizedPreference() {
+      try {
+        window.localStorage?.setItem(MINIMIZED_STORAGE_KEY, this.isMinimized ? '1' : '0');
+      } catch { /* storage may be unavailable in hardened contexts */ }
+    }
+
+    setMinimized(minimized) {
+      this.isMinimized = !!minimized;
+      this.saveMinimizedPreference();
+      this.syncWrapperState();
+      this.recalculateWidgetDensity();
+    }
+
+    updateMinimizeButton() {
+      if (!this.minimizeButton) return;
+      const minimized = !!this.isMinimized;
+      const widgetCount = this.registeredWidgets.size;
+      const pendingCount = [...this.pendingInteractionValues.keys()]
+        .filter(widgetId => this.registeredWidgets.has(widgetId))
+        .length;
+      const countLabel = widgetCount === 1 ? '1 widget' : `${widgetCount} widgets`;
+      const pendingLabel = pendingCount === 1 ? '1 pending' : `${pendingCount} pending`;
+      const actionLabel = minimized ? 'Show widgets' : 'Hide widgets';
+
+      this.minimizeButton.dataset.pending = String(pendingCount > 0);
+      this.minimizeButton.dataset.widgetCount = String(widgetCount);
+      this.minimizeButton.dataset.pendingCount = String(pendingCount);
+      this.minimizeButton.replaceChildren();
+
+      const text = document.createElement('span');
+      text.className = 'bd-widget-minimize-text';
+      text.textContent = minimized ? 'Show widgets' : 'Hide widgets';
+
+      const count = document.createElement('span');
+      count.className = 'bd-widget-minimize-count';
+      count.textContent = String(widgetCount);
+
+      const icon = document.createElement('span');
+      icon.className = 'bd-widget-minimize-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = minimized ? '+' : '−';
+
+      this.minimizeButton.appendChild(text);
+      this.minimizeButton.appendChild(count);
+      if (pendingCount > 0) {
+        const pending = document.createElement('span');
+        pending.className = 'bd-widget-minimize-pending';
+        pending.textContent = String(pendingCount);
+        this.minimizeButton.appendChild(pending);
+      }
+      this.minimizeButton.appendChild(icon);
+
+      const pendingSuffix = pendingCount > 0 ? `, ${pendingLabel}` : '';
+      this.minimizeButton.title = `${actionLabel} (${countLabel}${pendingSuffix})`;
+      this.minimizeButton.setAttribute('aria-label', `${actionLabel} (${countLabel}${pendingSuffix})`);
+      this.minimizeButton.setAttribute('aria-expanded', String(!minimized));
+    }
+
+    syncWrapperState() {
+      if (!this.widgetWrapper) return;
+      this.widgetWrapper.dataset.minimized = String(!!this.isMinimized);
+      this.updateMinimizeButton();
+    }
+
+    activateTab(root, itemId) {
+      root.querySelectorAll('.bd-widget-tab-btn').forEach(button => {
+        const active = button.dataset.tab === String(itemId);
+        button.dataset.active = String(active);
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
+      });
+      root.querySelectorAll('.bd-widget-tabs-panel').forEach(panel => {
+        const active = panel.dataset.tab === String(itemId);
+        panel.dataset.active = String(active);
+        panel.hidden = !active;
+      });
+    }
+
+    syncSortableState(widget) {
+      const rows = Array.from(widget.querySelectorAll('.bd-widget-sortable-item'));
+      rows.forEach((row, index) => {
+        const rankEl = row.querySelector('.bd-widget-sortable-rank');
+        if (rankEl) rankEl.textContent = `${index + 1}.`;
+        const label = row.querySelector('.bd-widget-sortable-text')?.textContent?.trim() || `item ${index + 1}`;
+        const up = row.querySelector('.bd-widget-sortable-arrow[data-dir="up"]');
+        const down = row.querySelector('.bd-widget-sortable-arrow[data-dir="down"]');
+        if (up) {
+          up.dataset.widgetLocalDisabled = String(index === 0);
+          up.disabled = index === 0;
+          up.setAttribute('aria-label', `Move ${label} up`);
+        }
+        if (down) {
+          down.dataset.widgetLocalDisabled = String(index === rows.length - 1);
+          down.disabled = index === rows.length - 1;
+          down.setAttribute('aria-label', `Move ${label} down`);
+        }
       });
     }
 
@@ -181,7 +353,7 @@
         return;
       }
 
-      const renderWidgets = widgets.map(config => this.applyPendingInteractionValue(config));
+      const renderWidgets = widgets.map(config => this.applyInteractionValue(config));
       const desiredIds = new Set();
       for (const config of renderWidgets) {
         desiredIds.add(config.id);
@@ -198,6 +370,7 @@
       }
 
       this.reorderWidgets(renderWidgets);
+      this.syncWrapperState();
       this.recalculateWidgetDensity();
     }
 
@@ -227,7 +400,7 @@
       if (this.widgetContainer && document.body.contains(this.widgetContainer)) return;
 
       const wrapper = document.createElement('div');
-      wrapper.className = 'bd-betterscripts-wrapper bd-scripture-wrapper';
+      wrapper.className = 'bd-betterscripts-wrapper bd-widget-module-wrapper';
       wrapper.id = 'bd-betterscripts-wrapper';
       Object.assign(wrapper.style, {
         position: 'fixed',
@@ -237,28 +410,43 @@
         flexDirection: 'column',
       });
 
+      const controls = document.createElement('div');
+      controls.className = 'bd-widget-module-controls';
+
+      const minimizeButton = document.createElement('button');
+      minimizeButton.type = 'button';
+      minimizeButton.className = 'bd-widget-minimize-toggle';
+      minimizeButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.setMinimized(!this.isMinimized);
+      });
+      controls.appendChild(minimizeButton);
+      this.minimizeButton = minimizeButton;
+
       this.widgetContainer = document.createElement('div');
-      this.widgetContainer.className = 'bd-betterscripts-container bd-scripture-container';
+      this.widgetContainer.className = 'bd-betterscripts-container bd-widget-module-container';
       this.widgetContainer.id = 'bd-betterscripts-top';
-      this.applyDisplayOptions();
 
       const leftZone = document.createElement('div');
-      leftZone.className = 'bd-bar-zone bd-bar-left bd-scripture-zone';
+      leftZone.className = 'bd-bar-zone bd-bar-left bd-widget-module-zone';
 
       const centerZone = document.createElement('div');
-      centerZone.className = 'bd-bar-zone bd-bar-center bd-scripture-zone';
+      centerZone.className = 'bd-bar-zone bd-bar-center bd-widget-module-zone';
 
       const rightZone = document.createElement('div');
-      rightZone.className = 'bd-bar-zone bd-bar-right bd-scripture-zone';
+      rightZone.className = 'bd-bar-zone bd-bar-right bd-widget-module-zone';
 
       this.widgetContainer.appendChild(leftZone);
       this.widgetContainer.appendChild(centerZone);
       this.widgetContainer.appendChild(rightZone);
       this.widgetZones = { left: leftZone, center: centerZone, right: rightZone };
 
+      wrapper.appendChild(controls);
       wrapper.appendChild(this.widgetContainer);
       document.body.appendChild(wrapper);
       this.widgetWrapper = wrapper;
+      this.syncWrapperState();
 
       this.updateContainerPosition();
       this.setupLayoutMonitoring();
@@ -439,6 +627,7 @@
         this.boundResizeHandler = () => {
           if (this.resizeDebounceTimer) clearTimeout(this.resizeDebounceTimer);
           this.resizeDebounceTimer = setTimeout(() => {
+            this.syncWrapperState();
             this.updateContainerPosition();
             this.recalculateWidgetDensity();
           }, 50);
@@ -483,6 +672,7 @@
         this.widgetWrapper.remove();
         this.widgetWrapper = null;
       }
+      this.minimizeButton = null;
 
       this.widgetContainer = null;
       this.widgetZones = { left: null, center: null, right: null };
@@ -800,9 +990,10 @@
       return widget;
     }
 
-    createControlLabel(config, fallback) {
+    createControlLabel(config, fallback, id) {
       const label = document.createElement('span');
       label.className = 'bd-widget-control-label';
+      if (id) label.id = id;
       label.textContent = config.label ?? fallback;
       return label;
     }
@@ -830,7 +1021,7 @@
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
         if (currentConfig.disabled) return;
         const value = currentConfig.value !== undefined ? currentConfig.value : true;
-        this.emitInteraction(currentConfig, 'press', value, undefined, { coalesce: !!currentConfig.coalesce });
+        this.emitInteraction(currentConfig, 'click', value, undefined, { coalesce: !!currentConfig.coalesce });
       });
 
       widget.appendChild(button);
@@ -840,17 +1031,19 @@
 
     createToggleWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-toggle', config);
+      const labelId = `bd-widget-${widgetId}-label`;
       const wrap = document.createElement('label');
       wrap.className = 'bd-widget-toggle-control';
 
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.checked = !!config.value;
+      input.setAttribute('aria-labelledby', labelId);
 
       const slider = document.createElement('span');
       slider.className = 'bd-widget-toggle-slider';
 
-      const label = this.createControlLabel(config, 'Toggle');
+      const label = this.createControlLabel(config, 'Toggle', labelId);
 
       input.addEventListener('change', () => {
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
@@ -869,9 +1062,11 @@
 
     createSelectWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-select', config);
-      const label = this.createControlLabel(config, 'Select');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Select', labelId);
       const select = document.createElement('select');
       select.className = 'bd-widget-control bd-widget-select-control';
+      select.setAttribute('aria-labelledby', labelId);
       this.populateSelectOptions(select, config.options, config.value);
 
       select.addEventListener('change', () => {
@@ -889,13 +1084,16 @@
 
     createSliderWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-slider', config);
-      const label = this.createControlLabel(config, 'Slider');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Slider', labelId);
       const valueText = document.createElement('span');
       valueText.className = 'bd-widget-slider-value';
+      valueText.setAttribute('aria-live', 'polite');
 
       const range = document.createElement('input');
       range.type = 'range';
       range.className = 'bd-widget-control bd-widget-slider-control';
+      range.setAttribute('aria-labelledby', labelId);
       const min = config.min ?? 0;
       const max = config.max ?? 100;
       const step = config.step ?? 1;
@@ -923,9 +1121,11 @@
 
     createInputWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-input', config);
-      const label = this.createControlLabel(config, 'Input');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Input', labelId);
       const input = document.createElement('input');
       input.className = 'bd-widget-control bd-widget-input-control';
+      input.setAttribute('aria-labelledby', labelId);
       input.type = config.inputType || 'text';
       input.value = config.value ?? '';
       input.placeholder = config.placeholder || '';
@@ -946,9 +1146,11 @@
 
     createTextareaWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-textarea', config);
-      const label = this.createControlLabel(config, 'Text');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Text', labelId);
       const textarea = document.createElement('textarea');
       textarea.className = 'bd-widget-control bd-widget-textarea-control';
+      textarea.setAttribute('aria-labelledby', labelId);
       textarea.value = config.value ?? '';
       textarea.placeholder = config.placeholder || '';
       textarea.rows = config.rows || 2;
@@ -1497,6 +1699,13 @@
 
     readSelectValue(select) {
       const option = select.selectedOptions?.[0];
+      if (!option && select?.dataset?.type) {
+        const type = select.dataset.type;
+        const raw = select.dataset.value;
+        if (type === 'number') return Number(raw);
+        if (type === 'boolean') return raw === 'true';
+        return raw;
+      }
       if (!option) return select.value;
       const type = option.dataset.type;
       const raw = option.dataset.value;
@@ -1634,8 +1843,10 @@
         if (!el.parentNode) return;
         this.registeredWidgets.delete(widgetId);
         this.pendingInteractionValues.delete(widgetId);
+        this.ackedInteractionValues.delete(widgetId);
         el.remove();
         this.emitWidget('destroyed', widgetId);
+        this.syncWrapperState();
         if (this.registeredWidgets.size === 0) this.removeWidgetContainer();
         else this.recalculateWidgetDensity();
       };
@@ -1656,6 +1867,7 @@
         });
         this.registeredWidgets.clear();
         this.pendingInteractionValues.clear();
+        this.ackedInteractionValues.clear();
         this._warnedMessages.clear();
         this.removeWidgetContainer();
         this.log('All widgets cleared');
@@ -1810,10 +2022,13 @@
 
     createRadioWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-radio', config);
-      const label = this.createControlLabel(config, 'Choose');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Choose', labelId);
       widget.appendChild(label);
       const group = document.createElement('div');
       group.className = 'bd-widget-radio-group';
+      group.setAttribute('role', 'radiogroup');
+      group.setAttribute('aria-labelledby', labelId);
       this._buildRadioOptions(group, widgetId, config);
       widget.appendChild(group);
       this.setInteractiveDisabled(widget, config);
@@ -1829,11 +2044,12 @@
 
         const input = document.createElement('input');
         input.type = 'radio';
-        input.name = `scripture-radio-${widgetId}`;
+        input.name = `widget-radio-${widgetId}`;
         input.value = this.optionDomValue(norm.value);
         input.dataset.type = typeof norm.value;
         input.dataset.value = String(norm.value);
         input.checked = norm.value === config.value;
+        input.dataset.widgetLocalDisabled = String(!!norm.disabled);
         input.disabled = norm.disabled;
 
         input.addEventListener('change', () => {
@@ -1863,6 +2079,8 @@
       const group = element.querySelector('.bd-widget-radio-group');
       if (group) {
         group.innerHTML = '';
+        group.setAttribute('role', 'radiogroup');
+        group.setAttribute('aria-labelledby', `bd-widget-${widgetId}-label`);
         this._buildRadioOptions(group, widgetId, config);
       }
       this.setInteractiveDisabled(element, config);
@@ -1870,28 +2088,33 @@
 
     createStepperWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-stepper', config);
-      const label = this.createControlLabel(config, 'Value');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Value', labelId);
 
       const controls = document.createElement('div');
       controls.className = 'bd-widget-stepper-controls';
+      controls.setAttribute('role', 'group');
+      controls.setAttribute('aria-labelledby', labelId);
 
       const btnDec = document.createElement('button');
       btnDec.type = 'button';
       btnDec.className = 'bd-widget-stepper-btn';
       btnDec.dataset.dir = 'dec';
+      btnDec.setAttribute('aria-label', `Decrease ${config.label ?? 'value'}`);
       btnDec.textContent = '−';
 
       const display = document.createElement('span');
       display.className = 'bd-widget-stepper-value';
+      display.setAttribute('aria-live', 'polite');
       display.textContent = config.value ?? config.min ?? 0;
 
       const btnInc = document.createElement('button');
       btnInc.type = 'button';
       btnInc.className = 'bd-widget-stepper-btn';
       btnInc.dataset.dir = 'inc';
+      btnInc.setAttribute('aria-label', `Increase ${config.label ?? 'value'}`);
       btnInc.textContent = '+';
 
-      const step = () => config.step ?? 1;
       const clamp = (v, cfg) => {
         const mn = cfg.min ?? -Infinity;
         const mx = cfg.max ?? Infinity;
@@ -1902,7 +2125,8 @@
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
         if (currentConfig.disabled) return;
         const prev = Number(currentConfig.value ?? currentConfig.min ?? 0);
-        const next = clamp(prev + (dir === 'inc' ? step() : -step()), currentConfig);
+        const step = currentConfig.step ?? 1;
+        const next = clamp(prev + (dir === 'inc' ? step : -step), currentConfig);
         display.textContent = next;
         this.emitInteraction(currentConfig, 'change', next, prev, { coalesce: true, optimisticValue: next });
       };
@@ -1923,6 +2147,10 @@
       this.updateControlLabel(element, config, 'Value');
       const display = element.querySelector('.bd-widget-stepper-value');
       if (display) display.textContent = config.value ?? config.min ?? 0;
+      const dec = element.querySelector('.bd-widget-stepper-btn[data-dir="dec"]');
+      const inc = element.querySelector('.bd-widget-stepper-btn[data-dir="inc"]');
+      if (dec) dec.setAttribute('aria-label', `Decrease ${config.label ?? 'value'}`);
+      if (inc) inc.setAttribute('aria-label', `Increase ${config.label ?? 'value'}`);
       this.setInteractiveDisabled(element, config);
     }
 
@@ -1933,6 +2161,7 @@
       btn.type = 'button';
       btn.className = 'bd-widget-confirm-btn';
       btn.dataset.confirmState = 'idle';
+      btn.setAttribute('aria-pressed', 'false');
 
       const icon = document.createElement('span');
       icon.className = 'bd-widget-confirm-icon';
@@ -1953,15 +2182,18 @@
         if (btn.dataset.confirmState === 'idle') {
           // First click — arm it
           btn.dataset.confirmState = 'confirming';
+          btn.setAttribute('aria-pressed', 'true');
           text.textContent = 'Confirm?';
           confirmTimer = setTimeout(() => {
             btn.dataset.confirmState = 'idle';
+            btn.setAttribute('aria-pressed', 'false');
             text.textContent = currentConfig.text ?? currentConfig.label ?? 'Confirm';
           }, 3000);
         } else {
           // Second click — fire
           clearTimeout(confirmTimer);
           btn.dataset.confirmState = 'idle';
+          btn.setAttribute('aria-pressed', 'false');
           text.textContent = currentConfig.text ?? currentConfig.label ?? 'Confirm';
           const value = currentConfig.value !== undefined ? currentConfig.value : true;
           this.emitInteraction(currentConfig, 'confirm', value, undefined, { coalesce: false });
@@ -1984,10 +2216,13 @@
 
     createChipselectWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-chipselect', config);
-      const label = this.createControlLabel(config, 'Select');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Select', labelId);
       widget.appendChild(label);
       const group = document.createElement('div');
       group.className = 'bd-widget-chipselect-group';
+      group.setAttribute('role', 'group');
+      group.setAttribute('aria-labelledby', labelId);
       // value may be an array (multi) or single primitive
       const selected = this._normalizeChipValue(config.value);
       this._buildChips(group, widgetId, config, selected);
@@ -2011,6 +2246,7 @@
         chip.className = 'bd-widget-chip';
         chip.dataset.value = String(norm.value);
         chip.dataset.selected = selectedSet.has(String(norm.value)) ? 'true' : 'false';
+        chip.setAttribute('aria-pressed', chip.dataset.selected);
         chip.textContent = norm.label;
 
         chip.addEventListener('click', () => {
@@ -2021,9 +2257,11 @@
           if (currentSelected.has(key)) {
             currentSelected.delete(key);
             chip.dataset.selected = 'false';
+            chip.setAttribute('aria-pressed', 'false');
           } else {
             currentSelected.add(key);
             chip.dataset.selected = 'true';
+            chip.setAttribute('aria-pressed', 'true');
           }
           const nextValue = [...currentSelected];
           this.emitInteraction(currentConfig, 'change', nextValue, currentConfig.value, { optimisticValue: nextValue });
@@ -2038,6 +2276,8 @@
       const group = element.querySelector('.bd-widget-chipselect-group');
       if (group) {
         group.innerHTML = '';
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-labelledby', `bd-widget-${widgetId}-label`);
         const selected = this._normalizeChipValue(config.value);
         this._buildChips(group, widgetId, config, selected);
       }
@@ -2065,8 +2305,11 @@
       section.dataset.open = String(isOpen);
       if (item.id !== undefined) section.dataset.id = String(item.id);
 
-      const trigger = document.createElement('div');
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
       trigger.className = 'bd-widget-accordion-trigger';
+      trigger.setAttribute('aria-expanded', String(isOpen));
+      trigger.setAttribute('aria-controls', `bd-widget-${widgetId}-accordion-panel-${index}`);
 
       const triggerText = document.createElement('span');
       triggerText.className = 'bd-widget-accordion-trigger-text';
@@ -2084,14 +2327,22 @@
         const widget = section.closest('.bd-widget-accordion');
         if (!widget) return;
         const wasOpen = section.dataset.open === 'true';
-        widget.querySelectorAll('.bd-widget-accordion-section').forEach(s => s.dataset.open = 'false');
-        if (!wasOpen) section.dataset.open = 'true';
+        widget.querySelectorAll('.bd-widget-accordion-section').forEach(s => this.setAccordionSectionOpen(s, false));
+        if (!wasOpen) this.setAccordionSectionOpen(section, true);
         const newOpen = !wasOpen ? (item.id ?? index) : null;
-        this.emitInteraction(currentConfig || { id: widgetId, type: 'accordion' }, 'change', newOpen, currentConfig?.value);
+        this.emitInteraction(
+          currentConfig || { id: widgetId, type: 'accordion' },
+          'change',
+          newOpen,
+          currentConfig?.value,
+          { optimisticValue: newOpen },
+        );
       });
 
       const panel = document.createElement('div');
       panel.className = 'bd-widget-accordion-panel';
+      panel.id = `bd-widget-${widgetId}-accordion-panel-${index}`;
+      panel.hidden = !isOpen;
       panel.textContent = item.content ?? item.text ?? '';
 
       section.appendChild(trigger);
@@ -2115,24 +2366,27 @@
 
       const bar = document.createElement('div');
       bar.className = 'bd-widget-tabs-bar';
+      bar.setAttribute('role', 'tablist');
 
       items.forEach((item, i) => {
         const itemId = item.id ?? i;
+        const active = itemId === activeId;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'bd-widget-tab-btn';
         btn.dataset.tab = String(itemId);
-        btn.dataset.active = String(itemId === activeId);
+        btn.dataset.active = String(active);
+        btn.id = `bd-widget-${widgetId}-tab-${itemId}`;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(active));
+        btn.setAttribute('aria-controls', `bd-widget-${widgetId}-panel-${itemId}`);
+        btn.tabIndex = active ? 0 : -1;
         btn.textContent = item.label ?? item.title ?? `Tab ${i + 1}`;
 
         btn.addEventListener('click', () => {
           const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
           const prev = currentConfig.value ?? items[0]?.id ?? 0;
-          widget.querySelectorAll('.bd-widget-tab-btn').forEach(b => b.dataset.active = 'false');
-          widget.querySelectorAll('.bd-widget-tabs-panel').forEach(p => p.dataset.active = 'false');
-          btn.dataset.active = 'true';
-          const panel = widget.querySelector(`.bd-widget-tabs-panel[data-tab="${itemId}"]`);
-          if (panel) panel.dataset.active = 'true';
+          this.activateTab(widget, itemId);
           this.emitInteraction(currentConfig, 'change', itemId, prev, { optimisticValue: itemId });
         });
 
@@ -2143,10 +2397,15 @@
 
       items.forEach((item, i) => {
         const itemId = item.id ?? i;
+        const active = itemId === activeId;
         const panel = document.createElement('div');
         panel.className = 'bd-widget-tabs-panel';
+        panel.id = `bd-widget-${widgetId}-panel-${itemId}`;
         panel.dataset.tab = String(itemId);
-        panel.dataset.active = String(itemId === activeId);
+        panel.dataset.active = String(active);
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', `bd-widget-${widgetId}-tab-${itemId}`);
+        panel.hidden = !active;
         panel.textContent = item.content ?? item.text ?? '';
         widget.appendChild(panel);
       });
@@ -2161,24 +2420,27 @@
 
       const bar = document.createElement('div');
       bar.className = 'bd-widget-tabs-bar';
+      bar.setAttribute('role', 'tablist');
 
       items.forEach((item, i) => {
         const itemId = item.id ?? i;
+        const active = itemId === activeId;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'bd-widget-tab-btn';
         btn.dataset.tab = String(itemId);
-        btn.dataset.active = String(itemId === activeId);
+        btn.dataset.active = String(active);
+        btn.id = `bd-widget-${widgetId}-tab-${itemId}`;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(active));
+        btn.setAttribute('aria-controls', `bd-widget-${widgetId}-panel-${itemId}`);
+        btn.tabIndex = active ? 0 : -1;
         btn.textContent = item.label ?? item.title ?? `Tab ${i + 1}`;
 
         btn.addEventListener('click', () => {
           const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
           const prev = currentConfig.value ?? items[0]?.id ?? 0;
-          element.querySelectorAll('.bd-widget-tab-btn').forEach(b => b.dataset.active = 'false');
-          element.querySelectorAll('.bd-widget-tabs-panel').forEach(p => p.dataset.active = 'false');
-          btn.dataset.active = 'true';
-          const panel = element.querySelector(`.bd-widget-tabs-panel[data-tab="${itemId}"]`);
-          if (panel) panel.dataset.active = 'true';
+          this.activateTab(element, itemId);
           this.emitInteraction(currentConfig, 'change', itemId, prev, { optimisticValue: itemId });
         });
 
@@ -2189,10 +2451,15 @@
 
       items.forEach((item, i) => {
         const itemId = item.id ?? i;
+        const active = itemId === activeId;
         const panel = document.createElement('div');
         panel.className = 'bd-widget-tabs-panel';
+        panel.id = `bd-widget-${widgetId}-panel-${itemId}`;
         panel.dataset.tab = String(itemId);
-        panel.dataset.active = String(itemId === activeId);
+        panel.dataset.active = String(active);
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', `bd-widget-${widgetId}-tab-${itemId}`);
+        panel.hidden = !active;
         panel.textContent = item.content ?? item.text ?? '';
         element.appendChild(panel);
       });
@@ -2205,10 +2472,16 @@
       const trigger = document.createElement('button');
       trigger.type = 'button';
       trigger.className = 'bd-widget-dropdown-trigger';
+      trigger.setAttribute('aria-haspopup', 'menu');
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.setAttribute('aria-controls', `bd-widget-${widgetId}-menu`);
       trigger.textContent = config.label ?? config.text ?? 'Actions';
 
       const menu = document.createElement('div');
       menu.className = 'bd-widget-dropdown-menu';
+      menu.id = `bd-widget-${widgetId}-menu`;
+      menu.setAttribute('role', 'menu');
+      menu.hidden = true;
       this._buildDropdownItems(menu, widgetId, config);
 
       trigger.addEventListener('click', (e) => {
@@ -2217,8 +2490,8 @@
         if (currentConfig.disabled) return;
         const isOpen = widget.dataset.open === 'true';
         // Close all other dropdowns
-        document.querySelectorAll('.bd-widget-dropdown').forEach(d => d.dataset.open = 'false');
-        widget.dataset.open = String(!isOpen);
+        document.querySelectorAll('.bd-widget-dropdown').forEach(d => this.setDropdownOpen(d, false));
+        this.setDropdownOpen(widget, !isOpen);
       });
 
       widget.appendChild(trigger);
@@ -2233,11 +2506,14 @@
         if (item.divider) {
           const div = document.createElement('div');
           div.className = 'bd-widget-dropdown-divider';
+          div.setAttribute('role', 'separator');
           menu.appendChild(div);
           return;
         }
-        const row = document.createElement('div');
+        const row = document.createElement('button');
+        row.type = 'button';
         row.className = 'bd-widget-dropdown-item';
+        row.setAttribute('role', 'menuitem');
         if (item.danger) row.dataset.danger = 'true';
 
         if (item.icon) {
@@ -2255,7 +2531,7 @@
           const val = item.value ?? item.id ?? item.label ?? item.text;
           this.emitInteraction(currentConfig, 'select', val, currentConfig.value, { coalesce: false });
           const widgetEl = row.closest('.bd-widget-dropdown');
-          if (widgetEl) widgetEl.dataset.open = 'false';
+          if (widgetEl) this.setDropdownOpen(widgetEl, false);
         });
 
         menu.appendChild(row);
@@ -2264,10 +2540,18 @@
 
     updateDropdownWidget(element, widgetId, config) {
       const trigger = element.querySelector('.bd-widget-dropdown-trigger');
-      if (trigger) trigger.textContent = config.label ?? config.text ?? 'Actions';
+      if (trigger) {
+        trigger.textContent = config.label ?? config.text ?? 'Actions';
+        trigger.setAttribute('aria-haspopup', 'menu');
+        trigger.setAttribute('aria-expanded', String(element.dataset.open === 'true'));
+        trigger.setAttribute('aria-controls', `bd-widget-${widgetId}-menu`);
+      }
       const menu = element.querySelector('.bd-widget-dropdown-menu');
       if (menu) {
         menu.innerHTML = '';
+        menu.id = `bd-widget-${widgetId}-menu`;
+        menu.setAttribute('role', 'menu');
+        menu.hidden = element.dataset.open !== 'true';
         this._buildDropdownItems(menu, widgetId, config);
       }
       this.setInteractiveDisabled(element, config);
@@ -2275,7 +2559,10 @@
 
     createSortableWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-sortable', config);
-      const label = this.createControlLabel(config, 'Order');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Order', labelId);
+      widget.setAttribute('role', 'group');
+      widget.setAttribute('aria-labelledby', labelId);
       widget.appendChild(label);
       this._buildSortableItems(widget, widgetId, config);
       this.setInteractiveDisabled(widget, config);
@@ -2297,6 +2584,7 @@
 
         const handle = document.createElement('span');
         handle.className = 'bd-widget-sortable-handle';
+        handle.setAttribute('aria-hidden', 'true');
         handle.textContent = '⠿';
 
         const rank = document.createElement('span');
@@ -2304,17 +2592,22 @@
         rank.textContent = `${i + 1}.`;
 
         const text = document.createElement('span');
+        text.className = 'bd-widget-sortable-text';
         text.textContent = item.label ?? item.text ?? String(item);
 
         const arrows = document.createElement('div');
         arrows.className = 'bd-widget-sortable-arrows';
 
-        const up = document.createElement('span');
+        const up = document.createElement('button');
+        up.type = 'button';
         up.className = 'bd-widget-sortable-arrow';
+        up.dataset.dir = 'up';
         up.textContent = '▲';
 
-        const down = document.createElement('span');
+        const down = document.createElement('button');
+        down.type = 'button';
         down.className = 'bd-widget-sortable-arrow';
+        down.dataset.dir = 'down';
         down.textContent = '▼';
 
         const moveHandler = (dir) => () => {
@@ -2326,12 +2619,8 @@
           if (target < 0 || target >= allRows.length) return;
           if (dir === -1) widget.insertBefore(row, allRows[target]);
           else widget.insertBefore(allRows[target], row);
-          // Re-number and emit new order
+          this.syncSortableState(widget);
           const reordered = Array.from(widget.querySelectorAll('.bd-widget-sortable-item'));
-          reordered.forEach((r, n) => {
-            const rankEl = r.querySelector('.bd-widget-sortable-rank');
-            if (rankEl) rankEl.textContent = `${n + 1}.`;
-          });
           const nextValue = reordered.map(r => r.dataset.id);
           this.emitInteraction(currentConfig, 'reorder', nextValue, currentConfig.value, { coalesce: true, optimisticValue: nextValue });
         };
@@ -2348,31 +2637,34 @@
         row.appendChild(arrows);
         widget.appendChild(row);
       });
+      this.syncSortableState(widget);
     }
 
     updateSortableWidget(element, widgetId, config) {
       // Remove existing item rows but keep the label
+      element.setAttribute('role', 'group');
+      element.setAttribute('aria-labelledby', `bd-widget-${widgetId}-label`);
       element.querySelectorAll('.bd-widget-sortable-item').forEach(r => r.remove());
       this._buildSortableItems(element, widgetId, config);
       this.setInteractiveDisabled(element, config);
     }
 
     emitWidget(action, widgetId, config) {
-      window.dispatchEvent(new CustomEvent('scripture:widget', {
+      window.dispatchEvent(new CustomEvent('widget:lifecycle', {
         detail: { action, widgetId, config },
       }));
     }
 
     emitError(type, detail) {
-      window.dispatchEvent(new CustomEvent('scripture:error', {
+      window.dispatchEvent(new CustomEvent('widget:error', {
         detail: { type, ...detail },
       }));
     }
   }
 
-  window.ScriptureWidgetRenderer = ScriptureWidgetRenderer;
+  window.UltrascriptsWidgetRenderer = UltrascriptsWidgetRenderer;
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ScriptureWidgetRenderer;
+    module.exports = UltrascriptsWidgetRenderer;
   }
 })();

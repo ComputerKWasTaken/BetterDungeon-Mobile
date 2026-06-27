@@ -1,4 +1,4 @@
-// BetterDungeon - Popup Script (Revamped)
+﻿// BetterDungeon - Popup Script (Revamped)
 // Cleaner architecture with modular organization
 
 // ============================================
@@ -6,29 +6,26 @@
 // ============================================
 
 const DEBUG = false;
+const AI_GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
+const AI_DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
+const AI_DEFAULT_GEMINI_MODEL_MODE = 'auto';
 
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
   settings: 'betterDungeonSettings',
   presets: 'betterDungeon_favoritePresets',
   characters: 'betterDungeon_characterPresets',
-  autoScan: 'betterDungeon_autoScanTriggers',
+  activeCharacter: 'betterDungeon_activeCharacterPreset',
   autoApply: 'betterDungeon_autoApplyInstructions',
+  markdownInstructionPreset: 'betterDungeon_markdownInstructionPreset',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
-  scriptureWidgetDisplay: 'ultrascripts_mod_scripture_widget_display',
   webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
-  aiOpenRouterKey: 'ultrascripts_ai_openrouter_api_key',
-  aiOpenRouterDefaultModel: 'ultrascripts_ai_openrouter_default_model',
-  aiCostControls: 'ultrascripts_ai_cost_controls',
-  legacyAiBudget: 'ultrascripts_ai_budget',
-  legacyProviderAiOpenRouterKey: 'ultrascripts_provider_ai_openrouter_api_key',
-  legacyProviderAiOpenRouterDefaultModel: 'ultrascripts_provider_ai_openrouter_default_model',
-  customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
-  markdownOptions: 'betterDungeon_markdownOptions',
   textToSpeech: 'betterDungeon_textToSpeechSettings',
+  customDynamicConfig: 'betterDungeon_customDynamicConfig',
+  customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
 };
 
 // Default mode colors (hex format)
@@ -41,59 +38,25 @@ const DEFAULT_MODE_COLORS = {
   command: '#f97316'   // Orange - Authority, directives
 };
 
-// Hotkey action definitions (must match hotkey_feature.js)
-const HOTKEY_ACTIONS = {
-  'takeATurn': { description: 'Take a Turn', category: 'actions' },
-  'continue': { description: 'Continue', category: 'actions' },
-  'retry': { description: 'Retry', category: 'actions' },
-  'erase': { description: 'Erase', category: 'actions' },
-  'exitInput': { description: 'Exit Input', category: 'actions' },
-  'undo': { description: 'Undo', category: 'history' },
-  'redo': { description: 'Redo', category: 'history' },
-  'modeDo': { description: 'Do Mode', category: 'modes' },
-  'modeTry': { description: 'Try Mode*', category: 'modes' },
-  'modeSay': { description: 'Say Mode', category: 'modes' },
-  'modeStory': { description: 'Story Mode', category: 'modes' },
-  'modeSee': { description: 'See Mode', category: 'modes' },
-  'modeCommand': { description: 'Command Mode*', category: 'modes' }
-};
-
-// Default hotkey bindings (key -> action ID)
-const DEFAULT_HOTKEY_BINDINGS = {
-  't': 'takeATurn',
-  'c': 'continue',
-  'r': 'retry',
-  'e': 'erase',
-  'escape': 'exitInput',
-  'z': 'undo',
-  'y': 'redo',
-  '1': 'modeDo',
-  '2': 'modeTry',
-  '3': 'modeSay',
-  '4': 'modeStory',
-  '5': 'modeSee',
-  '6': 'modeCommand'
-};
-
 const DEFAULT_FEATURES = {
   ultrascripts: true,
   markdown: true,
   command: true,
   try: true,
   triggerHighlight: true,
-  hotkey: true,
   favoriteInstructions: true,
   inputModeColor: true,
   characterPreset: true,
   autoSee: false,
   notes: true,
-  storyCardModalDock: true,
+  autoEnableScripts: true,
   inputHistory: true,
-  textToSpeech: false
+  textToSpeech: false,
+  customDynamic: false
 };
 
 const ULTRASCRIPTS_PUBLIC_MODULES = [
-  'scripture',
+  'widget',
   'webfetch',
   'clock',
   'sdk',
@@ -108,20 +71,51 @@ const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
 };
 
-const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
-  size: 'normal',
-  maxHeight: 'medium',
-  layout: 'balanced'
+const CUSTOM_DYNAMIC_MODEL_CATALOG = [
+  'Gemma 4 31B',
+  'Equinox',
+  'Hearthfire',
+  'DeepSeek V4 Flash',
+  'Madness',
+  'Nova',
+  'Hermes 3 70B',
+  'DeepSeek',
+  'GLM 5.1',
+  'Raven',
+  'Deepseek v4 Pro',
+  'Fable',
+  'Dynamic DeepSeek',
+  'Mistral Small',
+  'Mistral Small 3',
+  'Hermes 3 405B',
+  'Wayfarer Small',
+  'Wayfarer Small 2',
+  'WizardLM 8x22B',
+  'Wayfarer Large',
+  'Harbinger',
+  'Muse',
+  'Atlas'
+];
+
+const DEFAULT_CUSTOM_DYNAMIC_CONFIG = {
+  enabled: true,
+  routingMode: 'weighted-random',
+  switchMode: 'auto',
+  repeatPenalty: 0.2,
+  failOpen: true,
+  debug: false,
+  generationUrlPatterns: [],
+  modelPaths: [],
+  pool: []
 };
 
-const DEFAULT_AI_COST_CONTROLS = {
-  freeModelsOnly: true,
-  advancedOpen: false,
-  maxPromptPricePerMillion: 0,
-  maxCompletionPricePerMillion: 0,
-  perCallEstimateCap: 0,
-  dailySpendCap: 0,
-  monthlySpendCap: 0,
+const DEFAULT_CUSTOM_DYNAMIC_RUNTIME = {
+  adapter: null,
+  logs: [],
+  lastModelId: '',
+  roundRobinCursor: 0,
+  visibleVersions: [],
+  visibleVersionsRefreshedAt: ''
 };
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
@@ -139,18 +133,18 @@ const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
 // State
 let currentEditingPreset = null;
 let currentEditingCharacter = null;
+let currentMainCharacterId = null;
 let lastUndoState = null;
-
-// Hotkey editor state
-let currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
-let editingHotkeyAction = null;
-let hotkeyKeyListener = null;
 
 // Mode color editor state
 let currentModeColors = { ...DEFAULT_MODE_COLORS };
 
 // Text To Speech settings state
 let currentTextToSpeechSettings = { ...DEFAULT_TEXT_TO_SPEECH_SETTINGS };
+
+// Custom Dynamic settings state
+let currentCustomDynamicConfig = { ...DEFAULT_CUSTOM_DYNAMIC_CONFIG };
+let currentCustomDynamicRuntime = { ...DEFAULT_CUSTOM_DYNAMIC_RUNTIME };
 
 // ============================================
 // INITIALIZATION
@@ -162,13 +156,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initFeatureCards();
   initToggles();
   initSettings();
+  initCustomDynamicSettings();
   initPresets();
   initCharacters();
   initModals();
   initTools();
   initMarkdownOptions();
   initTextToSpeechSettings();
-  initHotkeys();
   initModeColors();
   initUltrascriptsSettings();
   initWhatsNew();
@@ -193,22 +187,22 @@ function log(message, ...args) {
 // ============================================
 
 function initNavigation() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      activateTab(item.dataset.tab);
+    });
+  });
+}
+
+function activateTab(tab) {
+  if (!tab) return;
   const navItems = document.querySelectorAll('.nav-item');
   const panels = document.querySelectorAll('.tab-panel');
-
   navItems.forEach(item => {
-    item.addEventListener('click', () => {
-      const tab = item.dataset.tab;
-      
-      // Update nav
-      navItems.forEach(n => n.classList.remove('active'));
-      item.classList.add('active');
-      
-      // Update panels
-      panels.forEach(p => {
-        p.classList.toggle('active', p.id === `tab-${tab}`);
-      });
-    });
+    item.classList.toggle('active', item.dataset.tab === tab);
+  });
+  panels.forEach(panel => {
+    panel.classList.toggle('active', panel.id === `tab-${tab}`);
   });
 }
 
@@ -258,12 +252,6 @@ function initToggles() {
     setUltrascriptsModuleControlsEnabled(features.ultrascripts !== false);
   });
 
-  // Load auto-scan setting
-  chrome.storage.sync.get(STORAGE_KEYS.autoScan, (result) => {
-    const toggle = document.getElementById('auto-scan-triggers');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoScan] ?? false;
-  });
-
   // Load auto-apply setting
   chrome.storage.sync.get(STORAGE_KEYS.autoApply, (result) => {
     const toggle = document.getElementById('auto-apply-instructions');
@@ -276,12 +264,6 @@ function initToggles() {
       const featureId = toggle.id.replace('feature-', '');
       saveFeatureState(featureId, toggle.checked);
     });
-  });
-
-  // Auto-scan toggle
-  document.getElementById('auto-scan-triggers')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.autoScan]: e.target.checked });
-    notifyContentScript('SET_AUTO_SCAN', { enabled: e.target.checked });
   });
 
   // Auto-apply toggle
@@ -305,9 +287,8 @@ function initToggles() {
 
 function initUltrascriptsSettings() {
   loadUltrascriptsModuleToggles();
-  loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
-  loadAiSettings();
+  initGeminiSettings();
   refreshUltrascriptsState();
 
   document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
@@ -317,25 +298,165 @@ function initUltrascriptsSettings() {
   });
 
   document.getElementById('ultrascripts-refresh')?.addEventListener('click', refreshUltrascriptsState);
-  document.getElementById('scripture-widget-size')?.addEventListener('change', saveScriptureWidgetDisplay);
-  document.getElementById('scripture-widget-height')?.addEventListener('change', saveScriptureWidgetDisplay);
-  document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
   document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
-  document.getElementById('ai-save')?.addEventListener('click', saveAiSettings);
-  document.getElementById('ai-clear-key')?.addEventListener('click', clearAiKey);
-  document.getElementById('ai-test')?.addEventListener('click', testAiConnection);
-  document.getElementById('ai-cost-advanced-toggle')?.addEventListener('click', () => {
-    const controls = getAiCostControlsFromForm();
-    const advancedOpen = !controls.advancedOpen;
-    setAiCostAdvancedOpen(advancedOpen);
-    localStorageSet({
-      [STORAGE_KEYS.aiCostControls]: {
-        ...controls,
-        advancedOpen,
+}
+
+function sendGeminiMessage(request) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: AI_GEMINI_MESSAGE, request }, (response) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        reject(new Error(lastError.message || 'Gemini backend request failed'));
+        return;
       }
+      if (response?.ok) {
+        resolve(response.data);
+        return;
+      }
+      reject(response?.error || { code: 'backend_failed', message: 'Gemini backend request failed' });
     });
   });
+}
+
+function setGeminiStatusText(status, pendingText) {
+  const el = document.getElementById('ai-gemini-status');
+  if (pendingText) {
+    if (el) el.textContent = pendingText;
+    setCharacterGeminiStatus(pendingText, 'pending');
+    return;
+  }
+  if (!status) {
+    if (el) el.textContent = 'Not checked';
+    setCharacterGeminiStatus('Gemini not checked', 'unknown');
+    return;
+  }
+  const modelMode = status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE;
+  const selectedModel = status.config?.selectedModel || status.config?.model || AI_DEFAULT_GEMINI_MODEL;
+  const activeModel = status.config?.activeModel || status.config?.lastResolvedModel || null;
+  const text = status.ready
+    ? (
+      modelMode === 'manual'
+        ? `Ready (manual: ${selectedModel})`
+        : `Ready (auto: ${activeModel || selectedModel})`
+    )
+    : 'API key required';
+  if (el) el.textContent = text;
+  setCharacterGeminiStatus(status.ready ? 'Gemini ready' : 'Gemini key required', status.ready ? 'ready' : 'missing');
+}
+
+function setCharacterGeminiStatus(text, state = 'unknown') {
+  const el = document.getElementById('character-gemini-status');
+  if (!el) return;
+  el.textContent = text;
+  el.dataset.state = state;
+}
+
+function openGeminiSettingsFromCharacters() {
+  activateTab('ultrascripts');
+  requestAnimationFrame(() => {
+    const card = document.getElementById('ai-gemini-settings-card');
+    card?.classList.add('expanded');
+    card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => document.getElementById('ai-gemini-api-key')?.focus(), 250);
+  });
+}
+
+function updateGeminiModelModeUi(mode) {
+  const normalized = mode === 'manual' ? 'manual' : AI_DEFAULT_GEMINI_MODEL_MODE;
+  const modelGroup = document.getElementById('ai-gemini-model-group');
+  const modelInput = document.getElementById('ai-gemini-model');
+  const modelMode = document.getElementById('ai-gemini-model-mode');
+  if (modelMode) modelMode.value = normalized;
+  if (modelGroup) modelGroup.style.display = normalized === 'manual' ? '' : 'none';
+  if (modelInput) modelInput.disabled = normalized !== 'manual';
+}
+
+async function loadGeminiSettings() {
+  try {
+    const status = await sendGeminiMessage({ op: 'status' });
+    const keyInput = document.getElementById('ai-gemini-api-key');
+    const modelInput = document.getElementById('ai-gemini-model');
+    const modelMode = document.getElementById('ai-gemini-model-mode');
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'AIza...';
+    }
+    if (modelInput) modelInput.value = status.config?.model || AI_DEFAULT_GEMINI_MODEL;
+    if (modelMode) {
+      updateGeminiModelModeUi(status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE);
+    }
+    setGeminiStatusText(status);
+  } catch {
+    setGeminiStatusText(null, 'Unavailable');
+  }
+}
+
+async function saveGeminiSettings() {
+  const keyInput = document.getElementById('ai-gemini-api-key');
+  const modelInput = document.getElementById('ai-gemini-model');
+  const modelModeInput = document.getElementById('ai-gemini-model-mode');
+  const modelMode = modelModeInput?.value === 'manual' ? 'manual' : AI_DEFAULT_GEMINI_MODEL_MODE;
+  const request = {
+    op: 'settings:set',
+    modelMode,
+    model: modelInput?.value || AI_DEFAULT_GEMINI_MODEL,
+  };
+  const apiKey = keyInput?.value?.trim();
+  if (apiKey) request.apiKey = apiKey;
+
+  setGeminiStatusText(null, 'Saving...');
+  try {
+    const status = await sendGeminiMessage(request);
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'AIza...';
+    }
+    setGeminiStatusText(status);
+    showToast('Gemini settings saved', 'success');
+  } catch (err) {
+    setGeminiStatusText(null, 'Save failed');
+    showToast(err?.message || 'Gemini settings failed to save', 'error');
+  }
+}
+
+async function clearGeminiApiKey() {
+  const keyInput = document.getElementById('ai-gemini-api-key');
+  setGeminiStatusText(null, 'Clearing key...');
+  try {
+    const status = await sendGeminiMessage({ op: 'settings:set', apiKey: '' });
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = 'AIza...';
+    }
+    setGeminiStatusText(status);
+    showToast('Gemini API key cleared', 'success');
+  } catch (err) {
+    await loadGeminiSettings();
+    showToast(err?.message || 'Gemini API key could not be cleared', 'error');
+  }
+}
+
+async function testGeminiSettings() {
+  setGeminiStatusText(null, 'Testing...');
+  try {
+    const result = await sendGeminiMessage({ op: 'test' });
+    setGeminiStatusText(result.status);
+    showToast('Gemini test succeeded', 'success');
+  } catch (err) {
+    await loadGeminiSettings();
+    showToast(err?.message || 'Gemini test failed', 'error');
+  }
+}
+
+function initGeminiSettings() {
+  loadGeminiSettings();
+  document.getElementById('ai-gemini-model-mode')?.addEventListener('change', (event) => {
+    updateGeminiModelModeUi(event.target.value);
+  });
+  document.getElementById('ai-gemini-save')?.addEventListener('click', saveGeminiSettings);
+  document.getElementById('ai-gemini-clear-key')?.addEventListener('click', clearGeminiApiKey);
+  document.getElementById('ai-gemini-test')?.addEventListener('click', testGeminiSettings);
 }
 
 function defaultUltrascriptsModuleState() {
@@ -348,11 +469,8 @@ function defaultUltrascriptsModuleState() {
 function normalizeUltrascriptsModuleState(saved = {}) {
   const raw = saved && typeof saved === 'object' ? saved : {};
   const modules = { ...defaultUltrascriptsModuleState(), ...raw };
-  if (Object.prototype.hasOwnProperty.call(raw, 'providerAI')) {
-    if (!Object.prototype.hasOwnProperty.call(raw, 'ai')) {
-      modules.ai = !!raw.providerAI;
-    }
-    delete modules.providerAI;
+  for (const key of Object.keys(modules)) {
+    if (!ULTRASCRIPTS_PUBLIC_MODULES.includes(key)) delete modules[key];
   }
   return modules;
 }
@@ -366,7 +484,7 @@ function loadUltrascriptsModuleToggles() {
       const moduleId = toggle.dataset.ultrascriptsModuleToggle;
       toggle.checked = modules[moduleId] !== false;
     });
-    if (Object.prototype.hasOwnProperty.call(saved, 'providerAI')) {
+    if (Object.keys(saved).some(key => !ULTRASCRIPTS_PUBLIC_MODULES.includes(key))) {
       chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
     }
   });
@@ -386,47 +504,6 @@ function saveUltrascriptsModuleState(moduleId, enabled) {
           updateUltrascriptsStatus(null, 'Changes will apply next time Ultrascripts starts.');
         });
     });
-  });
-}
-
-function normalizeScriptureWidgetDisplay(value = {}) {
-  const raw = value && typeof value === 'object' ? value : {};
-  const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(raw.size || '').toLowerCase())
-    ? String(raw.size).toLowerCase()
-    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.size;
-  const maxHeight = ['short', 'medium', 'tall'].includes(String(raw.maxHeight || '').toLowerCase())
-    ? String(raw.maxHeight).toLowerCase()
-    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.maxHeight;
-  const layout = ['balanced', 'stacked'].includes(String(raw.layout || '').toLowerCase())
-    ? String(raw.layout).toLowerCase()
-    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.layout;
-  return { size, maxHeight, layout };
-}
-
-function loadScriptureWidgetDisplay() {
-  chrome.storage.sync.get(STORAGE_KEYS.scriptureWidgetDisplay, (result) => {
-    const display = normalizeScriptureWidgetDisplay((result || {})[STORAGE_KEYS.scriptureWidgetDisplay]);
-    const size = document.getElementById('scripture-widget-size');
-    const height = document.getElementById('scripture-widget-height');
-    const layout = document.getElementById('scripture-widget-layout');
-    if (size) size.value = display.size;
-    if (height) height.value = display.maxHeight;
-    if (layout) layout.value = display.layout;
-  });
-}
-
-function getScriptureWidgetDisplayFromForm() {
-  return normalizeScriptureWidgetDisplay({
-    size: document.getElementById('scripture-widget-size')?.value,
-    maxHeight: document.getElementById('scripture-widget-height')?.value,
-    layout: document.getElementById('scripture-widget-layout')?.value,
-  });
-}
-
-function saveScriptureWidgetDisplay() {
-  const display = getScriptureWidgetDisplayFromForm();
-  chrome.storage.sync.set({ [STORAGE_KEYS.scriptureWidgetDisplay]: display }, () => {
-    notifyContentScript('SET_SCRIPTURE_WIDGET_DISPLAY', { display });
   });
 }
 
@@ -568,223 +645,6 @@ function setWebFetchConsentInStorage(origin, decision) {
   });
 }
 
-function localStorageGet(keys) {
-  return new Promise((resolve) => {
-    try {
-      chrome.storage.local.get(keys, (result) => {
-        resolve(result || {});
-      });
-    } catch {
-      resolve({});
-    }
-  });
-}
-
-function localStorageSet(items) {
-  return new Promise((resolve) => {
-    try {
-      chrome.storage.local.set(items, resolve);
-    } catch {
-      resolve();
-    }
-  });
-}
-
-function localStorageRemove(keys) {
-  return new Promise((resolve) => {
-    try {
-      chrome.storage.local.remove(keys, resolve);
-    } catch {
-      resolve();
-    }
-  });
-}
-
-async function loadAiSettings() {
-  const keyInput = document.getElementById('ai-openrouter-key');
-  const modelInput = document.getElementById('ai-default-model');
-  const freeOnlyInput = document.getElementById('ai-cost-free-only');
-  const advancedToggle = document.getElementById('ai-cost-advanced-toggle');
-  const advancedPanel = document.getElementById('ai-cost-advanced');
-  const maxInputPriceInput = document.getElementById('ai-cost-max-input');
-  const maxOutputPriceInput = document.getElementById('ai-cost-max-output');
-  const perCallCapInput = document.getElementById('ai-cost-per-call-cap');
-  const dailyCapInput = document.getElementById('ai-cost-daily-cap');
-  const monthlyCapInput = document.getElementById('ai-cost-monthly-cap');
-  if (!keyInput && !modelInput && !freeOnlyInput) return;
-
-  const result = await localStorageGet([
-    STORAGE_KEYS.aiOpenRouterKey,
-    STORAGE_KEYS.aiOpenRouterDefaultModel,
-    STORAGE_KEYS.aiCostControls,
-    STORAGE_KEYS.legacyAiBudget,
-    STORAGE_KEYS.legacyProviderAiOpenRouterKey,
-    STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
-  ]);
-  const savedKey = String(result[STORAGE_KEYS.aiOpenRouterKey] || '').trim();
-  const legacyKey = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterKey] || '').trim();
-  const savedModel = String(result[STORAGE_KEYS.aiOpenRouterDefaultModel] || '').trim();
-  const legacyModel = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel] || '').trim();
-  const hasKey = !!(savedKey || legacyKey);
-  const model = savedModel || legacyModel;
-
-  if ((!savedKey && legacyKey) || (!savedModel && legacyModel)) {
-    const updates = {};
-    if (!savedKey && legacyKey) updates[STORAGE_KEYS.aiOpenRouterKey] = legacyKey;
-    if (!savedModel && legacyModel) updates[STORAGE_KEYS.aiOpenRouterDefaultModel] = legacyModel;
-    await localStorageSet(updates);
-    await localStorageRemove([
-      STORAGE_KEYS.legacyProviderAiOpenRouterKey,
-      STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
-    ]);
-  }
-
-  if (keyInput) {
-    keyInput.value = '';
-    keyInput.placeholder = hasKey ? 'Saved API key - leave blank to keep' : 'OpenRouter API key';
-  }
-  if (modelInput) {
-    modelInput.value = model;
-  }
-  const controls = normalizeAiCostControls(result[STORAGE_KEYS.aiCostControls] || result[STORAGE_KEYS.legacyAiBudget]);
-  if (freeOnlyInput) freeOnlyInput.checked = controls.freeModelsOnly;
-  if (advancedToggle || advancedPanel) setAiCostAdvancedOpen(controls.advancedOpen);
-  if (maxInputPriceInput) maxInputPriceInput.value = String(controls.maxPromptPricePerMillion);
-  if (maxOutputPriceInput) maxOutputPriceInput.value = String(controls.maxCompletionPricePerMillion);
-  if (perCallCapInput) perCallCapInput.value = String(controls.perCallEstimateCap);
-  if (dailyCapInput) dailyCapInput.value = String(controls.dailySpendCap);
-  if (monthlyCapInput) monthlyCapInput.value = String(controls.monthlySpendCap);
-
-  updateAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
-}
-
-function clampMoney(value, fallback, min, max) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.round(n * 1000000) / 1000000));
-}
-
-function normalizeAiCostControls(value = {}) {
-  const raw = value && typeof value === 'object' ? value : {};
-  return {
-    freeModelsOnly: raw.freeModelsOnly !== false,
-    advancedOpen: raw.advancedOpen === true,
-    maxPromptPricePerMillion: clampMoney(raw.maxPromptPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxPromptPricePerMillion, 0, 1000),
-    maxCompletionPricePerMillion: clampMoney(raw.maxCompletionPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxCompletionPricePerMillion, 0, 1000),
-    perCallEstimateCap: clampMoney(raw.perCallEstimateCap, DEFAULT_AI_COST_CONTROLS.perCallEstimateCap, 0, 1000),
-    dailySpendCap: clampMoney(raw.dailySpendCap, DEFAULT_AI_COST_CONTROLS.dailySpendCap, 0, 1000),
-    monthlySpendCap: clampMoney(raw.monthlySpendCap, DEFAULT_AI_COST_CONTROLS.monthlySpendCap, 0, 1000),
-  };
-}
-
-function getAiCostControlsFromForm() {
-  return normalizeAiCostControls({
-    freeModelsOnly: document.getElementById('ai-cost-free-only')?.checked !== false,
-    advancedOpen: document.getElementById('ai-cost-advanced-toggle')?.getAttribute('aria-expanded') === 'true',
-    maxPromptPricePerMillion: document.getElementById('ai-cost-max-input')?.value,
-    maxCompletionPricePerMillion: document.getElementById('ai-cost-max-output')?.value,
-    perCallEstimateCap: document.getElementById('ai-cost-per-call-cap')?.value,
-    dailySpendCap: document.getElementById('ai-cost-daily-cap')?.value,
-    monthlySpendCap: document.getElementById('ai-cost-monthly-cap')?.value,
-  });
-}
-
-function setAiCostAdvancedOpen(open) {
-  const expanded = !!open;
-  const toggle = document.getElementById('ai-cost-advanced-toggle');
-  const panel = document.getElementById('ai-cost-advanced');
-  if (toggle) toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-  if (panel) panel.classList.toggle('hidden', !expanded);
-}
-
-function updateAiStatus(configured, detail, tone = 'idle') {
-  const status = document.getElementById('ai-status');
-  if (!status) return;
-  status.classList.remove('ok', 'error', 'idle');
-  status.classList.add(tone);
-  status.textContent = configured ? detail : detail;
-}
-
-async function saveAiSettings(options = {}) {
-  const keyInput = document.getElementById('ai-openrouter-key');
-  const modelInput = document.getElementById('ai-default-model');
-  const key = String(keyInput?.value || '').trim();
-  const model = String(modelInput?.value || '').trim();
-  const costControls = getAiCostControlsFromForm();
-  const updates = {
-    [STORAGE_KEYS.aiOpenRouterDefaultModel]: model,
-    [STORAGE_KEYS.aiCostControls]: costControls,
-  };
-
-  if (key) {
-    updates[STORAGE_KEYS.aiOpenRouterKey] = key;
-  }
-
-  await localStorageSet(updates);
-  await localStorageRemove(STORAGE_KEYS.legacyAiBudget);
-  if (key) {
-    await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterKey);
-  }
-  await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel);
-  if (keyInput) keyInput.value = '';
-  await loadAiSettings();
-  if (!options.silent) showToast('AI settings saved', 'success');
-}
-
-async function clearAiKey() {
-  await localStorageRemove([
-    STORAGE_KEYS.aiOpenRouterKey,
-    STORAGE_KEYS.legacyProviderAiOpenRouterKey
-  ]);
-  await loadAiSettings();
-  showToast('OpenRouter key cleared', 'success');
-}
-
-function sendAiBackgroundRequest(request) {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage({ type: 'ULTRASCRIPTS_AI_REQUEST', request }, (response) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          reject(new Error(lastError.message));
-          return;
-        }
-        if (response?.ok) {
-          resolve(response.data);
-          return;
-        }
-        reject(response?.error || new Error('AI request failed'));
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-async function testAiConnection() {
-  const btn = document.getElementById('ai-test');
-  if (btn) btn.disabled = true;
-  updateAiStatus(false, 'Testing OpenRouter...', 'idle');
-
-  try {
-    await saveAiSettings({ silent: true });
-    const result = await sendAiBackgroundRequest({
-      provider: 'openrouter',
-      op: 'testConnection',
-      timeoutMs: 30000
-    });
-    const count = typeof result?.modelCount === 'number' ? result.modelCount : 0;
-    updateAiStatus(true, `OpenRouter connected. ${count} models visible.`, 'ok');
-    showToast('AI connection verified', 'success');
-  } catch (error) {
-    const message = error?.message || 'AI connection failed';
-    updateAiStatus(false, message, 'error');
-    showToast(message, 'error');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
@@ -803,10 +663,13 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-advanced-toggle, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
     .forEach(control => {
       control.disabled = !enabled;
     });
+  if (enabled) {
+    updateGeminiModelModeUi(document.getElementById('ai-gemini-model-mode')?.value);
+  }
 }
 
 // ============================================
@@ -846,6 +709,327 @@ function initSettings() {
 
   // Auto See settings
   initAutoSeeSettings();
+}
+
+function initCustomDynamicSettings() {
+  if (!document.getElementById('custom-dynamic-save')) return;
+
+  populateCustomDynamicModelSelect();
+  loadCustomDynamicSettings();
+
+  document.getElementById('custom-dynamic-add-model')?.addEventListener('click', () => {
+    const select = document.getElementById('custom-dynamic-model-select');
+    const modelId = (select?.value || '').trim();
+    if (!modelId) {
+      setCustomDynamicStatus('Choose a model first.', true);
+      return;
+    }
+    if (customDynamicPoolContains(modelId)) {
+      setCustomDynamicStatus(`${modelId} is already in the pool.`, true);
+      return;
+    }
+    addCustomDynamicModelRow({ enabled: true, modelId, label: modelId, weight: 1 });
+    if (select) select.value = '';
+    updateCustomDynamicPoolSummary();
+    setCustomDynamicStatus('Unsaved changes.');
+  });
+
+  document.getElementById('custom-dynamic-save')?.addEventListener('click', saveCustomDynamicSettings);
+  document.getElementById('custom-dynamic-routing-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
+  document.getElementById('custom-dynamic-switch-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
+  document.getElementById('custom-dynamic-fail-open')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
+}
+
+function loadCustomDynamicSettings() {
+  chrome.storage.sync.get(STORAGE_KEYS.customDynamicConfig, (configResult) => {
+    currentCustomDynamicConfig = normalizeCustomDynamicConfig((configResult || {})[STORAGE_KEYS.customDynamicConfig]);
+    renderCustomDynamicConfig();
+
+    chrome.storage.local.get(STORAGE_KEYS.customDynamicRuntime, (runtimeResult) => {
+      currentCustomDynamicRuntime = normalizeCustomDynamicRuntime((runtimeResult || {})[STORAGE_KEYS.customDynamicRuntime]);
+      populateCustomDynamicModelSelect();
+      updateCustomDynamicRuntimeStatus();
+    });
+  });
+}
+
+function renderCustomDynamicConfig() {
+  const config = currentCustomDynamicConfig;
+  const routingMode = document.getElementById('custom-dynamic-routing-mode');
+  const switchMode = document.getElementById('custom-dynamic-switch-mode');
+  const failOpen = document.getElementById('custom-dynamic-fail-open');
+  const list = document.getElementById('custom-dynamic-model-list');
+
+  if (routingMode) routingMode.value = config.routingMode;
+  if (switchMode) switchMode.value = config.switchMode;
+  if (failOpen) failOpen.checked = config.failOpen !== false;
+
+  if (list) {
+    list.innerHTML = '';
+    (config.pool || []).forEach(addCustomDynamicModelRow);
+  }
+
+  updateCustomDynamicPoolSummary();
+}
+
+function addCustomDynamicModelRow(model = {}) {
+  const list = document.getElementById('custom-dynamic-model-list');
+  if (!list) return;
+
+  const row = document.createElement('div');
+  row.className = 'custom-dynamic-model-row';
+
+  const enabledLabel = document.createElement('label');
+  enabledLabel.className = 'toggle xs';
+  const enabledInput = document.createElement('input');
+  enabledInput.type = 'checkbox';
+  enabledInput.dataset.field = 'enabled';
+  enabledInput.checked = model.enabled !== false;
+  const enabledSlider = document.createElement('span');
+  enabledSlider.className = 'toggle-slider';
+  enabledLabel.append(enabledInput, enabledSlider);
+
+  const modelId = cleanPopupModelName(model.modelId || model.id || '');
+  const modelName = document.createElement('span');
+  modelName.className = 'custom-dynamic-model-name';
+  modelName.dataset.field = 'modelId';
+  modelName.dataset.modelId = modelId;
+  modelName.textContent = modelId;
+  modelName.title = 'Model name';
+
+  const weightSelect = document.createElement('select');
+  weightSelect.className = 'form-select form-select-sm custom-dynamic-weight-select';
+  weightSelect.dataset.field = 'weight';
+  [
+    ['0.5', 'Less often'],
+    ['1', 'Normal'],
+    ['2', 'More often'],
+    ['4', 'Favorite']
+  ].forEach(([value, label]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    weightSelect.appendChild(option);
+  });
+  weightSelect.value = getCustomDynamicWeightOption(model.weight);
+  weightSelect.title = 'How often this model is picked in Weighted random mode';
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'btn btn-icon btn-ghost custom-dynamic-remove';
+  remove.setAttribute('aria-label', 'Remove model');
+  remove.title = 'Remove';
+  remove.innerHTML = '<span class="icon-trash-2"></span>';
+
+  const markDirty = () => {
+    updateCustomDynamicPoolSummary();
+    setCustomDynamicStatus('Unsaved changes.');
+  };
+
+  enabledInput.addEventListener('change', markDirty);
+  weightSelect.addEventListener('change', markDirty);
+  remove.addEventListener('click', () => {
+    row.remove();
+    markDirty();
+  });
+
+  row.append(enabledLabel, modelName, weightSelect, remove);
+  list.appendChild(row);
+}
+
+function collectCustomDynamicConfig() {
+  const rows = Array.from(document.querySelectorAll('#custom-dynamic-model-list .custom-dynamic-model-row'));
+  const pool = rows.map((row) => {
+    const modelField = row.querySelector('[data-field="modelId"]');
+    const modelId = cleanPopupModelName(modelField?.dataset?.modelId || modelField?.value || modelField?.textContent || '');
+    return {
+      enabled: row.querySelector('[data-field="enabled"]')?.checked !== false,
+      modelId,
+      label: modelId,
+      weight: Number(row.querySelector('[data-field="weight"]')?.value || 1)
+    };
+  }).filter((model) => model.modelId);
+
+  return normalizeCustomDynamicConfig({
+    ...currentCustomDynamicConfig,
+    enabled: true,
+    routingMode: document.getElementById('custom-dynamic-routing-mode')?.value || 'weighted-random',
+    switchMode: document.getElementById('custom-dynamic-switch-mode')?.value || 'auto',
+    failOpen: document.getElementById('custom-dynamic-fail-open')?.checked !== false,
+    pool
+  });
+}
+
+function validateCustomDynamicConfig(config) {
+  const seen = new Set();
+  for (const model of config.pool) {
+    const key = canonicalPopupModelName(model.modelId);
+    if (!model.modelId) return 'Every pool row needs a model.';
+    if (seen.has(key)) return `Duplicate model: ${model.modelId}`;
+    seen.add(key);
+    if (!Number.isFinite(model.weight) || model.weight <= 0) return `Chance must be set for ${model.modelId}.`;
+  }
+  if (!config.pool.some((model) => model.enabled !== false)) {
+    return 'Add and enable at least one model before saving.';
+  }
+  return '';
+}
+
+function saveCustomDynamicSettings() {
+  const config = collectCustomDynamicConfig();
+  const error = validateCustomDynamicConfig(config);
+  if (error) {
+    setCustomDynamicStatus(error, true);
+    showToast(error, 'error');
+    return;
+  }
+
+  chrome.storage.sync.set({ [STORAGE_KEYS.customDynamicConfig]: config }, () => {
+    currentCustomDynamicConfig = config;
+    renderCustomDynamicConfig();
+    setCustomDynamicStatus('Custom Dynamic saved.');
+    showToast('Custom Dynamic saved', 'success');
+  });
+}
+
+function normalizeCustomDynamicConfig(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  return {
+    ...DEFAULT_CUSTOM_DYNAMIC_CONFIG,
+    ...raw,
+    enabled: true,
+    routingMode: ['weighted-random', 'round-robin', 'avoid-last'].includes(raw.routingMode)
+      ? raw.routingMode
+      : DEFAULT_CUSTOM_DYNAMIC_CONFIG.routingMode,
+    switchMode: ['auto', 'request-body', 'learned-request', 'ui'].includes(raw.switchMode)
+      ? raw.switchMode
+      : DEFAULT_CUSTOM_DYNAMIC_CONFIG.switchMode,
+    repeatPenalty: clampPopupNumber(raw.repeatPenalty, DEFAULT_CUSTOM_DYNAMIC_CONFIG.repeatPenalty, 0, 1),
+    failOpen: raw.failOpen !== false,
+    debug: Boolean(raw.debug),
+    generationUrlPatterns: Array.isArray(raw.generationUrlPatterns) ? raw.generationUrlPatterns.filter(Boolean) : [],
+    modelPaths: Array.isArray(raw.modelPaths) ? raw.modelPaths.filter(Boolean) : [],
+    pool: Array.isArray(raw.pool)
+      ? raw.pool.map((model) => ({
+        enabled: model?.enabled !== false,
+        modelId: cleanPopupModelName(model?.modelId || model?.id || ''),
+        label: cleanPopupModelName(model?.label || model?.modelId || model?.id || ''),
+        weight: clampPopupNumber(model?.weight, 1, 0.01, 100)
+      })).filter((model) => model.modelId)
+      : []
+  };
+}
+
+function normalizeCustomDynamicRuntime(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  return {
+    ...DEFAULT_CUSTOM_DYNAMIC_RUNTIME,
+    ...raw,
+    logs: Array.isArray(raw.logs) ? raw.logs : [],
+    lastModelId: cleanPopupModelName(raw.lastModelId || ''),
+    roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0,
+    visibleVersions: Array.isArray(raw.visibleVersions) ? raw.visibleVersions : [],
+    visibleVersionsRefreshedAt: cleanPopupModelName(raw.visibleVersionsRefreshedAt || '')
+  };
+}
+
+function populateCustomDynamicModelSelect() {
+  const select = document.getElementById('custom-dynamic-model-select');
+  if (!select) return;
+  const selected = select.value;
+  const models = getCustomDynamicKnownModels();
+  select.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Known models';
+  select.appendChild(placeholder);
+  models.forEach((modelId) => {
+    const option = document.createElement('option');
+    option.value = modelId;
+    option.textContent = modelId;
+    select.appendChild(option);
+  });
+  if (models.includes(selected)) select.value = selected;
+}
+
+function getCustomDynamicKnownModels() {
+  const seen = new Set();
+  const models = [];
+  const add = (modelId) => {
+    const cleaned = cleanPopupModelName(modelId);
+    const key = canonicalPopupModelName(cleaned);
+    if (!cleaned || seen.has(key)) return;
+    seen.add(key);
+    models.push(cleaned);
+  };
+  CUSTOM_DYNAMIC_MODEL_CATALOG.forEach(add);
+  (currentCustomDynamicRuntime.visibleVersions || [])
+    .filter((version) => version?.available !== false)
+    .forEach((version) => add(version.modelId || version.displayName || version.versionName));
+  return models;
+}
+
+function getCustomDynamicWeightOption(weight) {
+  const value = Number(weight);
+  if (!Number.isFinite(value)) return '1';
+  if (value >= 3) return '4';
+  if (value >= 1.5) return '2';
+  if (value < 0.75) return '0.5';
+  return '1';
+}
+
+function updateCustomDynamicPoolSummary() {
+  const summary = document.getElementById('custom-dynamic-pool-summary');
+  if (!summary) return;
+  const rows = Array.from(document.querySelectorAll('#custom-dynamic-model-list .custom-dynamic-model-row'));
+  const active = rows.filter((row) => row.querySelector('[data-field="enabled"]')?.checked !== false).length;
+  summary.textContent = rows.length
+    ? `${rows.length} model${rows.length === 1 ? '' : 's'} / ${active} active`
+    : '0 models';
+}
+
+function updateCustomDynamicRuntimeStatus() {
+  if (currentCustomDynamicRuntime.lastModelId) {
+    setCustomDynamicStatus(`Last routed: ${currentCustomDynamicRuntime.lastModelId}`);
+    return;
+  }
+  if (currentCustomDynamicRuntime.visibleVersions?.length) {
+    setCustomDynamicStatus(`Loaded ${currentCustomDynamicRuntime.visibleVersions.length} AI Dungeon models.`);
+    return;
+  }
+  setCustomDynamicStatus('Changes stay local to this browser.');
+}
+
+function setCustomDynamicStatus(message, isError = false) {
+  const status = document.getElementById('custom-dynamic-status');
+  if (!status) return;
+  status.textContent = message;
+  status.style.color = isError ? 'var(--error)' : '';
+}
+
+function customDynamicPoolContains(modelId) {
+  const key = canonicalPopupModelName(modelId);
+  return Array.from(document.querySelectorAll('#custom-dynamic-model-list [data-field="modelId"]'))
+    .some((field) => canonicalPopupModelName(field.dataset?.modelId || field.value || field.textContent) === key);
+}
+
+function cleanPopupModelName(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function canonicalPopupModelName(value) {
+  return cleanPopupModelName(value)
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/[\u00A0\u202F]/g, ' ')
+    .replace(/[\u2010-\u2015]/g, '-')
+    .toLowerCase();
+}
+
+function clampPopupNumber(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
 }
 
 function initAutoSeeSettings() {
@@ -924,23 +1108,6 @@ function initTextToSpeechSettings() {
 
   if ('speechSynthesis' in window && window.speechSynthesis?.addEventListener) {
     window.speechSynthesis.addEventListener('voiceschanged', populateTextToSpeechVoices);
-  }
-
-  // Native TTS engine may still be initializing; repopulate once it's ready.
-  if (window.BetterDungeonBridge && typeof window.BetterDungeonBridge.ttsIsAvailable === 'function') {
-    let attempts = 0;
-    const maxAttempts = 10;
-    const retry = () => {
-      attempts += 1;
-      if (isNativeTtsBridgeAvailable() && getNativeTtsVoices().length > 0) {
-        populateTextToSpeechVoices();
-        return;
-      }
-      if (attempts < maxAttempts) {
-        setTimeout(retry, 500);
-      }
-    };
-    setTimeout(retry, 500);
   }
 
   voiceSelect.addEventListener('change', () => {
@@ -1022,39 +1189,11 @@ function saveTextToSpeechSettings() {
   });
 }
 
-function isNativeTtsBridgeAvailable() {
-  const bridge = window.BetterDungeonBridge;
-  if (!bridge || typeof bridge.ttsSpeak !== 'function') return false;
-  try {
-    return typeof bridge.ttsIsAvailable !== 'function' || bridge.ttsIsAvailable();
-  } catch (e) {
-    return false;
-  }
-}
-
-function getNativeTtsVoices() {
-  const bridge = window.BetterDungeonBridge;
-  if (!bridge || typeof bridge.ttsGetVoices !== 'function') return [];
-  try {
-    const json = bridge.ttsGetVoices() || '[]';
-    const parsed = JSON.parse(json);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
-}
-
 function populateTextToSpeechVoices() {
   const voiceSelect = document.getElementById('tts-voice-select');
-  if (!voiceSelect) return;
+  if (!voiceSelect || !('speechSynthesis' in window)) return;
 
-  const useNative = isNativeTtsBridgeAvailable();
-  const voices = useNative
-    ? getNativeTtsVoices()
-    : (('speechSynthesis' in window) ? (window.speechSynthesis.getVoices() || []) : []);
-
-  if (!useNative && !('speechSynthesis' in window)) return;
-
+  const voices = window.speechSynthesis.getVoices() || [];
   const selectedValue = currentTextToSpeechSettings.voiceURI || 'auto';
 
   voiceSelect.innerHTML = '';
@@ -1088,39 +1227,15 @@ function formatTextToSpeechVoiceLabel(voice) {
 
 function testTextToSpeechVoice(btn) {
   const originalText = btn.innerHTML;
-  const sample = 'The storm rolls over the mountains as your adventure continues.';
 
-  if (isNativeTtsBridgeAvailable()) {
-    try {
-      window.BetterDungeonBridge.ttsStop();
-      const voiceId = currentTextToSpeechSettings.voiceURI || 'auto';
-      const ok = window.BetterDungeonBridge.ttsSpeak(
-        sample,
-        voiceId,
-        currentTextToSpeechSettings.rate,
-        currentTextToSpeechSettings.pitch,
-        currentTextToSpeechSettings.volume,
-        true
-      );
-      if (ok) {
-        showButtonStatus(btn, 'success', 'Playing', originalText);
-      } else {
-        showButtonStatus(btn, 'error', 'Failed', originalText);
-      }
-    } catch (e) {
-      showButtonStatus(btn, 'error', 'Failed', originalText);
-    }
-    return;
-  }
-
-  if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
     showButtonStatus(btn, 'error', 'Unavailable', originalText);
     return;
   }
 
   stopPopupTextToSpeech();
 
-  const utterance = new SpeechSynthesisUtterance(sample);
+  const utterance = new SpeechSynthesisUtterance('The storm rolls over the mountains as your adventure continues.');
   const voice = resolvePopupTextToSpeechVoice();
 
   if (voice) {
@@ -1139,9 +1254,6 @@ function testTextToSpeechVoice(btn) {
 }
 
 function stopPopupTextToSpeech() {
-  if (isNativeTtsBridgeAvailable()) {
-    try { window.BetterDungeonBridge.ttsStop(); } catch (e) { /* noop */ }
-  }
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }
@@ -1203,12 +1315,6 @@ function initTools() {
     applyBtn.addEventListener('click', () => applyInstructions(applyBtn));
   }
 
-  // Scan Triggers button (in Trigger Highlighting feature card)
-  const scanBtn = document.getElementById('scan-triggers-btn');
-  if (scanBtn) {
-    scanBtn.addEventListener('click', () => scanTriggers(scanBtn));
-  }
-
   // Open Analytics button (in Tools section)
   const analyticsBtn = document.getElementById('open-analytics-btn');
   if (analyticsBtn) {
@@ -1243,31 +1349,6 @@ async function applyInstructions(btn) {
   }
 }
 
-async function scanTriggers(btn) {
-  const originalText = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="icon-loader"></span> Scanning...';
-
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    if (!tab?.url?.includes('aidungeon.com')) {
-      showButtonStatus(btn, 'error', 'Not on AI Dungeon', originalText);
-      return;
-    }
-
-    chrome.tabs.sendMessage(tab.id, { type: 'SCAN_STORY_CARDS' }, (response) => {
-      if (chrome.runtime.lastError || !response?.success) {
-        showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
-      } else {
-        showButtonStatus(btn, 'success', 'Done!', originalText);
-      }
-    });
-  } catch (error) {
-    showButtonStatus(btn, 'error', 'Error', originalText);
-  }
-}
-
 async function openAnalyticsDashboard(btn) {
   const originalText = btn.innerHTML;
   btn.disabled = true;
@@ -1297,70 +1378,86 @@ async function openAnalyticsDashboard(btn) {
 }
 
 // ============================================
-// MARKDOWN OPTIONS
+// MARKDOWN CHEAT SHEET
 // ============================================
 
-// Markdown format option definitions (mirrors AIDungeonService.MARKDOWN_FORMAT_OPTIONS)
-const MARKDOWN_FORMAT_OPTIONS = [
-  { id: 'bold',          label: 'Bold',          syntax: '++text++',     preview: '<strong>bold</strong>' },
-  { id: 'italic',        label: 'Italic',        syntax: '//text//',     preview: '<em>italic</em>' },
-  { id: 'boldItalic',    label: 'Bold Italic',    syntax: '++//text//++', preview: '<strong><em>bold italic</em></strong>' },
-  { id: 'underline',     label: 'Underline',      syntax: '==text==',     preview: '<u>underline</u>' },
-  { id: 'strikethrough', label: 'Strikethrough',  syntax: '~~text~~',     preview: '<s style="opacity:.65">strikethrough</s>' },
-  { id: 'highlight',     label: 'Highlight',      syntax: '::text::',     preview: '<mark style="background:rgba(255,149,0,.15);padding:1px 4px;border-radius:3px;">highlight</mark>' },
-  { id: 'smallText',     label: 'Small Text',     syntax: '~text~',       preview: '<span style="font-size:10px;opacity:.6">whisper</span>' },
-  { id: 'horizontalRule',label: 'Scene Break',    syntax: '---',          preview: 'scene break' },
-  { id: 'blockquote',    label: 'Blockquote',     syntax: '>> text',      preview: '<span style="border-left:2px solid;padding-left:6px;opacity:.85;font-style:italic;">quoted</span>' },
-  { id: 'list',          label: 'List',           syntax: '- item',       preview: '&bull; list item' },
-];
-
-const DEFAULT_MARKDOWN_CONFIG = Object.fromEntries(
-  MARKDOWN_FORMAT_OPTIONS.map(opt => [opt.id, true])
-);
-
-let currentMarkdownConfig = { ...DEFAULT_MARKDOWN_CONFIG };
+const LEGACY_MARKDOWN_OPTIONS_KEY = 'betterDungeon_markdownOptions';
 
 function initMarkdownOptions() {
-  const grid = document.getElementById('markdown-options-grid');
-  if (!grid) return;
+  const container = document.getElementById('markdown-cheatsheet');
+  if (!container) return;
 
-  // Load saved config then render
-  chrome.storage.sync.get(STORAGE_KEYS.markdownOptions, (result) => {
-    const saved = (result || {})[STORAGE_KEYS.markdownOptions];
-    if (saved) {
-      currentMarkdownConfig = { ...DEFAULT_MARKDOWN_CONFIG, ...saved };
-    }
-    renderMarkdownOptions(grid);
-  });
+  chrome.storage.sync.remove(LEGACY_MARKDOWN_OPTIONS_KEY);
+  renderMarkdownOptions(container);
+  initMarkdownInstructionPreset();
 }
 
-function renderMarkdownOptions(grid) {
-  grid.innerHTML = '';
+function renderMarkdownOptions(container) {
+  container.innerHTML = '';
+  const formats = window.BetterDungeonMarkdownConfig?.formats || [];
 
-  for (const opt of MARKDOWN_FORMAT_OPTIONS) {
-    const item = document.createElement('label');
-    item.className = 'md-option-item';
+  for (const opt of formats) {
+    const item = document.createElement('div');
+    item.className = 'md-cheatsheet-item';
     item.innerHTML = `
-      <input type="checkbox" class="md-option-check" data-md-id="${opt.id}"
-        ${currentMarkdownConfig[opt.id] ? 'checked' : ''}>
-      <span class="md-option-body">
-        <code class="md-option-syntax">${escapeHtml(opt.syntax)}</code>
-        <span class="md-option-preview">${opt.preview}</span>
-      </span>
+      <code class="md-cheatsheet-syntax">${escapeHtml(opt.syntax)}</code>
+      <div class="md-cheatsheet-content">
+        <span class="md-cheatsheet-label">${escapeHtml(opt.label)}</span>
+        <span class="md-cheatsheet-role">${escapeHtml(opt.role)}</span>
+      </div>
+      <span class="md-cheatsheet-preview">${opt.preview}</span>
     `;
 
-    const checkbox = item.querySelector('input');
-    checkbox.addEventListener('change', () => {
-      currentMarkdownConfig[opt.id] = checkbox.checked;
-      saveMarkdownOptions();
-    });
-
-    grid.appendChild(item);
+    container.appendChild(item);
   }
 }
 
-function saveMarkdownOptions() {
-  chrome.storage.sync.set({ [STORAGE_KEYS.markdownOptions]: currentMarkdownConfig });
+function initMarkdownInstructionPreset() {
+  const select = document.getElementById('markdown-instruction-preset');
+  if (!select) return;
+
+  const config = window.BetterDungeonMarkdownConfig;
+  const presets = config?.instructionPresets || [];
+  const defaultPreset = config?.defaultInstructionPreset || presets[0]?.id || '';
+
+  select.innerHTML = '';
+  for (const preset of presets) {
+    const option = document.createElement('option');
+    option.value = preset.id;
+    option.textContent = preset.label;
+    select.appendChild(option);
+  }
+
+  const updatePresetDetails = () => {
+    const desc = document.getElementById('markdown-instruction-preset-desc');
+    const preview = document.getElementById('markdown-instruction-preview');
+    const preset = presets.find(item => item.id === select.value);
+    if (desc) desc.textContent = preset?.description || '';
+
+    if (preview) {
+      const instructions = config?.buildInstructions?.(select.value) || '';
+      const authorsNote = config?.buildAuthorsNote?.(select.value) || '';
+      preview.textContent = [
+        'AI Instructions',
+        instructions,
+        '',
+        'Author\'s Note',
+        authorsNote,
+      ].join('\n');
+    }
+  };
+
+  chrome.storage.sync.get(STORAGE_KEYS.markdownInstructionPreset, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.markdownInstructionPreset];
+    select.value = presets.some(item => item.id === saved) ? saved : defaultPreset;
+    updatePresetDetails();
+  });
+
+  select.addEventListener('change', () => {
+    const presetId = presets.some(item => item.id === select.value) ? select.value : defaultPreset;
+    chrome.storage.sync.set({ [STORAGE_KEYS.markdownInstructionPreset]: presetId });
+    updatePresetDetails();
+  });
 }
 
 function showButtonStatus(btn, status, text, originalText) {
@@ -1378,277 +1475,6 @@ function showButtonStatus(btn, status, text, originalText) {
 // ============================================
 // HOTKEYS
 // ============================================
-
-function initHotkeys() {
-  loadHotkeyBindings();
-  
-  // Customize button
-  document.getElementById('customize-hotkeys-btn')?.addEventListener('click', openHotkeyModal);
-  
-  // Modal buttons
-  document.getElementById('hotkey-modal-save')?.addEventListener('click', saveHotkeyBindings);
-  document.getElementById('hotkey-modal-cancel')?.addEventListener('click', () => closeModal('hotkey-modal'));
-  document.getElementById('hotkey-modal-close')?.addEventListener('click', () => closeModal('hotkey-modal'));
-  document.getElementById('hotkey-reset-btn')?.addEventListener('click', resetHotkeyBindings);
-  
-  // Close modal on backdrop click
-  document.getElementById('hotkey-modal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'hotkey-modal') closeModal('hotkey-modal');
-  });
-}
-
-// Load hotkey bindings from storage
-function loadHotkeyBindings() {
-  chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
-    const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
-    if (customBindings && typeof customBindings === 'object') {
-      // Use custom bindings as-is (full replacement, not merge)
-      // so that unbound hotkeys stay unbound.
-      currentHotkeyBindings = { ...customBindings };
-    } else {
-      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
-    }
-    updateHotkeyDisplay();
-  });
-}
-
-// Update the hotkey display in the feature card
-function updateHotkeyDisplay() {
-  const grid = document.getElementById('hotkey-display-grid');
-  if (!grid) return;
-  
-  // Create a reverse map: action -> key
-  const actionToKey = {};
-  for (const [key, actionId] of Object.entries(currentHotkeyBindings)) {
-    actionToKey[actionId] = key;
-  }
-  
-  // Update each hotkey element
-  grid.querySelectorAll('.hotkey[data-action]').forEach(el => {
-    const actionId = el.dataset.action;
-    const key = actionToKey[actionId];
-    const kbd = el.querySelector('kbd');
-    if (kbd) {
-      if (key) {
-        kbd.textContent = formatKeyDisplay(key);
-        kbd.classList.remove('hotkey-unbound');
-      } else {
-        kbd.textContent = 'None';
-        kbd.classList.add('hotkey-unbound');
-      }
-    }
-  });
-}
-
-// Format key for display (capitalize, handle special keys)
-function formatKeyDisplay(key) {
-  const specialKeys = {
-    'escape': 'Esc',
-    'arrowup': '↑',
-    'arrowdown': '↓',
-    'arrowleft': '←',
-    'arrowright': '→',
-    'backspace': '⌫',
-    'delete': 'Del',
-    'enter': '↵',
-    'space': '␣',
-    'tab': 'Tab'
-  };
-  
-  const lowerKey = key.toLowerCase();
-  if (specialKeys[lowerKey]) return specialKeys[lowerKey];
-  if (key.length === 1) return key.toUpperCase();
-  return key.charAt(0).toUpperCase() + key.slice(1);
-}
-
-// Open the hotkey customization modal
-function openHotkeyModal() {
-  // Reset to current saved bindings
-  chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
-    const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
-    if (customBindings && typeof customBindings === 'object') {
-      // Use custom bindings as-is (full replacement, not merge)
-      // so that unbound hotkeys stay unbound.
-      currentHotkeyBindings = { ...customBindings };
-    } else {
-      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
-    }
-    renderHotkeyEditor();
-    openModal('hotkey-modal');
-  });
-}
-
-// Render the hotkey editor lists
-function renderHotkeyEditor() {
-  const containers = {
-    actions: document.getElementById('hotkey-editor-actions'),
-    history: document.getElementById('hotkey-editor-history'),
-    modes: document.getElementById('hotkey-editor-modes')
-  };
-  
-  // Clear existing content
-  Object.values(containers).forEach(c => { if (c) c.innerHTML = ''; });
-  
-  // Create reverse map: action -> key
-  const actionToKey = {};
-  for (const [key, actionId] of Object.entries(currentHotkeyBindings)) {
-    actionToKey[actionId] = key;
-  }
-  
-  // Render each action
-  for (const [actionId, config] of Object.entries(HOTKEY_ACTIONS)) {
-    const container = containers[config.category];
-    if (!container) continue;
-    
-    const key = actionToKey[actionId] || '';
-    const isUnbound = !key;
-    const item = document.createElement('div');
-    item.className = 'hotkey-editor-item';
-    item.dataset.action = actionId;
-    
-    const displayText = isUnbound ? 'None' : formatKeyDisplay(key);
-    item.innerHTML = `
-      <span class="hotkey-editor-action">${config.description}</span>
-      <button class="hotkey-editor-key${isUnbound ? ' hotkey-unbound' : ''}" data-action="${actionId}">${displayText}</button>
-    `;
-    
-    // Add click handler for key button
-    const keyBtn = item.querySelector('.hotkey-editor-key');
-    keyBtn.addEventListener('click', () => startRecordingKey(actionId, keyBtn));
-    
-    container.appendChild(item);
-  }
-}
-
-// Start recording a new key for an action
-function startRecordingKey(actionId, keyBtn) {
-  // Cancel any existing recording
-  stopRecordingKey();
-  
-  editingHotkeyAction = actionId;
-  keyBtn.classList.add('recording');
-  keyBtn.textContent = '';
-  keyBtn.closest('.hotkey-editor-item').classList.add('recording');
-  
-  // Listen for key press
-  hotkeyKeyListener = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Escape cancels recording
-    if (e.key === 'Escape') {
-      stopRecordingKey();
-      renderHotkeyEditor();
-      return;
-    }
-    
-    // Backspace or Delete unbinds the hotkey
-    if (e.key === 'Backspace' || e.key === 'Delete') {
-      // Remove old key binding for this action
-      for (const [key, action] of Object.entries(currentHotkeyBindings)) {
-        if (action === actionId) {
-          delete currentHotkeyBindings[key];
-          break;
-        }
-      }
-      stopRecordingKey();
-      renderHotkeyEditor();
-      return;
-    }
-    
-    // Get the key
-    const newKey = e.key.toLowerCase();
-    
-    // Check for conflicts
-    const existingAction = findActionForKey(newKey);
-    if (existingAction && existingAction !== actionId) {
-      // Swap the keys - remove the key from the existing action
-      removeKeyBinding(newKey);
-    }
-    
-    // Remove old key binding for this action
-    for (const [key, action] of Object.entries(currentHotkeyBindings)) {
-      if (action === actionId) {
-        delete currentHotkeyBindings[key];
-        break;
-      }
-    }
-    
-    // Set new binding
-    currentHotkeyBindings[newKey] = actionId;
-    
-    stopRecordingKey();
-    renderHotkeyEditor();
-  };
-  
-  document.addEventListener('keydown', hotkeyKeyListener, true);
-}
-
-// Stop recording key
-function stopRecordingKey() {
-  if (hotkeyKeyListener) {
-    document.removeEventListener('keydown', hotkeyKeyListener, true);
-    hotkeyKeyListener = null;
-  }
-  editingHotkeyAction = null;
-  
-  // Remove recording classes
-  document.querySelectorAll('.hotkey-editor-item.recording').forEach(el => {
-    el.classList.remove('recording');
-  });
-  document.querySelectorAll('.hotkey-editor-key.recording').forEach(el => {
-    el.classList.remove('recording');
-  });
-}
-
-// Find which action is bound to a key
-function findActionForKey(key) {
-  return currentHotkeyBindings[key.toLowerCase()];
-}
-
-// Remove a key binding
-function removeKeyBinding(key) {
-  delete currentHotkeyBindings[key.toLowerCase()];
-}
-
-// Save hotkey bindings
-async function saveHotkeyBindings() {
-  log('[Popup] Saving hotkey bindings:', currentHotkeyBindings);
-  // Save to storage
-  await chrome.storage.sync.set({ [STORAGE_KEYS.customHotkeys]: currentHotkeyBindings });
-  
-  // Notify content script
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.url?.includes('aidungeon.com')) {
-      chrome.tabs.sendMessage(tab.id, {
-        type: 'HOTKEY_BINDINGS_UPDATED',
-        bindings: currentHotkeyBindings
-      });
-    }
-  } catch (e) {
-    // Tab might not be on AI Dungeon, that's fine
-  }
-  
-  updateHotkeyDisplay();
-  closeModal('hotkey-modal');
-  showToast('Hotkeys saved!', 'success');
-}
-
-// Reset hotkey bindings to defaults
-async function resetHotkeyBindings() {
-  const confirmed = await showDialog({
-    title: 'Reset Hotkeys',
-    message: 'Reset all hotkeys to their default values?',
-    confirmText: 'Reset',
-    confirmClass: 'btn-danger'
-  });
-  if (!confirmed) return;
-  
-  currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
-  renderHotkeyEditor();
-  showToast('Reset to defaults', 'success');
-}
 
 // ============================================
 // MODE COLORS
@@ -1791,7 +1617,7 @@ function initPresets() {
 }
 
 async function loadPresets() {
-  // Read from local storage (content script writes here after sync→local migration)
+  // Read from local storage (content script writes here after syncâ†’local migration)
   chrome.storage.local.get(STORAGE_KEYS.presets, (localResult) => {
     const localPresets = (localResult || {})[STORAGE_KEYS.presets];
 
@@ -1854,11 +1680,11 @@ function createPresetCard(preset) {
         <h4 class="preset-name">${escapeHtml(preset.name)}</h4>
         <div class="preset-meta">
           <span class="preset-uses">${preset.useCount} uses</span>
-          <span class="preset-components">${components.join(' • ')}</span>
+          <span class="preset-components">${components.join(' â€¢ ')}</span>
         </div>
       </div>
       <div class="preset-menu-wrapper">
-        <button class="preset-menu-btn" aria-label="Options">⋮</button>
+        <button class="preset-menu-btn" aria-label="Options">â‹®</button>
         <div class="preset-menu">
           <button class="preset-menu-item preset-edit-btn">Edit</button>
           <button class="preset-menu-item danger preset-delete-btn">Delete</button>
@@ -2103,40 +1929,75 @@ function initCharacters() {
   loadCharacters();
   
   document.getElementById('create-character-btn')?.addEventListener('click', async () => {
-    const name = await showDialog({
-      title: 'New Character',
-      message: 'Enter a name for the new character:',
-      confirmText: 'Create',
-      inputPlaceholder: 'Character name'
-    });
-    if (!name) return;
-    
-    createCharacter(name);
+    openCharacterModal(createBlankCharacter(), true);
   });
+  document.getElementById('character-open-ai-settings')?.addEventListener('click', openGeminiSettingsFromCharacters);
 }
 
 async function loadCharacters() {
-  // Read from local storage (content script writes here after sync→local migration)
-  chrome.storage.local.get(STORAGE_KEYS.characters, (localResult) => {
-    const localChars = (localResult || {})[STORAGE_KEYS.characters];
+  chrome.storage.sync.remove(STORAGE_KEYS.characters);
+  chrome.storage.sync.remove(STORAGE_KEYS.activeCharacter);
+  chrome.storage.local.get([STORAGE_KEYS.characters, STORAGE_KEYS.activeCharacter], (localResult) => {
+    const raw = Array.isArray((localResult || {})[STORAGE_KEYS.characters])
+      ? (localResult || {})[STORAGE_KEYS.characters]
+      : [];
+    const characters = normalizeCharacterList(raw);
+    const storedMainId = typeof (localResult || {})[STORAGE_KEYS.activeCharacter] === 'string'
+      ? (localResult || {})[STORAGE_KEYS.activeCharacter]
+      : null;
+    const nextMainId = characters.some(char => char.id === storedMainId)
+      ? storedMainId
+      : (characters[0]?.id || null);
 
-    if (localChars && localChars.length > 0) {
-      renderCharacters(localChars);
-      return;
+    currentMainCharacterId = nextMainId;
+
+    const updates = {};
+    if (characters.length !== raw.length) updates[STORAGE_KEYS.characters] = characters;
+    if (storedMainId !== nextMainId) updates[STORAGE_KEYS.activeCharacter] = nextMainId;
+
+    if (Object.keys(updates).length > 0) {
+      chrome.storage.local.set(updates);
     }
-
-    // One-time migration: pull legacy characters from sync storage
-    chrome.storage.sync.get(STORAGE_KEYS.characters, (syncResult) => {
-      const syncChars = (syncResult || {})[STORAGE_KEYS.characters] || [];
-      if (syncChars.length > 0) {
-        chrome.storage.local.set({ [STORAGE_KEYS.characters]: syncChars }, () => {
-          chrome.storage.sync.remove(STORAGE_KEYS.characters);
-          log('[Popup] Migrated characters from sync to local storage');
-        });
-      }
-      renderCharacters(syncChars);
-    });
+    renderCharacters(characters);
   });
+}
+
+function createCharacterId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 6);
+}
+
+function createBlankCharacter() {
+  const now = Date.now();
+  return {
+    schemaVersion: 2,
+    id: createCharacterId(),
+    name: '',
+    description: '',
+    createdAt: now,
+    updatedAt: now,
+    _isNew: true
+  };
+}
+
+function normalizeCharacterList(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(char => (
+      char &&
+      char.schemaVersion === 2 &&
+      typeof char.id === 'string' &&
+      typeof char.name === 'string' &&
+      typeof char.description === 'string' &&
+      !char.fields
+    ))
+    .map(char => ({
+      schemaVersion: 2,
+      id: char.id,
+      name: char.name.trim() || 'Unnamed Character',
+      description: char.description || '',
+      createdAt: Number(char.createdAt) || Date.now(),
+      updatedAt: Number(char.updatedAt) || Date.now()
+    }));
 }
 
 function renderCharacters(characters) {
@@ -2162,20 +2023,37 @@ function renderCharacters(characters) {
 function createCharacterCard(character) {
   const card = document.createElement('div');
   card.className = 'character-card';
+  const isMain = character.id === currentMainCharacterId;
+  if (isMain) card.classList.add('character-card-is-main');
   
-  const fieldCount = Object.keys(character.fields || {}).length;
+  const preview = character.description?.trim()
+    ? character.description.trim()
+    : 'No description yet';
 
   card.innerHTML = `
-    <div>
-      <h4 class="character-name">${escapeHtml(character.name)}</h4>
+    <div class="character-card-main">
+      <div class="character-title-row">
+        <h4 class="character-name">${escapeHtml(character.name)}</h4>
+        ${isMain ? '<span class="character-main-badge"><span class="icon-star"></span>Main</span>' : ''}
+      </div>
       <div class="character-meta">
-        <span class="character-field-count">${fieldCount} field${fieldCount !== 1 ? 's' : ''}</span>
+        <span class="character-description-preview">${escapeHtml(preview)}</span>
       </div>
     </div>
-    <button class="character-edit-btn" aria-label="Edit">
-      <span class="icon-pencil"></span>
-    </button>
+    <div class="character-card-actions">
+      <button class="character-main-btn${isMain ? ' active' : ''}" aria-label="${isMain ? 'Main character' : 'Make main character'}" title="${isMain ? 'Main character' : 'Make main character'}"${isMain ? ' disabled' : ''}>
+        <span class="icon-star"></span>
+      </button>
+      <button class="character-edit-btn" aria-label="Edit" title="Edit">
+        <span class="icon-pencil"></span>
+      </button>
+    </div>
   `;
+
+  card.querySelector('.character-main-btn')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!isMain) setMainCharacter(character.id);
+  });
 
   card.querySelector('.character-edit-btn').addEventListener('click', () => {
     openCharacterModal(character);
@@ -2184,193 +2062,108 @@ function createCharacterCard(character) {
   return card;
 }
 
+function setMainCharacter(characterId) {
+  currentMainCharacterId = characterId || null;
+  chrome.storage.local.set({ [STORAGE_KEYS.activeCharacter]: currentMainCharacterId }, () => {
+    loadCharacters();
+    showToast('Main character updated', 'success');
+  });
+}
+
 function createCharacter(name) {
   chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
-    const characters = (result || {})[STORAGE_KEYS.characters] || [];
+    const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || []);
+    const now = Date.now();
     
     const newChar = {
-      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+      schemaVersion: 2,
+      id: createCharacterId(),
       name,
-      fields: {},
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      description: '',
+      createdAt: now,
+      updatedAt: now
     };
     
     characters.unshift(newChar);
     
-    chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
+    const updates = { [STORAGE_KEYS.characters]: characters };
+    if (!currentMainCharacterId) {
+      updates[STORAGE_KEYS.activeCharacter] = newChar.id;
+      currentMainCharacterId = newChar.id;
+    }
+
+    chrome.storage.local.set(updates, () => {
       loadCharacters();
       showToast('Character created!', 'success');
     });
   });
 }
 
-function openCharacterModal(character) {
-  currentEditingCharacter = character;
+function openCharacterModal(character, isNew = false) {
+  currentEditingCharacter = { ...character, _isNew: isNew };
   
-  document.getElementById('character-name-input').value = character.name;
-  
-  // Reset search state
-  const searchWrapper = document.getElementById('fields-search-wrapper');
-  const searchInput = document.getElementById('character-fields-search');
-  if (searchInput) searchInput.value = '';
-  
-  renderCharacterFields(character.fields || {});
-  setupFieldSearch();
+  const title = document.getElementById('character-modal-title');
+  const nameInput = document.getElementById('character-name-input');
+  const descriptionInput = document.getElementById('character-description-input');
+  const deleteBtn = document.getElementById('character-delete-btn');
+
+  if (title) title.textContent = isNew ? 'New Character' : 'Edit Character';
+  if (nameInput) nameInput.value = character.name || '';
+  if (descriptionInput) descriptionInput.value = character.description || '';
+  if (deleteBtn) deleteBtn.style.display = isNew ? 'none' : '';
   
   openModal('character-modal');
-}
-
-// Humanize a normalized field key for display (e.g. "whats_your_age" -> "Whats Your Age")
-function humanizeFieldKey(key) {
-  if (!key) return '';
-  return key
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-// Setup search/filter for character fields
-function setupFieldSearch() {
-  const searchInput = document.getElementById('character-fields-search');
-  if (!searchInput) return;
-  
-  // Remove old listeners by cloning
-  const newSearch = searchInput.cloneNode(true);
-  searchInput.parentNode.replaceChild(newSearch, searchInput);
-  
-  newSearch.addEventListener('input', () => {
-    const query = newSearch.value.toLowerCase().trim();
-    const items = document.querySelectorAll('#character-fields-list .field-item');
-    
-    items.forEach(item => {
-      const key = (item.dataset.key || '').toLowerCase();
-      const value = (item.querySelector('.field-value')?.value || '').toLowerCase();
-      const matches = !query || key.includes(query) || value.includes(query);
-      item.classList.toggle('field-item-hidden', !matches);
-    });
-  });
-}
-
-function renderCharacterFields(fields) {
-  const container = document.getElementById('character-fields-list');
-  const countEl = document.getElementById('character-fields-count');
-  const searchWrapper = document.getElementById('fields-search-wrapper');
-  if (!container) return;
-
-  const entries = Object.entries(fields);
-  
-  // Update field count badge
-  if (countEl) {
-    countEl.textContent = entries.length > 0 ? `${entries.length} field${entries.length !== 1 ? 's' : ''}` : '';
-  }
-  
-  // Show search bar only when there are enough fields to warrant it
-  if (searchWrapper) {
-    searchWrapper.style.display = entries.length >= 4 ? 'block' : 'none';
-  }
-  
-  if (entries.length === 0) {
-    container.innerHTML = '<p class="fields-empty">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>';
-    return;
-  }
-
-  // Sort alphabetically by key
-  const sorted = entries.sort((a, b) => a[0].localeCompare(b[0]));
-
-  container.innerHTML = sorted.map(([key, value]) => {
-    const displayKey = humanizeFieldKey(key);
-    // Show raw key only if it differs meaningfully from the display key
-    const showRaw = displayKey.toLowerCase().replace(/\s/g, '') !== key.replace(/_/g, '');
-    return `
-      <div class="field-item" data-key="${escapeHtml(key)}">
-        <div class="field-item-header">
-          <span class="field-key">
-            ${escapeHtml(displayKey)}${showRaw ? `<span class="field-key-raw">${escapeHtml(key)}</span>` : ''}
-          </span>
-          <button class="field-delete" data-key="${escapeHtml(key)}" title="Delete field">×</button>
-        </div>
-        <textarea class="field-value" data-key="${escapeHtml(key)}" rows="1">${escapeHtml(value)}</textarea>
-      </div>
-    `;
-  }).join('');
-
-  // Auto-resize textareas to fit content
-  container.querySelectorAll('.field-value').forEach(textarea => {
-    autoResizeTextarea(textarea);
-    textarea.addEventListener('input', () => autoResizeTextarea(textarea));
-  });
-
-  // Delete handlers
-  container.querySelectorAll('.field-delete').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const key = btn.dataset.key;
-      delete currentEditingCharacter.fields[key];
-      renderCharacterFields(currentEditingCharacter.fields);
-    });
-  });
-}
-
-// Auto-resize a textarea to fit its content (up to max-height set in CSS)
-function autoResizeTextarea(textarea) {
-  textarea.style.height = 'auto';
-  textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
-}
-
-function addCharacterField() {
-  if (!currentEditingCharacter) return;
-
-  const keyInput = document.getElementById('new-field-key');
-  const valueInput = document.getElementById('new-field-value');
-  
-  const key = keyInput.value.trim().toLowerCase().replace(/\s+/g, '_');
-  const value = valueInput.value.trim();
-
-  if (!key) {
-    keyInput.focus();
-    return;
-  }
-
-  currentEditingCharacter.fields[key] = value;
-  renderCharacterFields(currentEditingCharacter.fields);
-  
-  keyInput.value = '';
-  valueInput.value = '';
-  keyInput.focus();
 }
 
 function saveCharacterChanges() {
   if (!currentEditingCharacter) return;
 
   const nameInput = document.getElementById('character-name-input');
-  currentEditingCharacter.name = nameInput.value.trim() || currentEditingCharacter.name;
+  const descriptionInput = document.getElementById('character-description-input');
+  const name = nameInput?.value?.trim() || '';
+  const description = descriptionInput?.value?.trim() || '';
 
-  // Update field values from textareas
-  document.querySelectorAll('#character-fields-list .field-value').forEach(textarea => {
-    const key = textarea.dataset.key;
-    if (key && currentEditingCharacter.fields.hasOwnProperty(key)) {
-      currentEditingCharacter.fields[key] = textarea.value;
-    }
-  });
+  if (!name) {
+    nameInput?.focus();
+    showToast('Character name is required', 'error');
+    return;
+  }
 
-  currentEditingCharacter.updatedAt = Date.now();
+  const savedCharacter = {
+    schemaVersion: 2,
+    id: currentEditingCharacter.id || createCharacterId(),
+    name,
+    description,
+    createdAt: Number(currentEditingCharacter.createdAt) || Date.now(),
+    updatedAt: Date.now()
+  };
 
   chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
-    const characters = (result || {})[STORAGE_KEYS.characters] || [];
-    const index = characters.findIndex(c => c.id === currentEditingCharacter.id);
+    const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || []);
+    const index = characters.findIndex(c => c.id === savedCharacter.id);
     
     if (index !== -1) {
-      characters[index] = currentEditingCharacter;
-      chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
-        loadCharacters();
-        showToast('Character updated', 'success');
-        closeModal('character-modal');
-      });
+      characters[index] = savedCharacter;
+    } else {
+      characters.unshift(savedCharacter);
     }
+
+    const updates = { [STORAGE_KEYS.characters]: characters };
+    if (!currentMainCharacterId) {
+      updates[STORAGE_KEYS.activeCharacter] = savedCharacter.id;
+      currentMainCharacterId = savedCharacter.id;
+    }
+
+    chrome.storage.local.set(updates, () => {
+      loadCharacters();
+      showToast(currentEditingCharacter._isNew ? 'Character created' : 'Character updated', 'success');
+      closeModal('character-modal');
+    });
   });
 }
 
 async function deleteCharacter() {
-  if (!currentEditingCharacter) return;
+  if (!currentEditingCharacter || currentEditingCharacter._isNew) return;
   const confirmed = await showDialog({
     title: 'Delete Character',
     message: `Delete "${currentEditingCharacter.name}"? This cannot be undone.`,
@@ -2380,10 +2173,15 @@ async function deleteCharacter() {
   if (!confirmed) return;
 
   chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
-    const characters = ((result || {})[STORAGE_KEYS.characters] || [])
+    const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || [])
       .filter(c => c.id !== currentEditingCharacter.id);
-    
-    chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
+    const updates = { [STORAGE_KEYS.characters]: characters };
+    if (currentMainCharacterId === currentEditingCharacter.id) {
+      currentMainCharacterId = characters[0]?.id || null;
+      updates[STORAGE_KEYS.activeCharacter] = currentMainCharacterId;
+    }
+
+    chrome.storage.local.set(updates, () => {
       loadCharacters();
       showToast('Character deleted', 'success');
       closeModal('character-modal');
@@ -2425,11 +2223,6 @@ function initModals() {
   // Character modal
   document.getElementById('character-modal-save')?.addEventListener('click', saveCharacterChanges);
   document.getElementById('character-delete-btn')?.addEventListener('click', deleteCharacter);
-  document.getElementById('add-field-btn')?.addEventListener('click', addCharacterField);
-  
-  document.getElementById('new-field-value')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') addCharacterField();
-  });
 }
 
 function openModal(id) {
@@ -2557,11 +2350,13 @@ function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
   if (!banner) return;
 
-  // Keep the mobile release wording independent from the header platform badge.
+  // Read the live version string from the header so there's one source of truth
+  const currentVersion = document.querySelector('.header-version')?.textContent?.trim() || '';
+
+  // Update the banner title to include the version
   const titleEl = document.getElementById('whats-new-title');
-  const releaseLabel = titleEl?.dataset.releaseLabel;
-  if (titleEl && releaseLabel) {
-    titleEl.textContent = `What's New in ${releaseLabel}`;
+  if (titleEl && currentVersion) {
+    titleEl.textContent = `What's New in ${currentVersion}`;
   }
 
   // Expand/collapse toggle for compact What's New
@@ -2730,7 +2525,7 @@ function initQuickToggles() {
     }
   });
 
-  // Quick toggle → main toggle sync
+  // Quick toggle â†’ main toggle sync
   quickToggles.forEach(qt => {
     qt.addEventListener('change', () => {
       const featureId = qt.dataset.quickToggle;
@@ -2742,7 +2537,7 @@ function initQuickToggles() {
     });
   });
 
-  // Main toggle → quick toggle sync (observe changes)
+  // Main toggle â†’ quick toggle sync (observe changes)
   document.querySelectorAll('.feature-card [id^="feature-"]').forEach(mainToggle => {
     mainToggle.addEventListener('change', () => {
       const featureId = mainToggle.id.replace('feature-', '');
@@ -3195,3 +2990,4 @@ document.querySelectorAll('.feature-credit a').forEach(link => {
     chrome.tabs.create({ url: link.href });
   });
 });
+

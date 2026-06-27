@@ -146,14 +146,8 @@ class PlotPresetsFeature {
    * This is used to navigate to the Plot settings tab when needed.
    */
   getAIDungeonService() {
-    // betterDungeonInstance is block-scoped inside main.js's try{} block,
-    // so we must access it via window where it's exported.
-    if (window.betterDungeonInstance?.aiDungeonService) {
-      return window.betterDungeonInstance.aiDungeonService;
-    }
-    // Fallback: create a fresh instance if the global isn't available yet
-    if (typeof AIDungeonService !== 'undefined') {
-      return new AIDungeonService();
+    if (typeof betterDungeonInstance !== 'undefined' && betterDungeonInstance?.aiDungeonService) {
+      return betterDungeonInstance.aiDungeonService;
     }
     return null;
   }

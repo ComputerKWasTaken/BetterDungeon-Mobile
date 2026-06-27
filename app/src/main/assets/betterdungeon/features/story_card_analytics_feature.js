@@ -11,11 +11,12 @@ class StoryCardAnalyticsFeature {
     
     // Cached analytics data
     this.lastAnalytics = null;
-    this.lastScanTime = null;
+    this.lastRefreshTime = null;
     
     // Settings
     this.autoRefresh = false;
     this.debug = false;
+
   }
 
   log(message, ...args) {
@@ -53,31 +54,7 @@ class StoryCardAnalyticsFeature {
 
     this.isOpen = true;
     this.createDashboardElement();
-    
-    // Show loading state briefly
-    this.updateDashboardContent(this.renderLoadingState());
-    
-    // Check page state to determine what to show
-    const validation = storyCardScanner.validatePageState();
-    
-    // Check if we have existing data for THIS adventure
-    const cardDatabase = storyCardScanner.getCardDatabase();
-    const currentAdventureId = storyCardScanner.getCurrentAdventureId();
-    const dataIsForCurrentAdventure = cardDatabase.size > 0 && 
-      storyCardScanner.lastScannedAdventureId === currentAdventureId;
-    
-    if (dataIsForCurrentAdventure) {
-      // Show existing analytics
-      this.lastAnalytics = storyCardScanner.getAnalytics();
-      this.lastScanTime = new Date();
-      this.updateDashboardContent(this.renderAnalytics(this.lastAnalytics));
-    } else if (!validation.valid) {
-      // Not on adventure page - show error state
-      this.updateDashboardContent(this.renderErrorState(validation.error));
-    } else {
-      // On adventure but no data yet - show empty state
-      this.updateDashboardContent(this.renderEmptyState());
-    }
+    await this.refreshAnalytics();
   }
 
   closeDashboard() {
@@ -97,8 +74,8 @@ class StoryCardAnalyticsFeature {
         <div class="bd-analytics-header">
           <h2>Story Card Analytics</h2>
           <div class="bd-analytics-header-actions">
-            <button class="bd-analytics-scan-btn" title="Scan Story Cards">
-              <span class="icon-scan"></span> Scan Cards
+            <button class="bd-analytics-refresh-btn" title="Refresh Story Cards">
+              <span class="icon-refresh-cw"></span> Refresh
             </button>
             <button class="bd-analytics-close-btn" title="Close"><span class="icon-x"></span></button>
           </div>
@@ -112,7 +89,7 @@ class StoryCardAnalyticsFeature {
     // Add event listeners
     this.dashboardElement.querySelector('.bd-analytics-overlay').addEventListener('click', () => this.closeDashboard());
     this.dashboardElement.querySelector('.bd-analytics-close-btn').addEventListener('click', () => this.closeDashboard());
-    this.dashboardElement.querySelector('.bd-analytics-scan-btn').addEventListener('click', () => this.runScan());
+    this.dashboardElement.querySelector('.bd-analytics-refresh-btn').addEventListener('click', () => this.refreshAnalytics());
 
     document.body.appendChild(this.dashboardElement);
   }
@@ -151,22 +128,13 @@ class StoryCardAnalyticsFeature {
 
   // ==================== RENDER METHODS ====================
 
-  renderLoadingState() {
-    return `
-      <div class="bd-analytics-loading">
-        <div class="bd-analytics-spinner"></div>
-        <p>Loading analytics...</p>
-      </div>
-    `;
-  }
-
   renderEmptyState() {
     return `
       <div class="bd-analytics-empty">
         <div class="bd-analytics-empty-icon"><span class="icon-chart-column"></span></div>
         <h3>No Story Card Data</h3>
-        <p>Click "Scan Cards" to analyze your story cards.</p>
-        <p class="bd-analytics-hint">The scan will open each card briefly to extract its data.</p>
+        <p>No story cards were found for this adventure.</p>
+        <p class="bd-analytics-hint">Story cards are loaded directly from AI Dungeon.</p>
       </div>
     `;
   }
@@ -175,9 +143,9 @@ class StoryCardAnalyticsFeature {
     return `
       <div class="bd-analytics-empty">
         <div class="bd-analytics-empty-icon bd-analytics-error-icon"><span class="icon-triangle-alert"></span></div>
-        <h3>Cannot Scan</h3>
+        <h3>Cannot Load</h3>
         <p>${this.escapeHtml(errorMessage)}</p>
-        <p class="bd-analytics-hint">Make sure you're on an adventure page before scanning.</p>
+        <p class="bd-analytics-hint">Make sure you're on an adventure page before opening analytics.</p>
       </div>
     `;
   }
@@ -392,7 +360,7 @@ class StoryCardAnalyticsFeature {
       </div>
 
       <div class="bd-analytics-footer">
-        <span class="bd-scan-time">Last scanned: ${this.lastScanTime ? this.formatTime(this.lastScanTime) : 'Never'}</span>
+        <span class="bd-refresh-time">Last refreshed: ${this.lastRefreshTime ? this.formatTime(this.lastRefreshTime) : 'Never'}</span>
       </div>
     `;
   }
@@ -472,126 +440,36 @@ class StoryCardAnalyticsFeature {
     return issues;
   }
 
-  // ==================== SCANNING ====================
+  // ==================== DATA REFRESH ====================
 
-  async runScan() {
-    // Check service availability first
-    if (typeof storyCardScanner === 'undefined' || typeof loadingScreen === 'undefined') {
-      console.error('StoryCardAnalyticsFeature: Required services not available');
+  async refreshAnalytics() {
+    if (typeof storyCardScanner === 'undefined') {
+      console.error('StoryCardAnalyticsFeature: Scanner not available');
       return { success: false, error: 'Required services not loaded' };
     }
 
-    // Pre-validate page state BEFORE closing dashboard or showing loading screen
     const validation = storyCardScanner.validatePageState();
     if (!validation.valid) {
-      console.warn('StoryCardAnalyticsFeature: Cannot scan -', validation.error);
-      // Show error in dashboard instead of failing silently
+      console.warn('StoryCardAnalyticsFeature: Cannot refresh -', validation.error);
       this.updateDashboardContent(this.renderErrorState(validation.error));
       return { success: false, error: validation.error };
     }
 
-    // Close dashboard temporarily
-    const wasOpen = this.isOpen;
-    this.closeDashboard();
-
-    // Use the loading screen queue to ensure sequential execution (same as trigger highlight)
-    await loadingScreen.queueOperation(() => this._doScanStoryCards());
-
-    // Reopen dashboard with new data
-    if (wasOpen) {
-      this.lastAnalytics = storyCardScanner.getAnalytics();
-      this.lastScanTime = new Date();
-      await this.openDashboard();
-    }
-  }
-
-  // Internal scan method - mirrors TriggerHighlightFeature._doScanStoryCards()
-  async _doScanStoryCards() {
-    // Double-check page state in case it changed while queued
-    const validation = storyCardScanner.validatePageState();
-    if (!validation.valid) {
-      return { success: false, error: validation.error };
-    }
-
-    // Show loading screen with cancel button
-    loadingScreen.show({
-      title: 'Scanning Story Cards',
-      subtitle: 'Initializing...',
-      showProgress: true,
-      showCancel: true,
-      onCancel: () => storyCardScanner.abort()
-    });
-
     try {
-      // Navigate to Story Cards tab using AIDungeonService
-      if (typeof AIDungeonService !== 'undefined') {
-        const service = new AIDungeonService();
-        const navResult = await service.navigateToStoryCardsSettings({
-          onStepUpdate: (message) => loadingScreen.updateSubtitle(message)
-        });
-        
-        if (!navResult.success) {
-          throw new Error(navResult.error || 'Failed to navigate to Story Cards');
-        }
-        
-        // Wait for Story Cards content to load
-        loadingScreen.updateSubtitle('Loading story cards...');
-        await new Promise(resolve => setTimeout(resolve, 500));
+      const result = await storyCardScanner.scanAllCards(null, null, null);
+      if (!result.success) {
+        this.updateDashboardContent(this.renderErrorState(result.error || 'Story-card refresh failed'));
+        return result;
       }
 
-      loadingScreen.updateSubtitle('Starting scan...');
-      
-      const result = await storyCardScanner.scanAllCards(
-        // onTriggerFound callback - not needed for analytics but keeping for card database population
-        null,
-        // onProgress callback
-        (current, total, status, estimatedTimeRemaining) => {
-          let progressText = status;
-          if (estimatedTimeRemaining !== null && estimatedTimeRemaining > 0) {
-            const minutes = Math.floor(estimatedTimeRemaining / 60);
-            const seconds = estimatedTimeRemaining % 60;
-            if (minutes > 0) {
-              progressText += ` (${minutes}m ${seconds}s remaining)`;
-            } else {
-              progressText += ` (${seconds}s remaining)`;
-            }
-          }
-          loadingScreen.updateSubtitle(`Scanning card ${current} of ${total}`);
-          loadingScreen.updateProgress(current, total, progressText);
-        },
-        // onCardScanned callback - not needed here
-        null
-      );
-
-      if (result.success) {
-        loadingScreen.updateTitle('Scan Complete!');
-        loadingScreen.updateSubtitle(`Scanned ${result.scannedCount} cards`);
-        loadingScreen.updateStatus('Ready', 'success');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } else {
-        if (result.error && result.error.includes('aborted')) {
-          loadingScreen.updateTitle('Scan Cancelled');
-          loadingScreen.updateSubtitle('Scan was stopped by user');
-          loadingScreen.updateStatus('Cancelled', 'success');
-        } else {
-          loadingScreen.updateTitle('Scan Failed');
-          loadingScreen.updateSubtitle(result.error || 'Unknown error');
-          loadingScreen.updateStatus('Error', 'error');
-        }
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-
+      this.lastAnalytics = storyCardScanner.getAnalytics();
+      this.lastRefreshTime = new Date();
+      this.updateDashboardContent(this.renderAnalytics(this.lastAnalytics));
       return result;
-
     } catch (error) {
-      console.error('StoryCardAnalyticsFeature: Scan error:', error);
-      loadingScreen.updateTitle('Scan Failed');
-      loadingScreen.updateSubtitle(error.message);
-      loadingScreen.updateStatus('Error', 'error');
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.error('StoryCardAnalyticsFeature: Refresh error:', error);
+      this.updateDashboardContent(this.renderErrorState(error.message));
       return { success: false, error: error.message };
-    } finally {
-      loadingScreen.hide();
     }
   }
 
@@ -722,7 +600,7 @@ class StoryCardAnalyticsFeature {
         gap: var(--bd-space-2);
       }
 
-      .bd-analytics-scan-btn {
+      .bd-analytics-refresh-btn {
         display: flex;
         align-items: center;
         gap: var(--bd-space-2);
@@ -738,7 +616,7 @@ class StoryCardAnalyticsFeature {
         transition: all var(--bd-transition-fast);
       }
 
-      .bd-analytics-scan-btn:hover {
+      .bd-analytics-refresh-btn:hover {
         background: var(--bd-btn-primary-hover);
         box-shadow: var(--bd-shadow-glow);
       }
@@ -784,30 +662,6 @@ class StoryCardAnalyticsFeature {
       }
       .bd-analytics-content::-webkit-scrollbar-thumb:hover {
         background: var(--bd-text-muted);
-      }
-
-      /* Loading State */
-      .bd-analytics-loading {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: var(--bd-space-12) var(--bd-space-5);
-        color: var(--bd-text-secondary);
-        gap: var(--bd-space-4);
-      }
-
-      .bd-analytics-spinner {
-        width: 40px;
-        height: 40px;
-        border: 3px solid var(--bd-bg-elevated);
-        border-top-color: var(--bd-accent-primary);
-        border-radius: 50%;
-        animation: bd-analytics-spin 0.8s linear infinite;
-      }
-
-      @keyframes bd-analytics-spin {
-        to { transform: rotate(360deg); }
       }
 
       /* Empty State */
@@ -1246,7 +1100,7 @@ class StoryCardAnalyticsFeature {
         text-align: center;
       }
 
-      .bd-scan-time {
+      .bd-refresh-time {
         font-size: var(--bd-font-size-xs);
         color: var(--bd-text-muted);
       }

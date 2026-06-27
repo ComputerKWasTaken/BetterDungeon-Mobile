@@ -1,12 +1,15 @@
 package com.computerk.betterdungeon
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.webkit.ConsoleMessage
+import android.webkit.GeolocationPermissions
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -16,6 +19,8 @@ import android.widget.FrameLayout
 import android.view.ViewGroup.MarginLayoutParams
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -35,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "BetterDungeon"
         private const val AI_DUNGEON_URL = "https://play.aidungeon.com"
+        private const val GEOLOCATION_PERMISSION_REQUEST = 42
     }
 
     private lateinit var mainWebView: WebView
@@ -46,6 +52,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ttsManager: TextToSpeechManager
 
     private var popupLoaded = false
+    private var pendingGeolocationOrigin: String? = null
+    private var pendingGeolocationCallback: GeolocationPermissions.Callback? = null
 
     // ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -198,10 +206,65 @@ class MainActivity : AppCompatActivity() {
                 )
                 return true
             }
+
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String,
+                callback: GeolocationPermissions.Callback
+            ) {
+                if (hasLocationPermission()) {
+                    callback.invoke(origin, true, false)
+                    return
+                }
+
+                pendingGeolocationOrigin = origin
+                pendingGeolocationCallback = callback
+                ActivityCompat.requestPermissions(
+                    this@MainActivity,
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ),
+                    GEOLOCATION_PERMISSION_REQUEST
+                )
+            }
+
+            override fun onGeolocationPermissionsHidePrompt() {
+                pendingGeolocationOrigin = null
+                pendingGeolocationCallback = null
+            }
         }
     }
 
     // ── Popup WebView ─────────────────────────────────────────────────
+
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != GEOLOCATION_PERMISSION_REQUEST) return
+
+        val granted = grantResults.any { it == PackageManager.PERMISSION_GRANTED }
+        val origin = pendingGeolocationOrigin
+        val callback = pendingGeolocationCallback
+        pendingGeolocationOrigin = null
+        pendingGeolocationCallback = null
+        if (origin != null && callback != null) {
+            callback.invoke(origin, granted, false)
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupPopupWebView() {
@@ -316,7 +379,7 @@ class MainActivity : AppCompatActivity() {
                         };
                         BetterDungeonBridge.forwardToMainWebView(messageJson);
                         
-                        // Timeout fallback: resolve with undefined after 10s
+                        // Timeout fallback: resolve with undefined after 120s
                         // so the popup never hangs indefinitely.
                         setTimeout(function() {
                             if (window.__bdPopupCallback) {
@@ -326,7 +389,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                                 resolve(undefined);
                             }
-                        }, 10000);
+                        }, 120000);
                     });
                 };
                 
