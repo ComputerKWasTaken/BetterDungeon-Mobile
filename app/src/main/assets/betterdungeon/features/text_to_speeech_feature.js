@@ -1,5 +1,6 @@
 // BetterDungeon - Text To Speech Feature
-// Narrates the latest AI story output using the browser's free speechSynthesis voices.
+// Narrates the latest AI story output using Android native TTS when available,
+// falling back to browser speechSynthesis outside the mobile WebView.
 
 class TextToSpeechFeature {
   static id = 'textToSpeech';
@@ -85,9 +86,18 @@ class TextToSpeechFeature {
   }
 
   isSpeechAvailable() {
-    return typeof window !== 'undefined' &&
+    return this.hasNativeTtsBridge() || (
+      typeof window !== 'undefined' &&
       'speechSynthesis' in window &&
-      typeof window.SpeechSynthesisUtterance !== 'undefined';
+      typeof window.SpeechSynthesisUtterance !== 'undefined'
+    );
+  }
+
+  hasNativeTtsBridge() {
+    return typeof window !== 'undefined' &&
+      window.BetterDungeonBridge &&
+      typeof window.BetterDungeonBridge.ttsGetVoices === 'function' &&
+      typeof window.BetterDungeonBridge.ttsSpeak === 'function';
   }
 
   attachGlobalListeners() {
@@ -182,7 +192,17 @@ class TextToSpeechFeature {
   }
 
   async loadVoices() {
-    if (!this.isSpeechAvailable()) return [];
+    if (this.hasNativeTtsBridge()) {
+      try {
+        this.voices = JSON.parse(window.BetterDungeonBridge.ttsGetVoices() || '[]');
+        return this.voices;
+      } catch (error) {
+        console.warn('[TextToSpeech] Failed to load native Android voices:', error);
+        this.voices = [];
+      }
+    }
+
+    if (!this.isSpeechAvailable() || !window.speechSynthesis) return [];
 
     this.voices = window.speechSynthesis.getVoices() || [];
     if (this.voices.length > 0) {
@@ -195,6 +215,10 @@ class TextToSpeechFeature {
   }
 
   handleVoicesChanged() {
+    if (this.hasNativeTtsBridge()) {
+      this.loadVoices();
+      return;
+    }
     this.voices = window.speechSynthesis.getVoices() || [];
   }
 
@@ -375,6 +399,23 @@ class TextToSpeechFeature {
     await this.loadVoices();
     if (!this.enabled) return;
 
+    if (this.hasNativeTtsBridge()) {
+      const voice = this.resolveVoice();
+      const voiceId = this.settings.voiceURI && this.settings.voiceURI !== 'auto'
+        ? this.settings.voiceURI
+        : (voice?.voiceURI || 'auto');
+      if (this.settings.interrupt) this.stop();
+      window.BetterDungeonBridge.ttsSpeak(
+        text,
+        voiceId || 'auto',
+        this.settings.rate,
+        this.settings.pitch,
+        this.settings.volume,
+        this.settings.interrupt
+      );
+      return;
+    }
+
     const synth = window.speechSynthesis;
     if (this.settings.interrupt) {
       this.stop();
@@ -410,7 +451,9 @@ class TextToSpeechFeature {
   }
 
   resolveVoice() {
-    const voices = this.voices.length > 0 ? this.voices : window.speechSynthesis.getVoices();
+    const voices = this.voices.length > 0
+      ? this.voices
+      : (window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
     if (!voices || voices.length === 0) return null;
 
     if (this.settings.voiceURI && this.settings.voiceURI !== 'auto') {
@@ -450,6 +493,7 @@ class TextToSpeechFeature {
   }
 
   startResumeWatch() {
+    if (this.hasNativeTtsBridge() || !window.speechSynthesis) return;
     this.clearResumeWatch();
     this.resumeTimer = setInterval(() => {
       const synth = window.speechSynthesis;
@@ -472,7 +516,9 @@ class TextToSpeechFeature {
 
   stop() {
     this.clearResumeWatch();
-    if (this.isSpeechAvailable()) {
+    if (this.hasNativeTtsBridge() && typeof window.BetterDungeonBridge.ttsStop === 'function') {
+      window.BetterDungeonBridge.ttsStop();
+    } else if (this.isSpeechAvailable() && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
   }

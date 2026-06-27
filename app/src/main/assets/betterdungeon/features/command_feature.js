@@ -181,6 +181,7 @@ class CommandFeature {
       // Note: the gradient affordance from mobile_design_layer.js may sit
       // after the Command button, so we only check the previous sibling.
       if (seeButton && existingButton.previousElementSibling === seeButton) {
+        this.markModeMenuScrollable(menu);
         return; // Already in correct position
       }
       // Wrong position - remove and re-add
@@ -231,14 +232,7 @@ class CommandFeature {
 
     this.commandButton = cleanButton;
 
-    // Mark the menu container so our injected CSS can target it reliably.
-    // React sets overflow:hidden as an inline style which gets reset on re-render,
-    // so we use a <style> tag with !important rules that persist across re-renders.
-    menu.setAttribute('data-bd-mode-menu', 'true');
-    // Read the menu's actual left offset and expose it as a CSS variable so the
-    // max-width calc adapts to whatever value AI Dungeon sets (varies by device).
-    const menuLeft = parseFloat(menu.style.left) || 12;
-    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
+    this.markModeMenuScrollable(menu);
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
     this.applySpriteTheming(cleanButton, seeButton || storyButton);
@@ -247,6 +241,13 @@ class CommandFeature {
     if (seeButton) {
       this.convertToMiddleButton(seeButton, storyButton);
     }
+  }
+
+  markModeMenuScrollable(menu) {
+    if (!menu) return;
+    menu.setAttribute('data-bd-mode-menu', 'true');
+    const menuLeft = parseFloat(menu.style.left) || Math.max(8, Math.round(menu.getBoundingClientRect().left || 12));
+    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
   }
 
   // Convert an end-cap button (3-part sprite) to a middle button (single viewport).

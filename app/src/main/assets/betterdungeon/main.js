@@ -344,6 +344,7 @@ function initBetterDungeon() {
     betterDungeonInstance.destroy();
   }
   betterDungeonInstance = new BetterDungeon();
+  window.betterDungeonInstance = betterDungeonInstance;
 }
 
 if (document.readyState === 'loading') {

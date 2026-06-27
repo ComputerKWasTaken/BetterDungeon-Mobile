@@ -12,6 +12,22 @@
   const STYLE_ID = 'bd-mobile-mode-menu-styles';
   const GRADIENT_ID = 'bd-mode-menu-gradient';
 
+  function findInputModeMenu() {
+    const button = document.querySelector('[aria-label="Set to \'Do\' mode"]') ||
+      document.querySelector('[aria-label="Set to \'Story\' mode"]') ||
+      document.querySelector('[aria-label="Set to \'Try\' mode"]') ||
+      document.querySelector('[aria-label="Set to \'Command\' mode"]');
+    return button?.parentElement || null;
+  }
+
+  function markMenu(menu) {
+    if (!menu) return null;
+    menu.setAttribute('data-bd-mode-menu', 'true');
+    const menuLeft = parseFloat(menu.style.left) || Math.max(8, Math.round(menu.getBoundingClientRect().left || 12));
+    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
+    return menu;
+  }
+
   /** Inject the <style> tag that makes [data-bd-mode-menu] scrollable. */
   function injectScrollStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -113,7 +129,7 @@
     if (active) {
       injectScrollStyles();
       // If the menu is already in the DOM, attach the gradient now
-      const menu = document.querySelector('[data-bd-mode-menu]');
+      const menu = markMenu(document.querySelector('[data-bd-mode-menu]') || findInputModeMenu());
       if (menu) injectGradient(menu);
     } else {
       removeScrollStyles();
@@ -132,7 +148,7 @@
     if (injecting) return;
     if (!shouldBeActive()) return;
 
-    const menu = document.querySelector('[data-bd-mode-menu]');
+    const menu = markMenu(document.querySelector('[data-bd-mode-menu]') || findInputModeMenu());
     if (menu && !menu.querySelector('#' + GRADIENT_ID)) {
       injecting = true;
       injectScrollStyles();

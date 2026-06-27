@@ -210,6 +210,7 @@ class TryFeature {
       // Verify it's in the correct position (should be between Do and Say)
       // Correct position: doButton -> tryButton -> sayButton
       if (existingButton.previousElementSibling === doButton) {
+        this.markModeMenuScrollable(menu);
         return; // Already in correct position
       }
       // Wrong position - remove and re-add
@@ -254,10 +255,18 @@ class TryFeature {
     }
 
     this.tryButton = cleanButton;
+    this.markModeMenuScrollable(menu);
 
     // Scale sprite viewport if a sprite theme is active (pass Do as reference
     // in case the clone was created before AI Dungeon populated the sprite)
     this.applySpriteTheming(cleanButton, doButton);
+  }
+
+  markModeMenuScrollable(menu) {
+    if (!menu) return;
+    menu.setAttribute('data-bd-mode-menu', 'true');
+    const menuLeft = parseFloat(menu.style.left) || Math.max(8, Math.round(menu.getBoundingClientRect().left || 12));
+    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
   }
 
   // Scale the cloned button's sprite viewport to match its rendered width,
