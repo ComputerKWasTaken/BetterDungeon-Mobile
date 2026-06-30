@@ -18,6 +18,41 @@ desktop extension feature set where those features make sense on mobile.
 2. Open it in Android Studio.
 3. Build and run on your device or emulator.
 
+## Distribution
+
+BetterDungeon Mobile is versioned as `2.0.0` for the V2 parity release. Before
+publishing a new build:
+
+1. Confirm `versionCode` and `versionName` in `app/build.gradle.kts`.
+2. Build from Android Studio using **Generate Signed Bundle / APK**.
+3. Use an Android App Bundle (`.aab`) for Google Play or a signed APK for
+   direct distribution.
+4. Keep release keystores, passwords, and signing config outside the repo.
+5. Smoke test the signed release build on a physical device before uploading.
+
+Release builds intentionally disable Android app-data backup. BetterDungeon
+stores local settings, character presets, notes, WebFetch consent state, and
+Gemini API keys in app storage; those values should not be copied to cloud
+backup or device-transfer channels by default.
+
+## Data And Privacy
+
+BetterDungeon Mobile is an Android WebView wrapper for AI Dungeon plus local
+BetterDungeon features. The app:
+
+- Loads AI Dungeon in a WebView and uses Internet access for AI Dungeon,
+  WebFetch, Weather, Gemini, and related feature traffic.
+- Requests location permission only for the opt-in Ultrascripts Geolocation
+  flow.
+- Stores BetterDungeon settings, presets, notes, WebFetch consent decisions,
+  and Gemini API keys locally on the device.
+- Does not expose Gemini API keys through the Ultrascripts SDK/config surface.
+- Opens non-AI-Dungeon links in the user's system browser.
+
+Store listings should disclose Internet access, optional location access,
+user-provided API keys, AI Dungeon WebView usage, WebFetch behavior, and any
+third-party services used by enabled features.
+
 ## Features
 
 ### Input Modes
