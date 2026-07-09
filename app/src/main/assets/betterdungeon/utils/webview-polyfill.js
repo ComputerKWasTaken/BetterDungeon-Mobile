@@ -684,10 +684,29 @@
     });
   }
 
+  function getAppVersion() {
+    try {
+      if (window.BetterDungeonBridge &&
+          typeof window.BetterDungeonBridge.getAppVersion === 'function') {
+        var version = window.BetterDungeonBridge.getAppVersion();
+        if (version) return String(version);
+      }
+    } catch (e) {
+      console.warn('[WebView Polyfill] Failed to get app version:', e);
+    }
+    return '0.0.0';
+  }
+
   var polyfilledChrome = {
     runtime: {
       id: 'betterdungeon-android',
       lastError: undefined,
+      getManifest: function () {
+        return {
+          name: 'BetterDungeon',
+          version: getAppVersion()
+        };
+      },
       getURL: function (path) {
         // In the main WebView (https:// origin), file:/// URLs are blocked
         // by the browser security model. For image assets, use the native
