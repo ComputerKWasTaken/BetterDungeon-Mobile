@@ -246,14 +246,13 @@
   var GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
   var WEBFETCH_MESSAGE = 'ULTRASCRIPTS_WEBFETCH_FETCH';
   var SDK_MESSAGE = 'ULTRASCRIPTS_SDK_REQUEST';
-  var GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash';
+  var GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-lite';
   var GEMINI_DEFAULT_MODEL_MODE = 'auto';
   var GEMINI_DEFAULT_TIMEOUT_MS = 120000;
   var GEMINI_PROMPT_MAX_CHARS = 12000;
   var GEMINI_THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
   var GEMINI_OUTPUT_TYPES = ['text', 'json'];
   var GEMINI_AUTO_STEPDOWN_MODELS = [
-    'gemini-3.5-flash',
     'gemini-3.1-flash-lite',
     'gemma-4-31b-it',
     'gemma-4-26b-a4b-it'
