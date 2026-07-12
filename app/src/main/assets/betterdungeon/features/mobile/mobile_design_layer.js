@@ -1,8 +1,7 @@
 // ═══ mobile_design_layer.js ═══
 // Mobile-specific UI enhancements for the input mode switcher menu.
 // Converts the input mode menu from a static element to a scrollable
-// container when Command or Try mode is enabled (since those modes
-// inject extra buttons that overflow on narrow screens).
+// container so extra mode buttons do not overflow on narrow screens.
 // Also injects a gradient fade affordance so the player knows the
 // menu is scrollable.
 
@@ -13,7 +12,8 @@
   const GRADIENT_ID = 'bd-mode-menu-gradient';
 
   function findInputModeMenu() {
-    const button = document.querySelector('[aria-label="Set to \'Do\' mode"]') ||
+    const button = document.querySelector('[aria-label="Close \'Input Mode\' menu"]') ||
+      document.querySelector('[aria-label="Set to \'Do\' mode"]') ||
       document.querySelector('[aria-label="Set to \'Story\' mode"]') ||
       document.querySelector('[aria-label="Set to \'Try\' mode"]') ||
       document.querySelector('[aria-label="Set to \'Command\' mode"]');
@@ -63,12 +63,6 @@
     document.head.appendChild(style);
   }
 
-  /** Remove the scroll styles. */
-  function removeScrollStyles() {
-    const el = document.getElementById(STYLE_ID);
-    if (el) el.remove();
-  }
-
   /**
    * Inject a gradient fade element on the right edge of the menu
    * to hint that more buttons are available via scrolling.
@@ -110,31 +104,11 @@
     requestAnimationFrame(updateGradientVisibility);
   }
 
-  /** Remove gradient elements from the menu. */
-  function removeGradient() {
-    const el = document.getElementById(GRADIENT_ID);
-    if (el) el.remove();
-  }
-
-  /** Check whether either Command or Try is currently enabled. */
-  function shouldBeActive() {
-    const fm = window.betterDungeonInstance?.featureManager;
-    if (!fm) return false;
-    return fm.isFeatureEnabled('command') || fm.isFeatureEnabled('try');
-  }
-
-  /** Apply or tear down the scrollable menu based on current feature state. */
+  /** Apply the scrollable design to the current expanded menu. */
   function sync() {
-    const active = shouldBeActive();
-    if (active) {
-      injectScrollStyles();
-      // If the menu is already in the DOM, attach the gradient now
-      const menu = markMenu(document.querySelector('[data-bd-mode-menu]') || findInputModeMenu());
-      if (menu) injectGradient(menu);
-    } else {
-      removeScrollStyles();
-      removeGradient();
-    }
+    injectScrollStyles();
+    const menu = markMenu(findInputModeMenu());
+    if (menu) injectGradient(menu);
   }
 
   // --- Lifecycle ---
@@ -146,9 +120,8 @@
   // 1. MutationObserver: whenever the menu appears/re-renders, sync.
   const observer = new MutationObserver(() => {
     if (injecting) return;
-    if (!shouldBeActive()) return;
 
-    const menu = markMenu(document.querySelector('[data-bd-mode-menu]') || findInputModeMenu());
+    const menu = markMenu(findInputModeMenu());
     if (menu && !menu.querySelector('#' + GRADIENT_ID)) {
       injecting = true;
       injectScrollStyles();
@@ -158,18 +131,6 @@
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // 2. Listen for feature toggles from the popup so we can
-  //    enable/disable the design layer reactively.
-  if (typeof chrome !== 'undefined' && chrome.runtime) {
-    chrome.runtime.onMessage.addListener((message) => {
-      if (message.type === 'FEATURE_TOGGLE' &&
-          (message.featureId === 'command' || message.featureId === 'try')) {
-        // Small delay so FeatureManager has time to update its state
-        setTimeout(sync, 50);
-      }
-    });
-  }
-
-  // 3. Initial sync (features may already be loaded by now)
+  // 2. Initial sync in case the menu is already open.
   sync();
 })();
