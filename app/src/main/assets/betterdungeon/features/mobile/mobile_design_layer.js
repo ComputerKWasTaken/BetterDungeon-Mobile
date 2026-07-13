@@ -11,6 +11,8 @@
 
   const STYLE_ID = 'bd-mobile-mode-menu-styles';
   const GRADIENT_ID = 'bd-mode-menu-gradient';
+  const TOUCH_DRAG_THRESHOLD = 6;
+  const touchBindings = new Map();
 
   function findInputModeMenu() {
     const button = document.querySelector('[aria-label="Set to \'Do\' mode"]') ||
@@ -39,10 +41,17 @@
          React sets overflow:hidden as an inline style on the container;
          !important overrides it so our scroll behaviour persists. */
       [data-bd-mode-menu] {
+        /* AI Dungeon 2.16.14 changed this to flex: 0 1 0% inline. Give the
+           absolutely-positioned menu an intrinsic width again so its children
+           overflow inside the viewport instead of being clipped by it. */
+        width: max-content !important;
         max-width: calc(100vw - var(--bd-menu-left, 12px) - 8px) !important;
+        flex: 0 0 auto !important;
         overflow-x: auto !important;
         overflow-y: hidden !important;
         -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        touch-action: pan-x;
         flex-wrap: nowrap !important;
       }
 
@@ -57,10 +66,91 @@
 
       /* Prevent buttons from shrinking — let the menu scroll instead */
       [data-bd-mode-menu] > [role="button"] {
-        flex-shrink: 0 !important;
+        flex: 0 0 auto !important;
       }
     `;
     document.head.appendChild(style);
+  }
+
+  /**
+   * AI Dungeon's keyboard/scroll rewrite can claim the touch gesture from an
+   * ancestor before WebView performs native overflow scrolling. Keep a small
+   * manual drag fallback on the menu itself. Taps and vertical gestures are
+   * left alone so mode buttons and the game scroller retain normal behavior.
+   */
+  function enableTouchScrolling(menu) {
+    if (!menu || touchBindings.has(menu)) return;
+
+    const state = {
+      tracking: false,
+      dragging: false,
+      startX: 0,
+      startY: 0,
+      startScrollLeft: 0,
+      suppressClickUntil: 0
+    };
+
+    const onTouchStart = (event) => {
+      if (event.touches.length !== 1 || menu.scrollWidth <= menu.clientWidth) return;
+      const touch = event.touches[0];
+      state.tracking = true;
+      state.dragging = false;
+      state.startX = touch.clientX;
+      state.startY = touch.clientY;
+      state.startScrollLeft = menu.scrollLeft;
+    };
+
+    const onTouchMove = (event) => {
+      if (!state.tracking || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      const deltaX = touch.clientX - state.startX;
+      const deltaY = touch.clientY - state.startY;
+
+      if (!state.dragging) {
+        if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < TOUCH_DRAG_THRESHOLD) return;
+        if (Math.abs(deltaX) <= Math.abs(deltaY)) {
+          state.tracking = false;
+          return;
+        }
+        state.dragging = true;
+        state.suppressClickUntil = Date.now() + 400;
+      }
+
+      menu.scrollLeft = state.startScrollLeft - deltaX;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const onTouchEnd = () => {
+      state.tracking = false;
+      state.dragging = false;
+    };
+
+    const onClick = (event) => {
+      if (Date.now() > state.suppressClickUntil) return;
+      state.suppressClickUntil = 0;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+
+    menu.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
+    menu.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
+    menu.addEventListener('touchend', onTouchEnd, { capture: true, passive: true });
+    menu.addEventListener('touchcancel', onTouchEnd, { capture: true, passive: true });
+    menu.addEventListener('click', onClick, true);
+
+    touchBindings.set(menu, () => {
+      menu.removeEventListener('touchstart', onTouchStart, true);
+      menu.removeEventListener('touchmove', onTouchMove, true);
+      menu.removeEventListener('touchend', onTouchEnd, true);
+      menu.removeEventListener('touchcancel', onTouchEnd, true);
+      menu.removeEventListener('click', onClick, true);
+    });
+  }
+
+  function disableTouchScrolling() {
+    for (const removeListeners of touchBindings.values()) removeListeners();
+    touchBindings.clear();
   }
 
   /** Remove the scroll styles. */
@@ -112,28 +202,51 @@
 
   /** Remove gradient elements from the menu. */
   function removeGradient() {
-    const el = document.getElementById(GRADIENT_ID);
-    if (el) el.remove();
+    document.querySelectorAll('#' + GRADIENT_ID).forEach((el) => el.remove());
   }
 
   /** Check whether either Command or Try is currently enabled. */
   function shouldBeActive() {
     const fm = window.betterDungeonInstance?.featureManager;
-    if (!fm) return false;
-    return fm.isFeatureEnabled('command') || fm.isFeatureEnabled('try');
+    const managerEnabled = !!fm &&
+      (fm.isFeatureEnabled('command') || fm.isFeatureEnabled('try'));
+
+    // mobile_design_layer.js loads before main.js. During startup, the custom
+    // buttons can be injected before window.betterDungeonInstance is visible,
+    // so the DOM is also a reliable source of truth for this short race.
+    const customButtonPresent = !!document.querySelector(
+      '[aria-label="Set to \'Try\' mode"], [aria-label="Set to \'Command\' mode"]'
+    );
+    return managerEnabled || customButtonPresent;
+  }
+
+  function activateMenu(menu) {
+    menu = markMenu(menu);
+    if (!menu) return null;
+
+    // React replaces this menu rather than updating it in place. Release
+    // listeners held for detached versions before binding the current one.
+    for (const [boundMenu, removeListeners] of touchBindings.entries()) {
+      if (boundMenu.isConnected) continue;
+      removeListeners();
+      touchBindings.delete(boundMenu);
+    }
+
+    injectScrollStyles();
+    enableTouchScrolling(menu);
+    injectGradient(menu);
+    return menu;
   }
 
   /** Apply or tear down the scrollable menu based on current feature state. */
   function sync() {
     const active = shouldBeActive();
     if (active) {
-      injectScrollStyles();
-      // If the menu is already in the DOM, attach the gradient now
-      const menu = markMenu(document.querySelector('[data-bd-mode-menu]') || findInputModeMenu());
-      if (menu) injectGradient(menu);
+      activateMenu(document.querySelector('[data-bd-mode-menu]') || findInputModeMenu());
     } else {
       removeScrollStyles();
       removeGradient();
+      disableTouchScrolling();
     }
   }
 
@@ -148,11 +261,10 @@
     if (injecting) return;
     if (!shouldBeActive()) return;
 
-    const menu = markMenu(document.querySelector('[data-bd-mode-menu]') || findInputModeMenu());
-    if (menu && !menu.querySelector('#' + GRADIENT_ID)) {
+    const menu = document.querySelector('[data-bd-mode-menu]') || findInputModeMenu();
+    if (menu && (!menu.querySelector('#' + GRADIENT_ID) || !touchBindings.has(menu))) {
       injecting = true;
-      injectScrollStyles();
-      injectGradient(menu);
+      activateMenu(menu);
       injecting = false;
     }
   });
