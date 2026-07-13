@@ -689,13 +689,21 @@
 
 .bd-character-ai-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
 
-.bd-character-ai-header > div {
+.bd-character-ai-header-text {
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.bd-character-ai-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
 }
 
 .bd-character-ai-title {
@@ -713,13 +721,13 @@
 }
 
 .bd-character-ai-body {
-  margin-top: 7px;
+  margin-top: 8px;
 }
 
 .bd-character-ai-picker {
   display: flex;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .bd-character-ai-character-preview {
@@ -736,7 +744,8 @@
 .bd-character-ai-select {
   flex: 1;
   min-width: 0;
-  padding: 7px 10px;
+  min-height: 42px;
+  padding: 9px 10px;
   color: var(--bd-text-primary);
   background: var(--bd-bg-tertiary);
   border: 1px solid var(--bd-border-default);
@@ -745,7 +754,7 @@
 }
 
 .bd-character-ai-answer {
-  margin-top: 7px;
+  margin-top: 8px;
   padding: 8px 10px;
   max-height: 120px;
   overflow-y: auto;
@@ -759,21 +768,28 @@
 }
 
 .bd-character-ai-reason {
-  margin-top: 4px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  color: var(--bd-text-secondary);
+  background: var(--bd-bg-secondary);
+  border: 1px solid var(--bd-border-subtle);
+  border-left: 2px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-md);
+  font-style: italic;
 }
 
 .bd-character-ai-confidence-warning {
-  margin-top: 7px;
+  margin-top: 8px;
   padding: 5px 7px;
   color: #fbbf24;
   background: rgba(245, 158, 11, 0.12);
   border: 1px solid rgba(245, 158, 11, 0.3);
   border-radius: var(--bd-radius-md);
-  font-size: var(--bd-font-size-xs);
+  font-size: var(--bd-font-size-sm);
 }
 
 .bd-character-ai-ideas-label {
-  margin-top: 7px;
+  margin-top: 8px;
   color: var(--bd-text-secondary);
   font-size: var(--bd-font-size-xs);
   font-weight: var(--bd-font-weight-medium);
@@ -783,17 +799,18 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .bd-character-ai-idea {
-  padding: 4px 7px;
+  min-height: 40px;
+  padding: 8px 10px;
   color: var(--bd-text-primary);
   background: var(--bd-bg-tertiary);
   border: 1px solid var(--bd-border-default);
   border-radius: var(--bd-radius-md);
   cursor: pointer;
-  font-size: var(--bd-font-size-xs);
+  font-size: var(--bd-font-size-sm);
   text-align: left;
 }
 
@@ -803,17 +820,18 @@
 }
 
 .bd-character-ai-reroll-controls {
-  margin-top: 7px;
+  margin-top: 8px;
 }
 
 .bd-character-ai-reroll-input {
   width: 100%;
-  padding: 6px 8px;
+  min-height: 40px;
+  padding: 8px 10px;
   color: var(--bd-text-primary);
   background: var(--bd-bg-tertiary);
   border: 1px solid var(--bd-border-default);
   border-radius: var(--bd-radius-md);
-  font-size: var(--bd-font-size-xs);
+  font-size: var(--bd-font-size-sm);
 }
 
 .bd-character-ai-reroll-input:focus {
@@ -822,7 +840,7 @@
 }
 
 .bd-character-ai-reroll-controls .bd-character-ai-actions {
-  margin-top: 5px;
+  margin-top: 8px;
 }
 
 .bd-character-ai-actions {
@@ -830,13 +848,14 @@
   justify-content: flex-end;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: 7px;
+  margin-top: 8px;
 }
 
 .bd-character-ai-btn {
+  min-height: 42px;
   border-radius: var(--bd-radius-md);
   border: 1px solid var(--bd-border-default);
-  padding: 6px 10px;
+  padding: 9px 12px;
   cursor: pointer;
   font-size: var(--bd-font-size-sm);
   font-weight: var(--bd-font-weight-medium);
@@ -869,7 +888,8 @@
 
 .bd-character-ai-link-btn {
   flex: 0 0 auto;
-  padding: 5px 8px;
+  min-height: 40px;
+  padding: 8px 10px;
   border: 1px solid var(--bd-border-default);
   border-radius: var(--bd-radius-md);
   color: var(--bd-text-secondary);
@@ -890,7 +910,7 @@
   width: 100%;
   min-height: 72px;
   max-height: 180px;
-  margin-top: 7px;
+  margin-top: 8px;
   padding: 8px 10px;
   resize: vertical;
   color: var(--bd-text-primary);
@@ -917,15 +937,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: 1px solid var(--bd-border-default);
   border-radius: var(--bd-radius-md);
   color: var(--bd-text-secondary);
   background: var(--bd-bg-tertiary);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
   transition: color var(--bd-transition-fast), background var(--bd-transition-fast), border-color var(--bd-transition-fast);
 }
@@ -948,11 +968,15 @@
     width: calc(100vw - 16px);
     max-height: calc(100vh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     max-height: calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    padding: 8px;
+    padding: 6px;
   }
 
   .bd-character-ai-header {
     gap: 8px;
+  }
+
+  .bd-character-ai-header-controls {
+    gap: 4px;
   }
 
   .bd-character-ai-title {
@@ -966,8 +990,15 @@
     font-size: var(--bd-font-size-xs);
   }
 
+  .bd-character-ai-subtitle {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
   .bd-character-ai-answer {
-    max-height: 88px;
+    max-height: 80px;
     padding: 6px 8px;
     font-size: var(--bd-font-size-sm);
   }
@@ -981,6 +1012,10 @@
 
   .bd-character-ai-picker,
   .bd-character-ai-actions {
+    gap: 6px;
+  }
+
+  .bd-character-ai-picker {
     display: grid;
     grid-template-columns: 1fr 1fr;
   }
@@ -991,17 +1026,17 @@
   }
 
   .bd-character-ai-btn {
-    width: 100%;
-    min-height: 32px;
-    padding: 6px 9px;
+    min-height: 42px;
+    padding: 9px 11px;
+    font-size: var(--bd-font-size-sm);
   }
 
   .bd-character-ai-link-btn {
-    padding: 4px 7px;
-    font-size: var(--bd-font-size-xs);
+    min-height: 40px;
+    padding: 8px 10px;
+    font-size: var(--bd-font-size-sm);
   }
 
-  .bd-character-ai-actions .bd-character-ai-btn-primary,
   .bd-character-ai-picker .bd-character-ai-btn-primary {
     grid-column: 1 / -1;
   }

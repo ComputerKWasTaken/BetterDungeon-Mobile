@@ -1008,11 +1008,13 @@ class CharacterPresetFeature {
 
     const panel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
-        <div>
+        <div class="bd-character-ai-header-text">
           <div class="bd-character-ai-title">Character Prefill</div>
           <div class="bd-character-ai-subtitle">${this.scenario?.placeholders?.length || 0} placeholder questions found${this.activePresetId ? ' - Main character preselected' : ''}</div>
         </div>
-        <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+        <div class="bd-character-ai-header-controls">
+          <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+        </div>
       </div>
       <div class="bd-character-ai-body">
         <label class="bd-character-ai-label" for="bd-character-ai-select">Play as</label>
@@ -1063,11 +1065,13 @@ class CharacterPresetFeature {
   showGeneratingPanel(field) {
     const genPanel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
-        <div>
+        <div class="bd-character-ai-header-text">
           <div class="bd-character-ai-title">Generating Character Answers</div>
           <div class="bd-character-ai-subtitle">Gemini is reading the scenario placeholders.</div>
         </div>
-        <div class="bd-character-ai-spinner"></div>
+        <div class="bd-character-ai-header-controls">
+          <div class="bd-character-ai-spinner"></div>
+        </div>
       </div>
     `, `generating:${field.fieldId || field.question}`);
     if (genPanel && !genPanel.__bdCharacterPanelReused) this.bindCloseButton(genPanel);
@@ -1078,11 +1082,13 @@ class CharacterPresetFeature {
       || (this.status === 'blocked' && message !== 'This scenario has no placeholder questions to prefill.');
     const blockedPanel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
-        <div>
+        <div class="bd-character-ai-header-text">
           <div class="bd-character-ai-title">Character Prefill Unavailable</div>
           <div class="bd-character-ai-subtitle">${this.escapeHtml(message || 'Character Presets cannot run right now.')}</div>
         </div>
-        <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+        <div class="bd-character-ai-header-controls">
+          <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+        </div>
       </div>
       ${retryable ? `
         <div class="bd-character-ai-actions">
@@ -1118,12 +1124,14 @@ class CharacterPresetFeature {
       const ideas = Array.isArray(answer?.ideas) ? answer.ideas.filter(Boolean).slice(0, 3) : [];
       const panel = this.renderPanel(field, `
         <div class="bd-character-ai-header">
-          <div>
+          <div class="bd-character-ai-header-text">
             <div class="bd-character-ai-title">Answer Manually</div>
-            <div class="bd-character-ai-subtitle">Gemini was not confident enough to answer this placeholder.</div>
+            <div class="bd-character-ai-subtitle">Gemini deferred this question to you.</div>
           </div>
-          <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
-          <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+          <div class="bd-character-ai-header-controls">
+            <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
+            <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+          </div>
         </div>
         ${answer?.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
         ${ideas.length ? `
@@ -1164,14 +1172,16 @@ class CharacterPresetFeature {
     const tentative = answer.confidence === 'tentative';
     const panel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
-        <div>
+        <div class="bd-character-ai-header-text">
           <div class="bd-character-ai-title">${this.escapeHtml(character?.name || 'Character')} Suggestion</div>
           <div class="bd-character-ai-subtitle">${this.escapeHtml(field.question)}</div>
         </div>
-        <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
-        <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+        <div class="bd-character-ai-header-controls">
+          <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
+          <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+        </div>
       </div>
-      ${tentative ? '<div class="bd-character-ai-confidence-warning">AI is unsure — consider writing your own.</div>' : ''}
+      ${tentative ? '<div class="bd-character-ai-confidence-warning">AI is unsure. Consider writing your own answer.</div>' : ''}
       <div class="bd-character-ai-answer">${this.escapeHtml(answer.answer)}</div>
       ${answer.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
       <div class="bd-character-ai-actions">
@@ -1321,11 +1331,13 @@ class CharacterPresetFeature {
   showEditPanel(field, question, value) {
     const panel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
-        <div>
+        <div class="bd-character-ai-header-text">
           <div class="bd-character-ai-title">Edit Suggested Answer</div>
           <div class="bd-character-ai-subtitle">${this.escapeHtml(field.question)}</div>
         </div>
-        <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+        <div class="bd-character-ai-header-controls">
+          <button class="bd-character-ai-close" aria-label="Close">&times;</button>
+        </div>
       </div>
       <textarea id="bd-character-ai-edit-text" class="bd-character-ai-textarea">${this.escapeHtml(value)}</textarea>
       <div class="bd-character-ai-actions">
