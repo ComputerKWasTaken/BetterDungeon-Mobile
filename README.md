@@ -1,125 +1,148 @@
 # BetterDungeon Mobile
 
-The Android WebView port of BetterDungeon for AI Dungeon, synced with the V2
-desktop extension feature set where those features make sense on mobile.
+<div align="center">
 
-## Installation
+**BetterDungeon, in your pocket.**
 
-### Direct Download
+The Android WebView port of BetterDungeon for AI Dungeon, bringing the features that make sense on a touch screen together with a few mobile-specific improvements.
 
-1. Download the latest APK from Releases.
-2. Open the APK on your Android device.
-3. Allow installation from unknown sources if prompted.
-4. Launch BetterDungeon Mobile.
+[![Version](https://img.shields.io/badge/version-2.0.0-7c3aed?style=for-the-badge)](app/build.gradle.kts)
+[![Android](https://img.shields.io/badge/Android-API_27%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/)
+[![License](https://img.shields.io/github/license/ComputerKWasTaken/BetterDungeon?style=for-the-badge)](https://github.com/ComputerKWasTaken/BetterDungeon/blob/main/LICENSE)
 
-### Build From Source
+</div>
+
+> This repository is for developing BetterDungeon Mobile. It is not the public release repository.
+
+## Important: where to get the APK
+
+The official BetterDungeon Android APK is hosted on the **primary BetterDungeon repository**, not this Mobile development repository. This keeps downloads simple and preserves the single release location that BetterDungeon users are already familiar with.
+
+**[Download BetterDungeon Mobile from the primary repository's Releases page.](https://github.com/ComputerKWasTaken/BetterDungeon/releases)**
+
+Please do not direct regular users to this repository for APK downloads. Come here when you want to inspect the Android implementation, contribute code, or build the app yourself.
+
+## What is BetterDungeon Mobile?
+
+Hey everyone, it's computerK here. BetterDungeon Mobile is the Android side of the BetterDungeon ecosystem: an Android WebView wrapper around AI Dungeon with BetterDungeon's JavaScript and CSS features injected directly into the experience.
+
+The goal is not to force every desktop feature onto a phone. The goal is to bring the good stuff over, make it feel natural with touch controls, and add the Android bridge work needed to make extension-style features function inside a native app.
+
+The current release is **BetterDungeon V2**, with shared feature parity wherever mobile can support it. Some desktop-only tools, such as Hotkeys and the Story Card Modal Dock, are intentionally not included on mobile.
+
+## Getting started
+
+### Download the official release
+
+1. Visit the [Releases page on the primary BetterDungeon repository](https://github.com/ComputerKWasTaken/BetterDungeon/releases).
+2. Download the latest Android `.apk` file.
+3. Open the APK on your Android device.
+4. Allow installation from unknown sources if Android asks.
+5. Launch BetterDungeon Mobile and start playing.
+
+### Build it yourself
 
 1. Clone this repository.
 2. Open it in Android Studio.
-3. Build and run on your device or emulator.
+3. Let Gradle sync the project.
+4. Connect an Android device or start an emulator.
+5. Run the `app` configuration.
 
-## Distribution
+You can also build from a terminal with the Gradle wrapper:
 
-BetterDungeon Mobile is versioned as `2.0.0` for the V2 parity release. Before
-publishing a new build:
+```bash
+# macOS/Linux
+./gradlew assembleDebug
 
-1. Confirm `versionCode` and `versionName` in `app/build.gradle.kts`.
-2. Build from Android Studio using **Generate Signed Bundle / APK**.
-3. Use an Android App Bundle (`.aab`) for Google Play or a signed APK for
-   direct distribution.
-4. Keep release keystores, passwords, and signing config outside the repo.
-5. Smoke test the signed release build on a physical device before uploading.
+# Windows
+gradlew.bat assembleDebug
+```
 
-Release builds intentionally disable Android app-data backup. BetterDungeon
-stores local settings, character presets, notes, WebFetch consent state, and
-Gemini API keys in app storage; those values should not be copied to cloud
-backup or device-transfer channels by default.
+The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built APKs are for development and testing; official public releases remain on the primary repository.
 
-## Data And Privacy
+## The mobile feature lineup
 
-BetterDungeon Mobile is an Android WebView wrapper for AI Dungeon plus local
-BetterDungeon features. The app:
+### Better writing on a touch screen
 
-- Loads AI Dungeon in a WebView and uses Internet access for AI Dungeon,
-  WebFetch, Weather, Gemini, and related feature traffic.
-- Requests location permission only for the opt-in Ultrascripts Geolocation
-  flow.
-- Stores BetterDungeon settings, presets, notes, WebFetch consent decisions,
-  and Gemini API keys locally on the device.
+- **Markdown** — Shared V2 Markdown instruction presets with authors-note support and automatic application.
+- **Command Mode** — Send narrative commands with Subtle and OOC sub-modes.
+- **Try Mode** — Run configurable RNG-based action checks with touch-friendly controls.
+- **Adventure Notes** — Keep notes per adventure inside Plot Components.
+- **Text to Speech** — Narrate story text using Android's native text-to-speech engine when available.
+
+### Control and navigation
+
+- **Input History** — Cycle through recent inputs with a touch-friendly history bar scoped to each adventure.
+- **Input Mode Colors** — Color-code the input area based on the active action mode.
+- **Mobile Settings Gear** — Open BetterDungeon settings directly from the AI Dungeon interface.
+- **Scrollable Mode Menu** — Use Command and Try controls comfortably on narrow screens.
+- **Bottom-Sheet Popup** — Access settings in a secondary WebView designed for mobile.
+
+### Scenario tools and automation
+
+- **Plot Presets** — Save and restore Plot Components.
+- **Character Presets** — Save character dossiers and use Gemini through the Ultrascripts AI module to generate scenario prefill answers.
+- **Trigger Highlighting** — See active Story Card triggers in the context viewer.
+- **Story Card Analytics** — Review card counts, overlaps, empty descriptors, and scenario health information.
+- **Auto See** — Send background See actions on AI responses or configured turn intervals.
+- **Auto Enable Scripts** — Re-enable AI Dungeon's scenario script toggle when it turns off unexpectedly.
+- **Custom Dynamic** — Use the shared V2 model-routing system when WebView request hooks can observe AI Dungeon generation requests.
+
+## Ultrascripts on Android
+
+Ultrascripts is BetterDungeon's extension-to-script communication system. Mobile implements the canonical V2 module names and contracts through the Android WebView bridge:
+
+| Module | What it enables |
+| --- | --- |
+| `ai` | Gemini-backed status and query operations |
+| `widget` | Interactive script-rendered UI widgets |
+| `webfetch` | Consent-gated HTTP fetch and search support |
+| `clock` | Local time, timezone, and formatting helpers |
+| `geolocation` | Opt-in Android/WebView location access |
+| `weather` | Current weather and forecast data |
+| `network` | Online and connection-quality hints |
+| `system` | Device, browser, screen, locale, and power information |
+| `sdk` | Safe BetterDungeon configuration snapshots |
+
+Permission-sensitive modules remain opt-in. The app requests location access only when the Ultrascripts Geolocation flow needs it.
+
+## How it works
+
+BetterDungeon Mobile uses two connected WebViews:
+
+- The main WebView loads AI Dungeon.
+- A secondary WebView hosts the BetterDungeon settings panel.
+
+The app injects the shared BetterDungeon JavaScript and CSS into the AI Dungeon WebView. A WebView polyfill maps extension APIs such as `chrome.storage`, `chrome.runtime`, and `chrome.tabs` to Android-compatible behavior backed by `BetterDungeonBridge` and SharedPreferences.
+
+This lets the mobile build share a large portion of BetterDungeon's feature code while still supporting Android-specific UI and native capabilities.
+
+## Data and privacy
+
+BetterDungeon Mobile:
+
+- Loads AI Dungeon in a WebView and needs Internet access for AI Dungeon and enabled network features.
+- Requests location permission only for the opt-in Geolocation flow.
+- Stores settings, presets, notes, WebFetch consent decisions, and Gemini API keys locally on the device.
 - Does not expose Gemini API keys through the Ultrascripts SDK/config surface.
-- Opens non-AI-Dungeon links in the user's system browser.
+- Opens non-AI-Dungeon links in the system browser.
+- Disables Android app-data backup for release builds so local secrets and settings are not copied through cloud backup or device transfer by default.
 
-Store listings should disclose Internet access, optional location access,
-user-provided API keys, AI Dungeon WebView usage, WebFetch behavior, and any
-third-party services used by enabled features.
+You are responsible for any API keys you configure and for reviewing the permissions of scripts you run.
 
-## Features
+## Contributing
 
-### Input Modes
+This is the place to contribute to the Android implementation, improve the native bridge, polish mobile-specific UI, or update the shared feature injection pipeline.
 
-- **Command Mode**: Send narrative commands to steer your story, including Subtle and OOC submodes.
-- **Try Mode**: RNG-based action outcomes with configurable success odds, critical margins, and a touch-friendly success bar.
-
-### Control And Navigation
-
-- **Input History**: Cycle through recent inputs with a touch-friendly history bar, scoped per adventure.
-- **Input Mode Colors**: Color-code the input box based on the active action mode.
-
-### Writing And Formatting
-
-- **Markdown Support**: BetterDungeon Markdown with shared V2 instruction presets, authors-note support, and auto-apply behavior.
-- **Adventure Notes**: Local per-adventure notes inside Plot Components.
-- **Text To Speech**: Uses Android's native TTS engine when available.
-
-### Presets
-
-- **Plot Presets**: Save and restore Plot Components.
-- **Character Presets**: Save character dossiers and use the Ultrascripts AI module with Gemini to generate scenario prefill answers.
-
-### Scenario Building
-
-- **Trigger Highlighting**: Highlights active story card triggers in the context viewer.
-- **Story Card Analytics**: Dashboard for card counts, overlaps, empty descriptors, and scenario health checks.
-
-### Automations
-
-- **Auto See**: Automatically sends background See actions on AI responses or turn intervals.
-- **Auto Enable Scripts**: Re-enables AI Dungeon's scenario script toggle when the site turns it off unexpectedly.
-- **Custom Dynamic**: Uses the shared V2 model-routing support where WebView request hooks can observe AI Dungeon generation requests.
-
-### Ultrascripts
-
-Ultrascripts is BetterDungeon's extension-to-script communication system. Mobile
-now uses the canonical V2 module names and contracts:
-
-- `ai`: Gemini-backed `status` and `query` operations.
-- `widget`: Interactive script-rendered UI widgets.
-- `webfetch`: Consent-gated HTTP fetch/search support.
-- `clock`: Local time, timezone, and formatting helpers.
-- `geolocation`: Android/WebView geolocation permission and position helpers.
-- `weather`: Open-Meteo current weather and forecasts.
-- `network`: Online and connection-quality hints.
-- `system`: Device, browser, screen, locale, and power hints.
-- `sdk`: Safe BetterDungeon configuration snapshots for scripts.
-
-Hotkeys and Story Card Modal Dock are intentionally not shipped on mobile.
-
-## Mobile-Specific UI
-
-- **Settings Gear**: A BetterDungeon settings button is injected directly into the AI Dungeon UI.
-- **Scrollable Mode Menu**: Command and Try mode controls adapt the input mode menu for narrow touch screens.
-- **Bottom-Sheet Popup**: Settings run in a secondary WebView connected to the main AI Dungeon WebView.
-
-## How It Works
-
-BetterDungeon Mobile wraps AI Dungeon in an Android WebView and injects the same
-JavaScript and CSS used by the desktop extension. A WebView polyfill maps
-Chrome extension APIs to Android equivalents backed by `BetterDungeonBridge`
-and SharedPreferences. Mobile also emulates the extension background message
-contracts used by Ultrascripts modules.
+If you are looking for the public extension or the official APK releases, use the [primary BetterDungeon repository](https://github.com/ComputerKWasTaken/BetterDungeon) instead. For development details, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Support
 
-- Found a bug? Report it on GitHub.
-- Have an idea? Submit a feature request.
-- Contact on Discord: `@computerK`
+- Found a mobile bug? [Open an issue](../../issues/new).
+- Have a feature idea? [Open a feature request](../../issues/new).
+- Looking for an APK? Visit the [primary BetterDungeon Releases page](https://github.com/ComputerKWasTaken/BetterDungeon/releases).
+- Want to talk about the project? Find me on Discord at `@computerK`.
+
+Much love.
+
+— computerK
