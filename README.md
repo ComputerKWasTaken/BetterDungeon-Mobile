@@ -143,6 +143,8 @@ If you are looking for the public extension or the official APK releases, use th
 - Looking for an APK? Visit the [primary BetterDungeon Releases page](https://github.com/ComputerKWasTaken/BetterDungeon/releases).
 - Want to talk about the project? Find me on Discord at `@computerK`.
 
+- Want to support continued development? [Visit my Ko-fi page](https://ko-fi.com/computerk).
+
 Much love.
 
 — computerK
