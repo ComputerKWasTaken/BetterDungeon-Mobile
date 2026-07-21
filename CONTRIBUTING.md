@@ -79,7 +79,7 @@ BetterDungeon Mobile is a layered bridge between native Android and the shared B
 - **`InjectionEngine.kt`** reads and injects the BetterDungeon CSS and JavaScript assets into AI Dungeon after page loads. It also handles font embedding for WebView compatibility.
 - **`BetterDungeonBridge.kt`** exposes the `BetterDungeonBridge` JavaScript interface, routes storage through SharedPreferences, and handles communication between the two WebViews.
 - **`webview-polyfill.js`** provides Android-compatible versions of extension APIs such as `chrome.runtime`, `chrome.storage`, and `chrome.tabs`.
-- **`features/mobile/`** contains mobile-only behavior, including the settings gear, welcome screen, and touch-friendly mode menu.
+- **`features/mobile/`** contains mobile-only behavior, including the settings gear and touch-friendly mode menu.
 
 The injection order mirrors the browser extension where practical:
 

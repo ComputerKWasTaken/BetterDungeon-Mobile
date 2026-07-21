@@ -78,7 +78,6 @@ class InjectionEngine(private val context: Context) {
             "features/input_history_feature.js",
             "features/text_to_speeech_feature.js",
             "features/custom_dynamic_feature.js",
-            "features/mobile/mobile_welcome_screen.js",
             "features/mobile/mobile_settings_layer.js",
             "features/mobile/mobile_design_layer.js",
             "main.js"
