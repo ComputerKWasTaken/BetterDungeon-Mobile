@@ -1,5 +1,5 @@
 // ═══ mobile_login_warning.js ═══
-// Explains why third-party sign-in cannot complete inside BetterDungeon Mobile's
+// Removes unsupported third-party sign-in controls from BetterDungeon Mobile's
 // embedded WebView and directs players to the supported email/password form.
 
 (function () {
@@ -71,9 +71,14 @@
   function syncWarning() {
     const providerButtons = Array.from(document.querySelectorAll(PROVIDER_SELECTOR));
     const existing = document.getElementById(WARNING_ID);
+    const emailInput = document.querySelector('input#email[type="email"]');
+    const passwordInput = document.querySelector('input#password[type="password"]');
+    const hasSignInHeading = Array.from(document.querySelectorAll('h1')).some((heading) => {
+      return heading.textContent?.trim().toLowerCase() === 'sign in';
+    });
 
     if (providerButtons.length === 0) {
-      existing?.remove();
+      if (!hasSignInHeading && !emailInput && !passwordInput) existing?.remove();
       return;
     }
 
@@ -83,13 +88,19 @@
     const socialSection = providerRow?.parentElement;
     if (!providerRow || !socialSection) return;
 
-    providerButtons.forEach((button) => {
-      button.setAttribute('aria-describedby', WARNING_ID);
+    let warning = existing;
+    if (!warning || warning.parentElement !== socialSection) {
+      warning?.remove();
+      warning = createWarning();
+      providerRow.insertAdjacentElement('afterend', warning);
+    }
+
+    const divider = Array.from(socialSection.children).find((element) => {
+      return element !== warning && element.textContent?.trim().toUpperCase() === 'OR';
     });
 
-    if (existing && existing.parentElement === socialSection) return;
-    existing?.remove();
-    providerRow.insertAdjacentElement('afterend', createWarning());
+    providerRow.remove();
+    divider?.remove();
   }
 
   let syncScheduled = false;
