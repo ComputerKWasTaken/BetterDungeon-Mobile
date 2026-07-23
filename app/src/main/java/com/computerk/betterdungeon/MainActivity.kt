@@ -74,8 +74,7 @@ class MainActivity : AppCompatActivity() {
             // Apply padding to popup container so its WebView isn't under system bars
             popupContainer.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             
-            // Note: We intentionally DO NOT pad the main Webview or the main_container itself
-            // so that AI Dungeon can take up the full height of the screen like a native app.
+            findViewById<WebView>(R.id.webview_main).setPadding(0, 0, 0, systemBars.bottom)
             
             insets
         }
