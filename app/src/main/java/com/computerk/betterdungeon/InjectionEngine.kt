@@ -78,6 +78,7 @@ class InjectionEngine(private val context: Context) {
             "features/text_to_speeech_feature.js",
             "features/custom_dynamic_feature.js",
             "features/mobile/mobile_settings_layer.js",
+            "features/mobile/mobile_login_warning.js",
             "features/mobile/mobile_design_layer.js",
             "main.js"
         )
