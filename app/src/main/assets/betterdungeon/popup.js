@@ -61,7 +61,6 @@ const ULTRASCRIPTS_PUBLIC_MODULES = [
   'webfetch',
   'clock',
   'sdk',
-  'geolocation',
   'weather',
   'network',
   'system',

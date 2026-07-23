@@ -48,7 +48,6 @@ class InjectionEngine(private val context: Context) {
             "modules/webfetch/consent.js",
             "modules/webfetch/module.js",
             "modules/clock/module.js",
-            "modules/geolocation/module.js",
             "modules/weather/module.js",
             "modules/network/module.js",
             "modules/system/module.js",

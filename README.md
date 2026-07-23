@@ -98,13 +98,10 @@ Ultrascripts is BetterDungeon's extension-to-script communication system. Mobile
 | `widget` | Interactive script-rendered UI widgets |
 | `webfetch` | Consent-gated HTTP fetch and search support |
 | `clock` | Local time, timezone, and formatting helpers |
-| `geolocation` | Opt-in Android/WebView location access |
 | `weather` | Current weather and forecast data |
 | `network` | Online and connection-quality hints |
 | `system` | Device, browser, screen, locale, and power information |
 | `sdk` | Safe BetterDungeon configuration snapshots |
-
-Permission-sensitive modules remain opt-in. The app requests location access only when the Ultrascripts Geolocation flow needs it.
 
 ## How it works
 
@@ -122,7 +119,6 @@ This lets the mobile build share a large portion of BetterDungeon's feature code
 BetterDungeon Mobile:
 
 - Loads AI Dungeon in a WebView and needs Internet access for AI Dungeon and enabled network features.
-- Requests location permission only for the opt-in Geolocation flow.
 - Stores settings, presets, notes, WebFetch consent decisions, and Gemini API keys locally on the device.
 - Does not expose Gemini API keys through the Ultrascripts SDK/config surface.
 - Opens non-AI-Dungeon links in the system browser.
