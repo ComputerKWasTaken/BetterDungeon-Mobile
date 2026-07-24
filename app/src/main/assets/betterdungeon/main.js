@@ -22,7 +22,18 @@ class BetterDungeon {
     console.log('[BetterDungeon] Initializing...');
     this.injectStyles();
     this.setupMessageListener();
+    this.initializeCaretScrollFix();
     this.featureManager.initialize();
+  }
+
+  initializeCaretScrollFix() {
+    if (!window.BetterDungeonCaretScrollFix || !chrome.storage?.sync) return;
+
+    chrome.storage.sync.get('betterDungeon_androidCaretScrollFix', (result) => {
+      const enabled =
+        (result || {}).betterDungeon_androidCaretScrollFix === true;
+      window.BetterDungeonCaretScrollFix.setEnabled(enabled);
+    });
   }
 
   // Setup listener for messages from popup
@@ -41,6 +52,9 @@ class BetterDungeon {
         this.handleSetAutoSeeTurnInterval(message.interval);
       } else if (message.type === 'SET_TEXT_TO_SPEECH_SETTINGS') {
         this.handleSetTextToSpeechSettings(message.settings);
+      } else if (message.type === 'SET_ANDROID_CARET_SCROLL_FIX') {
+        const enabled = this.handleSetAndroidCaretScrollFix(message.enabled);
+        sendResponse({ success: true, enabled });
       } else if (message.type === 'STOP_TEXT_TO_SPEECH') {
         this.handleStopTextToSpeech();
       } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
@@ -334,6 +348,19 @@ class BetterDungeon {
   destroy() {
     this.destroyed = true;
     this.featureManager.destroy();
+  }
+
+  handleSetAndroidCaretScrollFix(enabled) {
+    const nextEnabled = enabled === true;
+    window.BetterDungeonCaretScrollFix?.setEnabled(nextEnabled);
+
+    try {
+      window.BetterDungeonBridge?.setCaretScrollFixEnabled(nextEnabled);
+    } catch (error) {
+      console.warn('[BetterDungeon] Native caret fix toggle unavailable:', error);
+    }
+
+    return nextEnabled;
   }
 }
 

@@ -22,13 +22,32 @@ class BetterDungeonWebView @JvmOverloads constructor(
 ) : WebView(context, attrs, defStyleAttr) {
 
     /**
-     * Chromium uses this overload before Android 16 QPR1, where the request
-     * source was not available and treats these calls as caret moves. Reject it
-     * unconditionally so a request made during IME opening cannot slip through.
+     * User-facing escape hatch for the experimental caret stabilization.
+     * MainActivity restores the persisted value before the first page load.
      */
-    override fun requestRectangleOnScreen(rectangle: Rect): Boolean = false
+    var caretScrollFixEnabled: Boolean = false
 
-    override fun requestRectangleOnScreen(rectangle: Rect, immediate: Boolean): Boolean = false
+    /**
+     * Chromium uses this overload before Android 16 QPR1, where the request
+     * source was not available and treats these calls as caret moves. Reject
+     * these while stabilization is enabled so a request made during IME
+     * opening cannot slip through.
+     */
+    override fun requestRectangleOnScreen(rectangle: Rect): Boolean {
+        return if (caretScrollFixEnabled) {
+            false
+        } else {
+            super.requestRectangleOnScreen(rectangle)
+        }
+    }
+
+    override fun requestRectangleOnScreen(rectangle: Rect, immediate: Boolean): Boolean {
+        return if (caretScrollFixEnabled) {
+            false
+        } else {
+            super.requestRectangleOnScreen(rectangle, immediate)
+        }
+    }
 
     /**
      * Also cover WebView providers that issue the request from an internal
@@ -38,7 +57,13 @@ class BetterDungeonWebView @JvmOverloads constructor(
         child: View,
         rectangle: Rect,
         immediate: Boolean
-    ): Boolean = false
+    ): Boolean {
+        return if (caretScrollFixEnabled) {
+            false
+        } else {
+            super.requestChildRectangleOnScreen(child, rectangle, immediate)
+        }
+    }
 
     /**
      * Android 16 QPR1 identifies caret requests explicitly, so these can be
@@ -53,7 +78,10 @@ class BetterDungeonWebView @JvmOverloads constructor(
         immediate: Boolean,
         source: Int
     ): Boolean {
-        if (source == View.RECTANGLE_ON_SCREEN_REQUEST_SOURCE_TEXT_CURSOR) {
+        if (
+            caretScrollFixEnabled &&
+            source == View.RECTANGLE_ON_SCREEN_REQUEST_SOURCE_TEXT_CURSOR
+        ) {
             return false
         }
         return super.requestRectangleOnScreen(rectangle, immediate, source)
@@ -66,7 +94,10 @@ class BetterDungeonWebView @JvmOverloads constructor(
         immediate: Boolean,
         source: Int
     ): Boolean {
-        if (source == View.RECTANGLE_ON_SCREEN_REQUEST_SOURCE_TEXT_CURSOR) {
+        if (
+            caretScrollFixEnabled &&
+            source == View.RECTANGLE_ON_SCREEN_REQUEST_SOURCE_TEXT_CURSOR
+        ) {
             return false
         }
         return super.requestChildRectangleOnScreen(child, rectangle, immediate, source)

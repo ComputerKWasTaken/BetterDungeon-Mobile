@@ -86,6 +86,9 @@ class MainActivity : AppCompatActivity() {
         bridge = BetterDungeonBridge(this)
         injectionEngine = InjectionEngine(this)
         ttsManager = TextToSpeechManager(this)
+        val caretScrollFixEnabled = bridge.isCaretScrollFixEnabled()
+        mainWebView.caretScrollFixEnabled = caretScrollFixEnabled
+        popupWebView.caretScrollFixEnabled = caretScrollFixEnabled
 
         setupMainWebView()
         setupPopupWebView()

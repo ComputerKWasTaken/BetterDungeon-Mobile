@@ -15,6 +15,7 @@
   if (window.__betterDungeonCaretScrollGuardInstalled) return;
   window.__betterDungeonCaretScrollGuardInstalled = true;
 
+  const STORAGE_KEY = 'betterDungeon_androidCaretScrollFix';
   const EDITABLE_SELECTOR = [
     'textarea',
     'input:not([type="button"]):not([type="checkbox"]):not([type="color"])' +
@@ -30,10 +31,34 @@
   const TAP_GUARD_MS = 1200;
   const EDIT_GUARD_MS = 300;
 
+  let enabled = false;
   let guard = null;
   let guardGeneration = 0;
   let pointer = null;
   let restoring = false;
+
+  try {
+    if (
+      window.BetterDungeonBridge &&
+      typeof window.BetterDungeonBridge.storageGet === 'function'
+    ) {
+      const stored = window.BetterDungeonBridge.storageGet(STORAGE_KEY);
+      enabled = stored !== '' && JSON.parse(stored) === true;
+    } else {
+      // This workaround is Android-only. Keep it inert if the shared popup is
+      // opened as a regular browser extension without the native bridge.
+      enabled = false;
+    }
+  } catch {
+    enabled = false;
+  }
+
+  function applyEnabledClass() {
+    document.documentElement?.classList.toggle(
+      'bd-caret-scroll-fix-disabled',
+      !enabled
+    );
+  }
 
   function parentAcrossShadowRoot(element) {
     if (element.parentElement) return element.parentElement;
@@ -122,6 +147,7 @@
 
   function restoreScrollChain() {
     if (
+      !enabled ||
       restoring ||
       !guard ||
       performance.now() > guard.expiresAt ||
@@ -155,6 +181,7 @@
 
   function keepStable(generation) {
     if (
+      !enabled ||
       !guard ||
       generation !== guardGeneration ||
       performance.now() > guard.expiresAt ||
@@ -169,7 +196,7 @@
   }
 
   function armGuard(editor, duration, refreshSnapshot) {
-    if (!editor) return;
+    if (!enabled || !editor) return;
 
     if (!guard || guard.editor !== editor || refreshSnapshot) {
       guard = {
@@ -194,7 +221,28 @@
     guardGeneration += 1;
   }
 
+  function setEnabled(nextEnabled) {
+    enabled = nextEnabled === true;
+    if (!enabled) {
+      pointer = null;
+      cancelGuard();
+    }
+    applyEnabledClass();
+    return enabled;
+  }
+
+  window.BetterDungeonCaretScrollFix = Object.freeze({
+    isEnabled: () => enabled,
+    setEnabled
+  });
+
+  applyEnabledClass();
+  document.addEventListener('DOMContentLoaded', applyEnabledClass, {
+    once: true
+  });
+
   document.addEventListener('pointerdown', event => {
+    if (!enabled) return;
     const editor = editableFromEvent(event);
     if (!editor) return;
 
