@@ -16,6 +16,7 @@ import android.widget.FrameLayout
 import android.view.ViewGroup.MarginLayoutParams
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -37,8 +38,8 @@ class MainActivity : AppCompatActivity() {
         private const val AI_DUNGEON_URL = "https://play.aidungeon.com"
     }
 
-    private lateinit var mainWebView: WebView
-    private lateinit var popupWebView: WebView
+    private lateinit var mainWebView: BetterDungeonWebView
+    private lateinit var popupWebView: BetterDungeonWebView
     private lateinit var popupContainer: FrameLayout
 
     private lateinit var bridge: BetterDungeonBridge
@@ -58,17 +59,27 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         // Apply window insets to popup so it isn't hidden by system bars
+        mainWebView = findViewById(R.id.webview_main)
+        popupWebView = findViewById(R.id.webview_popup)
         popupContainer = findViewById(R.id.popup_container)
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main_container)) { _, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            
-            // Apply padding to popup container so its WebView isn't under system bars
-            popupContainer.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            
-            findViewById<WebView>(R.id.webview_main).setPadding(0, 0, 0, systemBars.bottom)
-            
-            insets
+        ViewCompat.setOnApplyWindowInsetsListener(popupContainer) { view, insets ->
+            val handledTypes =
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout()
+            val systemInsets = insets.getInsets(handledTypes)
+
+            // The popup handles these insets natively. Zero only those values
+            // before they reach its WebView to avoid applying them twice.
+            view.setPadding(
+                systemInsets.left,
+                systemInsets.top,
+                systemInsets.right,
+                systemInsets.bottom
+            )
+            WindowInsetsCompat.Builder(insets)
+                .setInsets(handledTypes, Insets.NONE)
+                .build()
         }
 
         // Initialize components
@@ -107,8 +118,6 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupMainWebView() {
-        mainWebView = findViewById(R.id.webview_main)
-
         mainWebView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -118,9 +127,12 @@ class MainActivity : AppCompatActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             cacheMode = WebSettings.LOAD_DEFAULT
             useWideViewPort = true
-            loadWithOverviewMode = true
-            setSupportZoom(true)
-            builtInZoomControls = true
+            // AI Dungeon declares a device-width, fixed-scale viewport. An
+            // overview scale gives Blink another reason to rerun its focused
+            // editable zoom/scroll animation when the IME reports the caret.
+            loadWithOverviewMode = false
+            setSupportZoom(false)
+            builtInZoomControls = false
             displayZoomControls = false
 
             // Enable modern web features
@@ -138,6 +150,7 @@ class MainActivity : AppCompatActivity() {
 
         // Add the JavaScript interface bridge
         mainWebView.addJavascriptInterface(bridge, BetterDungeonBridge.JS_INTERFACE_NAME)
+        injectionEngine.installDocumentStartFix(mainWebView)
 
         mainWebView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
@@ -205,8 +218,6 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupPopupWebView() {
-        popupWebView = findViewById(R.id.webview_popup)
-
         popupWebView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -221,6 +232,7 @@ class MainActivity : AppCompatActivity() {
 
         // Share the same bridge instance
         popupWebView.addJavascriptInterface(bridge, BetterDungeonBridge.JS_INTERFACE_NAME)
+        injectionEngine.installDocumentStartFix(popupWebView)
 
         popupWebView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
@@ -355,6 +367,7 @@ class MainActivity : AppCompatActivity() {
     
     private fun showPopup() {
         popupContainer.visibility = View.VISIBLE
+        ViewCompat.requestApplyInsets(popupContainer)
     }
     
     private fun hidePopup() {
