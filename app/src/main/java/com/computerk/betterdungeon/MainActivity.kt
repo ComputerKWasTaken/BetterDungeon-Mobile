@@ -314,34 +314,46 @@ class MainActivity : AppCompatActivity() {
                 };
 
                 // Override tabs.sendMessage to forward to main WebView via native bridge
+                window.__bdPopupCallbacks = window.__bdPopupCallbacks || Object.create(null);
+                window.__bdPopupRequestCounter = window.__bdPopupRequestCounter || 0;
+                window.__bdResolvePopupMessage = function(requestId, response) {
+                    var pending = window.__bdPopupCallbacks[requestId];
+                    if (!pending) return;
+                    delete window.__bdPopupCallbacks[requestId];
+                    clearTimeout(pending.timeoutId);
+                    if (typeof pending.callback === 'function') {
+                        pending.callback(response);
+                    }
+                    pending.resolve(response);
+                };
+
                 chrome.tabs.sendMessage = function(tabId, message, optionsOrCallback, maybeCallback) {
                     var callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
-                    
+                    var requestId = 'popup-' + Date.now() + '-' + (++window.__bdPopupRequestCounter);
                     var messageJson = JSON.stringify(message);
                     BetterDungeonBridge.log('Popup sending message: ' + message.type);
-                    
+
                     // Return a Promise that resolves when the native bridge
                     // sends the response back from the main WebView.
                     return new Promise(function(resolve) {
-                        window.__bdPopupCallback = function(response) {
-                            if (typeof callback === 'function') {
-                                callback(response);
-                            }
-                            resolve(response);
-                        };
-                        BetterDungeonBridge.forwardToMainWebView(messageJson);
-                        
                         // Timeout fallback: resolve with undefined after 120s
                         // so the popup never hangs indefinitely.
-                        setTimeout(function() {
-                            if (window.__bdPopupCallback) {
-                                window.__bdPopupCallback = null;
+                        var timeoutId = setTimeout(function() {
+                            var pending = window.__bdPopupCallbacks[requestId];
+                            if (pending) {
+                                delete window.__bdPopupCallbacks[requestId];
                                 if (typeof callback === 'function') {
                                     callback(undefined);
                                 }
                                 resolve(undefined);
                             }
                         }, 120000);
+                        window.__bdPopupCallbacks[requestId] = {
+                            callback: callback,
+                            resolve: resolve,
+                            timeoutId: timeoutId
+                        };
+                        BetterDungeonBridge.forwardToMainWebView(messageJson, requestId);
                     });
                 };
                 
@@ -349,7 +361,8 @@ class MainActivity : AppCompatActivity() {
                 window.close = function() {
                     BetterDungeonBridge.closePopup();
                 };
-                
+
+                window.dispatchEvent(new CustomEvent('betterdungeon:popup-bridge-ready'));
                 console.log('[BetterDungeon] Popup bridge injected');
             })();
         """.trimIndent()

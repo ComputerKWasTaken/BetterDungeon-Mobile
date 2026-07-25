@@ -824,7 +824,7 @@
 
   // Cross-WebView dispatch: sendResponse routes back through the native bridge
   // instead of setting a global. Handles both sync and async message handlers.
-  window.__bdDispatchMessageFromPopup = function (message) {
+  window.__bdDispatchMessageFromPopup = function (message, requestId) {
     var sender = { id: 'betterdungeon-popup' };
 
     for (var i = 0; i < messageListeners.length; i++) {
@@ -836,7 +836,8 @@
               called = true;
               try {
                 window.BetterDungeonBridge.sendResponseToPopup(
-                  JSON.stringify(response)
+                  JSON.stringify(response),
+                  requestId
                 );
               } catch (e) {
                 console.error('[WebView Polyfill] Failed to send response to popup:', e);

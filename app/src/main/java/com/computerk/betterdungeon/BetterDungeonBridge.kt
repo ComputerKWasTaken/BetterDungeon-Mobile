@@ -9,6 +9,7 @@ import android.os.Looper
 import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import org.json.JSONObject
 
 /**
  * JavaScript interface bridge exposed to the WebView as `BetterDungeonBridge`.
@@ -112,14 +113,15 @@ class BetterDungeonBridge(private val context: Context) {
      * content scripts. The message is dispatched through the event bus.
      */
     @JavascriptInterface
-    fun forwardToMainWebView(messageJson: String) {
+    fun forwardToMainWebView(messageJson: String, requestId: String) {
+        val encodedRequestId = JSONObject.quote(requestId)
         mainHandler.post {
             mainWebView?.evaluateJavascript(
                 """
                 (function() {
                     var message = $messageJson;
                     if (window.__bdDispatchMessageFromPopup) {
-                        window.__bdDispatchMessageFromPopup(message);
+                        window.__bdDispatchMessageFromPopup(message, $encodedRequestId);
                     } else if (window.__bdDispatchMessage) {
                         window.__bdDispatchMessage(message, { id: 'betterdungeon-popup' });
                     }
@@ -134,15 +136,15 @@ class BetterDungeonBridge(private val context: Context) {
      * Called from the main WebView to send a response back to the popup.
      */
     @JavascriptInterface
-    fun sendResponseToPopup(responseJson: String) {
+    fun sendResponseToPopup(responseJson: String, requestId: String) {
+        val encodedRequestId = JSONObject.quote(requestId)
         mainHandler.post {
             popupWebView?.evaluateJavascript(
                 """
                 (function() {
-                    if (window.__bdPopupCallback) {
+                    if (window.__bdResolvePopupMessage) {
                         var response = $responseJson;
-                        window.__bdPopupCallback(response);
-                        window.__bdPopupCallback = null;
+                        window.__bdResolvePopupMessage($encodedRequestId, response);
                     }
                 })();
                 """.trimIndent(),
