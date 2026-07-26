@@ -24,6 +24,20 @@ test('mobile settings expose only the streamlined Custom Dynamic controls', () =
   assert.doesNotMatch(router, /applyDomSwitch|adapter-learned|generationUrlPatterns|modelPaths/);
 });
 
+test('mobile packages the Better Dynamic routed-model indicator', () => {
+  const feature = readAsset(path.join('features', 'custom_dynamic_feature.js'));
+  const router = readAsset(path.join('services', 'custom-dynamic-router.js'));
+  const polyfill = readAsset(path.join('utils', 'webview-polyfill.js'));
+  const logoPath = path.join(assetsRoot, 'icons', 'better-dynamic-logo.png');
+
+  assert.ok(fs.statSync(logoPath).size > 0);
+  assert.match(feature, /indicatorLogoUrl:\s*this\.getExtensionAssetUrl\('icons\/better-dynamic-logo\.png'\)/);
+  assert.match(router, /data-bd-custom-dynamic-model-image/);
+  assert.match(router, /Last routed:/);
+  assert.match(router, /\^data:image\\\//);
+  assert.match(polyfill, /getAssetDataUri/);
+});
+
 test('model discovery preserves server family identity and strips legacy state', () => {
   const sandbox = { window: {}, console, setTimeout, clearTimeout };
   vm.createContext(sandbox);
@@ -232,6 +246,7 @@ test('router keeps weighted cadence, switches exact versions, and fails open', a
     Request,
     URL,
     URLSearchParams,
+    queueMicrotask,
     setTimeout,
     clearTimeout,
     structuredClone
@@ -247,7 +262,11 @@ test('router keeps weighted cadence, switches exact versions, and fails open', a
         namespace: 'betterdungeon-custom-dynamic-v1',
         direction: 'extension-to-page',
         type: 'state',
-        payload: { config, runtime }
+        payload: {
+          config,
+          runtime,
+          indicatorLogoUrl: 'data:image/png;base64,AA=='
+        }
       }
     });
   };
