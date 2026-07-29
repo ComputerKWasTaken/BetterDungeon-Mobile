@@ -105,9 +105,9 @@ class MainActivity : AppCompatActivity() {
             togglePopup()
         }
 
-        // Load AI Dungeon
-        mainWebView.loadUrl(AI_DUNGEON_URL)
-        Log.i(TAG, "Loading AI Dungeon...")
+        // Preserve the full path, query, and fragment when launched from an
+        // AI Dungeon link. Normal launcher starts still open the homepage.
+        loadAiDungeonUrl(intent.data ?: Uri.parse(AI_DUNGEON_URL))
     }
 
     override fun onDestroy() {
@@ -115,6 +115,29 @@ class MainActivity : AppCompatActivity() {
         mainWebView.destroy()
         popupWebView.destroy()
         super.onDestroy()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.data?.let(::loadAiDungeonUrl)
+    }
+
+    private fun loadAiDungeonUrl(uri: Uri) {
+        val url = if (isAiDungeonUri(uri)) uri.toString() else AI_DUNGEON_URL
+        mainWebView.loadUrl(url)
+        Log.i(TAG, "Loading AI Dungeon: $url")
+    }
+
+    private fun isAiDungeonUri(uri: Uri): Boolean {
+        if (uri.scheme?.lowercase() !in setOf("http", "https")) return false
+
+        val host = uri.host?.lowercase() ?: return false
+        return host in setOf(
+            "play.aidungeon.com",
+            "beta.aidungeon.com",
+            "alpha.aidungeon.com"
+        )
     }
 
     // ── Main WebView ──────────────────────────────────────────────────
@@ -159,7 +182,7 @@ class MainActivity : AppCompatActivity() {
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 Log.d(TAG, "Page started loading: $url")
-                if (url.contains("aidungeon.com")) {
+                if (isAiDungeonUri(Uri.parse(url))) {
                     injectionEngine.injectEarly(view)
                 }
             }
@@ -169,7 +192,7 @@ class MainActivity : AppCompatActivity() {
                 Log.d(TAG, "Page loaded: $url")
 
                 // Only inject on AI Dungeon pages
-                if (url.contains("aidungeon.com")) {
+                if (isAiDungeonUri(Uri.parse(url))) {
                     injectionEngine.inject(view)
                 }
             }
@@ -181,7 +204,7 @@ class MainActivity : AppCompatActivity() {
                 val url = request.url.toString()
 
                 // Keep AI Dungeon navigation inside the WebView
-                if (url.contains("aidungeon.com")) {
+                if (isAiDungeonUri(request.url)) {
                     return false
                 }
 
