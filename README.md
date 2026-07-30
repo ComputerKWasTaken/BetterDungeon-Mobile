@@ -6,7 +6,7 @@
 
 The Android WebView port of BetterDungeon for AI Dungeon, bringing the features that make sense on a touch screen together with a few mobile-specific improvements.
 
-[![Version](https://img.shields.io/badge/version-2.0.0-7c3aed?style=for-the-badge)](app/build.gradle.kts)
+[![Version](https://img.shields.io/badge/version-2.0.2-7c3aed?style=for-the-badge)](app/build.gradle.kts)
 [![Android](https://img.shields.io/badge/Android-API_27%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/)
 [![License](https://img.shields.io/github/license/ComputerKWasTaken/BetterDungeon?style=for-the-badge)](https://github.com/ComputerKWasTaken/BetterDungeon/blob/main/LICENSE)
 
@@ -28,7 +28,15 @@ Hey everyone, it's computerK here. BetterDungeon Mobile is the Android side of t
 
 The goal is not to force every desktop feature onto a phone. The goal is to bring the good stuff over, make it feel natural with touch controls, and add the Android bridge work needed to make extension-style features function inside a native app.
 
-The current release is **BetterDungeon V2**, with shared feature parity wherever mobile can support it. Some desktop-only tools, such as Hotkeys and the Story Card Modal Dock, are intentionally not included on mobile.
+The current release is **BetterDungeon Mobile v2.0.2**, with shared feature parity wherever mobile can support it. Some desktop-only tools, such as Hotkeys and the Story Card Modal Dock, are intentionally not included on mobile.
+
+### What's new in v2.0.2
+
+- **Revamped Custom Dynamic** — Supports the latest AI Dungeon models, different versions of the same model, switch frequency from 1–20 turns, streamlined configuration, and an enabled-state replacement icon.
+- **Versioned release history** — The What's New panel now keeps previous release notes available through a version switcher.
+- **Experimental caret jitter fix** — Adds an optional workaround for a WebView caret-following quirk.
+- **AI Dungeon links** — BetterDungeon Mobile can open `play.aidungeon.com`, `beta.aidungeon.com`, and `alpha.aidungeon.com` links.
+- **Mobile login guidance** — Adds a mobile-specific login warning and removes the Google and Apple login options because they do not function correctly in the WebView.
 
 ## Getting started
 
