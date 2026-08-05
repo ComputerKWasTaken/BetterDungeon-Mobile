@@ -37,6 +37,7 @@
     'webfetch',
     'clock',
     'sdk',
+    'audio',
     'weather',
     'network',
     'system',

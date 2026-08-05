@@ -56,6 +56,7 @@ class InjectionEngine(private val context: Context) {
             "modules/network/module.js",
             "modules/system/module.js",
             "modules/sdk/module.js",
+            "modules/audio/module.js",
             "modules/ai/executor.js",
             "modules/ai/gemini-backend.js",
             "modules/ai/module.js",
