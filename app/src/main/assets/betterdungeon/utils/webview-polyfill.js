@@ -246,13 +246,14 @@
   var GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
   var WEBFETCH_MESSAGE = 'ULTRASCRIPTS_WEBFETCH_FETCH';
   var SDK_MESSAGE = 'ULTRASCRIPTS_SDK_REQUEST';
-  var GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-lite';
+  var GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
   var GEMINI_DEFAULT_MODEL_MODE = 'auto';
   var GEMINI_DEFAULT_TIMEOUT_MS = 120000;
   var GEMINI_PROMPT_MAX_CHARS = 12000;
   var GEMINI_THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
   var GEMINI_OUTPUT_TYPES = ['text', 'json'];
   var GEMINI_AUTO_STEPDOWN_MODELS = [
+    'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
     'gemma-4-31b-it',
     'gemma-4-26b-a4b-it'
@@ -293,9 +294,12 @@
         message: typeof error.message === 'string' ? error.message : String(error),
         retryable: error.retryable === true,
         status: error.status,
+        statusText: error.statusText,
+        retryAfterMs: error.retryAfterMs,
         detail: error.detail,
         backend: error.backend,
-        model: error.model
+        model: error.model,
+        providerReason: error.providerReason
       };
     }
     return { code: 'mobile_runtime_failed', message: String(error || 'Mobile runtime request failed') };
@@ -364,6 +368,10 @@
       supports: { text: true, json: true, thinking: true },
       config: {
         provider: 'gemini',
+        api: 'interactions',
+        apiVersion: 'v1',
+        stateless: true,
+        adjustableSafety: 'provider-default',
         keyConfigured: ready,
         modelMode: normalizeGeminiModelMode(settings && settings.modelMode),
         model: selectedModel,
@@ -425,34 +433,147 @@
     };
   }
 
-  function geminiPayload(task) {
-    var generationConfig = {};
-    if (task.output.type === 'json') {
-      generationConfig.responseMimeType = 'application/json';
-      generationConfig.responseJsonSchema = task.output.schema;
-    }
-    var payload = { contents: [{ role: 'user', parts: [{ text: task.prompt }] }] };
-    if (Object.keys(generationConfig).length) payload.generationConfig = generationConfig;
-    return payload;
+  function geminiThinkingFamily(model) {
+    var id = String(model || '').trim().toLowerCase().replace(/^models\//, '');
+    if (/^gemini-3\.1-pro(?:[.-]|$)/.test(id)) return 'gemini-3-pro';
+    if (/^gemini-3(?:[.-]|$)/.test(id)) return 'gemini-3';
+    if (/^gemini-2\.5(?:[.-]|$)/.test(id)) return 'gemini-2.5';
+    if (/^gemma-4(?:[.-]|$)/.test(id)) return 'gemma-4';
+    return 'unknown';
   }
 
-  function extractGeminiText(data) {
-    var candidates = Array.isArray(data && data.candidates) ? data.candidates : [];
-    if (!candidates.length) {
-      var blockReason = data && data.promptFeedback && data.promptFeedback.blockReason;
-      throw {
-        code: blockReason ? 'blocked' : 'invalid_response',
-        message: blockReason ? 'Gemini blocked the prompt: ' + blockReason : 'Gemini returned no candidates.',
-        backend: 'gemini'
+  function geminiThinkingConfigForModel(model, thinking) {
+    var level = normalizeGeminiThinking(thinking).level;
+    var family = geminiThinkingFamily(model);
+    if (family === 'gemini-3' || family === 'gemini-3-pro') {
+      var appliedLevel = family === 'gemini-3-pro' && level === 'minimal' ? 'low' : level;
+      return {
+        config: { thinking_level: appliedLevel },
+        appliedLevel: appliedLevel,
+        appliedBudget: null,
+        family: family
       };
     }
-    var parts = Array.isArray(candidates[0] && candidates[0].content && candidates[0].content.parts)
-      ? candidates[0].content.parts
-      : [];
-    var text = parts.map(function (part) {
-      return !part.thought && typeof part.text === 'string' ? part.text : '';
+    if (family === 'gemini-2.5') {
+      var appliedLevel25 = level === 'minimal' ? 'low' : level;
+      return {
+        config: { thinking_level: appliedLevel25 },
+        appliedLevel: appliedLevel25,
+        appliedBudget: null,
+        family: family
+      };
+    }
+    if (family === 'gemma-4' && level !== 'minimal') {
+      return {
+        config: { thinking_level: 'high' },
+        appliedLevel: 'high',
+        appliedBudget: null,
+        family: family,
+        toggle: true
+      };
+    }
+    return { config: null, appliedLevel: null, appliedBudget: null, family: family };
+  }
+
+  function geminiThinkingMeta(task, model, thinking) {
+    var requestedLevel = normalizeGeminiThinking(task.thinking).level;
+    var meta = {
+      requestedLevel: requestedLevel,
+      applied: !!(thinking && thinking.config),
+      family: (thinking && thinking.family) || geminiThinkingFamily(model),
+      defaulted: requestedLevel === 'minimal'
+    };
+    if (thinking && thinking.appliedLevel) meta.appliedLevel = thinking.appliedLevel;
+    if (thinking && Number.isFinite(thinking.appliedBudget)) meta.appliedBudget = thinking.appliedBudget;
+    if (thinking && thinking.toggle) meta.toggle = true;
+    return meta;
+  }
+
+  function geminiPayload(task, model) {
+    var payload = {
+      model: model,
+      input: task.prompt,
+      store: false
+    };
+    if (task.output.type === 'json') {
+      payload.response_format = {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: task.output.schema
+      };
+    }
+    var thinking = geminiThinkingConfigForModel(model, task.thinking);
+    if (thinking.config) payload.generation_config = thinking.config;
+    return { payload: payload, thinking: thinking };
+  }
+
+  function geminiProviderReason(value) {
+    var candidates = [];
+    function collect(candidate) {
+      if (typeof candidate === 'string' && candidate.trim()) candidates.push(candidate.trim());
+    }
+    collect(value && value.error && value.error.code);
+    collect(value && value.error && value.error.status);
+    collect(value && value.error && value.error.message);
+    collect(value && value.blockReason);
+    collect(value && value.block_reason);
+    collect(value && value.finishReason);
+    collect(value && value.finish_reason);
+    collect(value && value.incomplete_details && value.incomplete_details.reason);
+    collect(value && value.status);
+    var steps = Array.isArray(value && value.steps) ? value.steps : [];
+    steps.forEach(function (step) {
+      collect(step && step.error && step.error.code);
+      collect(step && step.error && step.error.message);
+      collect(step && step.block_reason);
+      collect(step && step.finish_reason);
+      collect(step && step.status);
+    });
+    var joined = candidates.join(' | ');
+    if (/PROHIBITED_CONTENT/i.test(joined)) return 'PROHIBITED_CONTENT';
+    if (/(^|\W)SAFETY($|\W)|SAFETY_FILTER|CONTENT_FILTER/i.test(joined)) return 'SAFETY';
+    return candidates[0] || null;
+  }
+
+  function geminiBlockedError(reason, detail, model) {
+    var prohibited = reason === 'PROHIBITED_CONTENT';
+    return {
+      code: prohibited ? 'prohibited_content' : 'safety_blocked',
+      message: prohibited
+        ? 'Gemini rejected the request under a non-adjustable content policy.'
+        : 'Gemini blocked the request with an adjustable safety filter.',
+      retryable: false,
+      backend: 'gemini',
+      providerReason: reason,
+      detail: detail || reason,
+      model: model
+    };
+  }
+
+  function extractGeminiText(data, model) {
+    var steps = Array.isArray(data && data.steps) ? data.steps : [];
+    var outputSteps = steps.filter(function (step) { return step && step.type === 'model_output'; });
+    var lastOutput = outputSteps.length ? outputSteps[outputSteps.length - 1] : null;
+    var content = Array.isArray(lastOutput && lastOutput.content) ? lastOutput.content : [];
+    var text = content.map(function (part) {
+      return part && part.type === 'text' && typeof part.text === 'string' ? part.text : '';
     }).filter(Boolean).join('');
-    if (!text) throw { code: 'invalid_response', message: 'Gemini returned no text output.', backend: 'gemini' };
+    if (!text) {
+      var providerReason = geminiProviderReason(data);
+      if (providerReason === 'PROHIBITED_CONTENT' || providerReason === 'SAFETY') {
+        throw geminiBlockedError(providerReason, data && data.error && data.error.message, model);
+      }
+      throw {
+        code: 'invalid_response',
+        message: providerReason
+          ? 'Gemini returned no text output (' + providerReason + ').'
+          : 'Gemini returned no model output text.',
+        retryable: false,
+        backend: 'gemini',
+        providerReason: providerReason,
+        model: model
+      };
+    }
     return text;
   }
 
@@ -460,6 +581,13 @@
     var parsed = null;
     try { parsed = JSON.parse(bodyText || '{}'); } catch (e) { parsed = null; }
     var providerMessage = (parsed && parsed.error && parsed.error.message) || response.statusText || 'HTTP ' + response.status;
+    var providerReason = geminiProviderReason(parsed);
+    if (providerReason === 'PROHIBITED_CONTENT' || providerReason === 'SAFETY') {
+      var blocked = geminiBlockedError(providerReason, providerMessage);
+      blocked.status = response.status;
+      blocked.statusText = response.statusText;
+      return blocked;
+    }
     if (response.status === 401 || response.status === 403) {
       return { code: 'auth_failed', message: 'Gemini API key was rejected.', status: response.status, detail: providerMessage, backend: 'gemini' };
     }
@@ -472,7 +600,7 @@
     return { code: 'backend_failed', message: providerMessage, retryable: response.status >= 500, status: response.status, backend: 'gemini' };
   }
 
-  async function callGeminiGenerateContent(settings, task) {
+  async function callGeminiInteraction(settings, task) {
     if (!settings.keyConfigured) {
       throw { code: 'not_configured', message: 'No Gemini API key is configured.', backend: 'gemini' };
     }
@@ -480,16 +608,17 @@
     var lastError = null;
     for (var i = 0; i < models.length; i++) {
       var model = models[i];
+      var payloadInfo = geminiPayload(task, model);
       var controller = new AbortController();
       var timer = setTimeout(function () { controller.abort(); }, GEMINI_DEFAULT_TIMEOUT_MS);
       try {
-        var response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+        var response = await fetch('https://generativelanguage.googleapis.com/v1/interactions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-goog-api-key': settings.apiKey
           },
-          body: JSON.stringify(geminiPayload(task)),
+          body: JSON.stringify(payloadInfo.payload),
           credentials: 'omit',
           cache: 'no-store',
           signal: controller.signal
@@ -504,21 +633,29 @@
           }
           throw httpError;
         }
-        var data = JSON.parse(bodyText || '{}');
-        var text = extractGeminiText(data);
+        var data = null;
+        try {
+          data = JSON.parse(bodyText || '{}');
+        } catch (parseError) {
+          throw {
+            code: 'invalid_response',
+            message: 'Gemini returned invalid JSON.',
+            retryable: false,
+            backend: 'gemini',
+            detail: (parseError && parseError.message) || 'invalid_json',
+            model: model
+          };
+        }
+        var text = extractGeminiText(data, model);
         var result = {
           backend: 'gemini',
           generatedAtIso: new Date().toISOString(),
           model: model,
-          providerModel: data.modelVersion || model,
-          usage: data.usageMetadata || null,
+          providerModel: data.model || model,
+          interactionId: typeof data.id === 'string' ? data.id : null,
+          usage: data.usage || null,
           status: geminiStatus(settings, model),
-          thinking: {
-            requestedLevel: task.thinking.level,
-            applied: false,
-            family: 'unknown',
-            defaulted: task.thinking.level === 'minimal'
-          },
+          thinking: geminiThinkingMeta(task, model, payloadInfo.thinking),
           fallback: {
             mode: settings.modelMode || GEMINI_DEFAULT_MODEL_MODE,
             attemptedModels: models.slice(0, i + 1)
@@ -530,7 +667,20 @@
         geminiRuntimeState.lastResolvedAtIso = result.generatedAtIso;
         geminiRuntimeState.lastFallbackMode = result.fallback.mode;
         geminiRuntimeState.lastAttemptedModels = result.fallback.attemptedModels.slice();
-        if (task.output.type === 'json') result.json = JSON.parse(text);
+        if (task.output.type === 'json') {
+          try {
+            result.json = JSON.parse(text);
+          } catch (jsonError) {
+            throw {
+              code: 'invalid_response',
+              message: 'Gemini returned invalid JSON text.',
+              retryable: false,
+              backend: 'gemini',
+              detail: (jsonError && jsonError.message) || 'invalid_json',
+              model: model
+            };
+          }
+        }
         return result;
       } catch (err) {
         if (err && err.name === 'AbortError') {
@@ -564,13 +714,13 @@
     var settings = await getGeminiSettings();
     if (op === 'status') return geminiStatus(settings);
     if (op === 'test') {
-      return callGeminiGenerateContent(settings, normalizeGeminiTask({
+      return callGeminiInteraction(settings, normalizeGeminiTask({
         id: 'popup-test',
         prompt: 'Reply with exactly: BetterDungeon Gemini ready',
         output: { type: 'text' }
       }));
     }
-    if (op === 'query') return callGeminiGenerateContent(settings, normalizeGeminiTask(request.task));
+    if (op === 'query') return callGeminiInteraction(settings, normalizeGeminiTask(request.task));
     throw { code: 'invalid_args', message: "Gemini op '" + (op || '(empty)') + "' is not supported" };
   }
 
