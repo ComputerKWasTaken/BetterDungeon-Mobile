@@ -104,7 +104,7 @@ Ultrascripts is BetterDungeon's extension-to-script communication system. Mobile
 | --- | --- |
 | `ai` | Gemini-backed status and query operations |
 | `widget` | Interactive script-rendered UI widgets |
-| `webfetch` | Consent-gated HTTP fetch and search support |
+| `webfetch` | Bounded, credential-free reads of public HTTPS resources |
 | `clock` | Local time, timezone, and formatting helpers |
 | `weather` | Current weather and forecast data |
 | `network` | Online and connection-quality hints |
@@ -127,7 +127,7 @@ This lets the mobile build share a large portion of BetterDungeon's feature code
 BetterDungeon Mobile:
 
 - Loads AI Dungeon in a WebView and needs Internet access for AI Dungeon and enabled network features.
-- Stores settings, presets, notes, WebFetch consent decisions, and Gemini API keys locally on the device.
+- Stores settings, presets, notes, and Gemini API keys locally on the device.
 - Does not expose Gemini API keys through the Ultrascripts SDK/config surface.
 - Opens non-AI-Dungeon links in the system browser.
 - Disables Android app-data backup for release builds so local secrets and settings are not copied through cloud backup or device transfer by default.

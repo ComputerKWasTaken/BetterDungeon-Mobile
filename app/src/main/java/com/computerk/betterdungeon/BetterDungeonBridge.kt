@@ -29,6 +29,7 @@ class BetterDungeonBridge(private val context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val webFetchClient = WebFetchClient()
 
     // References set by MainActivity after initialization
     var mainWebView: WebView? = null
@@ -187,6 +188,21 @@ class BetterDungeonBridge(private val context: Context) {
     }
 
     // ── Asset Access ─────────────────────────────────────────────────
+
+    /** Execute a bounded WebFetch request off the UI thread and return it to the main WebView. */
+    @JavascriptInterface
+    fun webFetch(requestJson: String, requestId: String) {
+        webFetchClient.execute(requestJson) { responseJson ->
+            val encodedRequestId = JSONObject.quote(requestId)
+            val encodedResponse = JSONObject.quote(responseJson)
+            mainHandler.post {
+                mainWebView?.evaluateJavascript(
+                    "window.__bdResolveNativeWebFetch?.($encodedRequestId, $encodedResponse);",
+                    null
+                )
+            }
+        }
+    }
 
     /**
      * Read an asset file from the betterdungeon directory and return it as a

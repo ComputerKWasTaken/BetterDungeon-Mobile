@@ -49,7 +49,6 @@ class InjectionEngine(private val context: Context) {
             "services/ultrascripts/core.js",
             "services/ultrascripts/module-registry.js",
             "services/ultrascripts/ops-dispatcher.js",
-            "modules/webfetch/consent.js",
             "modules/webfetch/module.js",
             "modules/clock/module.js",
             "modules/weather/module.js",

@@ -265,9 +265,10 @@
   var SDK_SYNC_STORAGE_KEYS = {
     features: 'betterDungeonFeatures',
     moduleStates: 'ultrascripts_enabled_modules',
-    webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
     debug: 'ultrascripts_debug'
   };
+  var nativeWebFetchSequence = 0;
+  var nativeWebFetchPending = {};
   var geminiRuntimeState = {
     lastResolvedModel: null,
     lastProviderModel: null,
@@ -573,54 +574,47 @@
     throw { code: 'invalid_args', message: "Gemini op '" + (op || '(empty)') + "' is not supported" };
   }
 
-  async function handleWebFetch(request) {
-    request = request || {};
-    var url = String(request.url || '').trim();
-    if (!/^https?:\/\//i.test(url)) throw { code: 'invalid_url', message: 'WebFetch requires an http or https URL.' };
-    var method = String(request.method || 'GET').toUpperCase();
-    if (['GET', 'HEAD', 'OPTIONS'].indexOf(method) === -1) {
-      throw { code: 'method_not_allowed', message: 'WebFetch supports GET, HEAD, and OPTIONS only.' };
-    }
-    var timeoutMs = Math.max(1000, Math.min(Number(request.timeoutMs || 15000), 30000));
-    var maxBodyBytes = Math.max(0, Math.min(Number(request.maxBodyBytes || 50000), 200000));
-    var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+  window.__bdResolveNativeWebFetch = function (requestId, response) {
+    var pending = nativeWebFetchPending[String(requestId || '')];
+    if (!pending) return;
+    delete nativeWebFetchPending[String(requestId || '')];
+    clearTimeout(pending.timer);
+
     try {
-      var response = await fetch(url, {
-        method: method,
-        headers: isObject(request.headers) ? request.headers : undefined,
-        credentials: 'omit',
-        cache: 'no-store',
-        signal: controller.signal
-      });
-      var headers = {};
-      response.headers.forEach(function (value, key) { headers[key] = value; });
-      var body = '';
-      var truncated = false;
-      if (method !== 'HEAD') {
-        body = await response.text();
-        if (body.length > maxBodyBytes) {
-          body = body.slice(0, maxBodyBytes);
-          truncated = true;
-        }
-      }
-      return {
-        url: response.url || url,
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-        headers: headers,
-        bodyEncoding: 'text',
-        body: body,
-        truncated: truncated,
-        request: { method: method, strippedHeaders: [] }
-      };
-    } catch (err) {
-      if (err && err.name === 'AbortError') throw { code: 'timeout', message: 'WebFetch request timed out.', retryable: true };
-      throw { code: 'webfetch_failed', message: (err && err.message) || 'WebFetch failed.', retryable: true };
-    } finally {
-      clearTimeout(timer);
+      var envelope = typeof response === 'string' ? JSON.parse(response) : response;
+      if (envelope && envelope.ok) pending.resolve(envelope.data);
+      else pending.reject((envelope && envelope.error) || { code: 'webfetch_failed', message: 'Native WebFetch failed.' });
+    } catch (error) {
+      pending.reject({ code: 'webfetch_failed', message: 'Native WebFetch returned an invalid response.' });
     }
+  };
+
+  function handleWebFetch(request) {
+    request = request || {};
+    if (!window.BetterDungeonBridge || typeof window.BetterDungeonBridge.webFetch !== 'function') {
+      return Promise.reject({ code: 'webfetch_unavailable', message: 'Native WebFetch bridge is unavailable.' });
+    }
+
+    var requestId = 'webfetch-' + Date.now().toString(36) + '-' + (++nativeWebFetchSequence).toString(36);
+    var requestedTimeoutMs = Number(request.timeoutMs);
+    var timeoutMs = Number.isFinite(requestedTimeoutMs)
+      ? Math.max(1000, Math.min(requestedTimeoutMs, 30000))
+      : 15000;
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () {
+        delete nativeWebFetchPending[requestId];
+        reject({ code: 'timeout', message: 'WebFetch request timed out.' });
+      }, timeoutMs + 1000);
+      nativeWebFetchPending[requestId] = { resolve: resolve, reject: reject, timer: timer };
+
+      try {
+        window.BetterDungeonBridge.webFetch(JSON.stringify(request), requestId);
+      } catch (error) {
+        clearTimeout(timer);
+        delete nativeWebFetchPending[requestId];
+        reject({ code: 'webfetch_unavailable', message: (error && error.message) || 'Native WebFetch bridge failed.' });
+      }
+    });
   }
 
   async function handleSdk(request) {
@@ -632,7 +626,6 @@
     }));
     var features = isObject(sync[SDK_SYNC_STORAGE_KEYS.features]) ? sync[SDK_SYNC_STORAGE_KEYS.features] : {};
     var modules = isObject(sync[SDK_SYNC_STORAGE_KEYS.moduleStates]) ? sync[SDK_SYNC_STORAGE_KEYS.moduleStates] : {};
-    var allowlist = isObject(sync[SDK_SYNC_STORAGE_KEYS.webfetchAllowlist]) ? sync[SDK_SYNC_STORAGE_KEYS.webfetchAllowlist] : {};
     return {
       platform: 'android-webview',
       features: features,
@@ -640,9 +633,6 @@
         enabled: features.ultrascripts !== false,
         debug: sync[SDK_SYNC_STORAGE_KEYS.debug] === true,
         modules: modules
-      },
-      webfetch: {
-        consentOrigins: Object.keys(allowlist).length
       }
     };
   }
