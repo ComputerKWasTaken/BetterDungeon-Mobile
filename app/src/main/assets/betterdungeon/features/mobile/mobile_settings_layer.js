@@ -6,25 +6,8 @@
 
     console.log('[BetterDungeon] Starting Mobile Settings Layer Injection');
 
-    // Home page button: matches the transparent icon-only nav button style used by
-    // Search, Daily Rewards, and Notifications in the Alpha UI top bar.
-    const gearHomeHtml = `
-<div class="bd-mobile-settings is_View _btc-0active-transparent _brc-0active-transparent _bbc-0active-transparent _blc-0active-transparent _pos-relative _fd-column _jc-center _btw-1px _brw-1px _bbw-1px _blw-1px _btc-transparent _brc-transparent _bbc-transparent _blc-transparent _btlr-t-radius-64 _btrr-t-radius-64 _bbrr-t-radius-64 _bblr-t-radius-64 _bbs-solid _bts-solid _bls-solid _brs-solid" style="align-self: center;"><div aria-label="BetterDungeon Settings" role="button" class="is_Button is_View _bg-0hover-transparent _btc-0hover-transparent _brc-0hover-transparent _bbc-0hover-transparent _blc-0hover-transparent _bxsh-0hover-0px0px0pxrg933189164 _bg-0active-transparent _btc-0active-transparent _brc-0active-transparent _bbc-0active-transparent _blc-0active-transparent _bxsh-0active-0px0px0pxrg933189164 _bg-0focus-transparent _btc-0focus-transparent _brc-0focus-transparent _bbc-0focus-transparent _blc-0focus-transparent _bxsh-0focus-0px0px0pxrg933189164 _cur-pointer _ussel-none _pos-relative _jc-center _ai-center _h-42px _btlr-t-radius-10 _btrr-t-radius-10 _bbrr-t-radius-10 _bblr-t-radius-10 _pr-t-space-0 _pl-t-space-0 _fd-row _bg-transparent _btc-borderColor _brc-borderColor _bbc-borderColor _blc-borderColor _btw-1px _brw-1px _bbw-1px _blw-1px _gap-t-space-1 _outlineColor-coreA0 _pt-t-space-0 _pb-t-space-0 _w-45px _mah-t-size-5 _maw-t-size-5 _ox-hidden _oy-hidden _bbs-solid _bts-solid _bls-solid _brs-solid _bxsh-0px0px0pxva26674076"><div aria-hidden="true" class="is_View _pos-relative _fd-column _ai-center _jc-center">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="url(#bd-gradient-cog-home)" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bd-gradient-cog-home" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="var(--bd-accent-primary)" />
-      <stop offset="100%" stop-color="var(--bd-accent-secondary)" />
-    </linearGradient>
-  </defs>
-  <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-</svg>
-</div></div></div>
-    `;
-
-    const gearAdventureHtml = `
-<span class="bd-mobile-settings t_sub_theme t_gameplayTopButton is_Theme" style="color: var(--color); display: contents;"><div id="bd-game-settings-button" aria-label="BetterDungeon Settings" role="button" style="background-color: rgba(0,0,0,1) !important;" class="is_Button is_View _bg-0hover-backgroundH3423444 _btc-0hover-borderColor69916956 _brc-0hover-borderColor69916956 _bbc-0hover-borderColor69916956 _blc-0hover-borderColor69916956 _bxsh-0hover-0px0px0pxva926910726 _bg-0active-backgroundP3496915 _btc-0active-borderColor77378595 _brc-0active-borderColor77378595 _bbc-0active-borderColor77378595 _blc-0active-borderColor77378595 _bxsh-0active-0px0px0pxva695599917 _bg-0focus-backgroundF3405682 _btc-0focus-borderColor68052152 _brc-0focus-borderColor68052152 _bbc-0focus-borderColor68052152 _blc-0focus-borderColor68052152 _bxsh-0focus-0px0px0pxva984719650 _cur-pointer _ussel-none _ox-visible _oy-visible _pos-relative _jc-center _ai-center _h-t-size-5 _btlr-t-radius-10 _btrr-t-radius-10 _bbrr-t-radius-10 _bblr-t-radius-10 _pr-t-space-0 _pl-t-space-0 _fd-row _bg-blackA7 _btc-borderColor _brc-borderColor _bbc-borderColor _blc-borderColor _btw-1px _brw-1px _bbw-1px _blw-1px _gap-t-space-1 _outlineColor-coreA0 _pt-t-space-0 _pb-t-space-0 _w-t-size-5 _mah-t-size-5 _maw-t-size-5 _bbs-solid _bts-solid _bls-solid _brs-solid _bxsh-0px0px0pxva26674076"><div class="is_View _pos-relative _fd-column _t-2--6537 _l-0px _ai-center _jc-center">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="url(#bd-gradient-cog)" xmlns="http://www.w3.org/2000/svg">
+    const settingsCogSvg = `
+<svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="url(#bd-gradient-cog)" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bd-gradient-cog" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="var(--bd-accent-primary)" />
@@ -33,8 +16,33 @@
   </defs>
   <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
 </svg>
+    `;
+
+    const gearAdventureHtml = `
+<span class="bd-mobile-settings t_sub_theme t_gameplayTopButton is_Theme" style="color: var(--color); display: contents;"><div id="bd-game-settings-button" aria-label="BetterDungeon Settings" role="button" style="background-color: rgba(0,0,0,1) !important;" class="is_Button is_View _bg-0hover-backgroundH3423444 _btc-0hover-borderColor69916956 _brc-0hover-borderColor69916956 _bbc-0hover-borderColor69916956 _blc-0hover-borderColor69916956 _bxsh-0hover-0px0px0pxva926910726 _bg-0active-backgroundP3496915 _btc-0active-borderColor77378595 _brc-0active-borderColor77378595 _bbc-0active-borderColor77378595 _blc-0active-borderColor77378595 _bxsh-0active-0px0px0pxva695599917 _bg-0focus-backgroundF3405682 _btc-0focus-borderColor68052152 _brc-0focus-borderColor68052152 _bbc-0focus-borderColor68052152 _blc-0focus-borderColor68052152 _bxsh-0focus-0px0px0pxva984719650 _cur-pointer _ussel-none _ox-visible _oy-visible _pos-relative _jc-center _ai-center _h-t-size-5 _btlr-t-radius-10 _btrr-t-radius-10 _bbrr-t-radius-10 _bblr-t-radius-10 _pr-t-space-0 _pl-t-space-0 _fd-row _bg-blackA7 _btc-borderColor _brc-borderColor _bbc-borderColor _blc-borderColor _btw-1px _brw-1px _bbw-1px _blw-1px _gap-t-space-1 _outlineColor-coreA0 _pt-t-space-0 _pb-t-space-0 _w-t-size-5 _mah-t-size-5 _maw-t-size-5 _bbs-solid _bts-solid _bls-solid _brs-solid _bxsh-0px0px0pxva26674076"><div class="is_View _pos-relative _fd-column _t-2--6537 _l-0px _ai-center _jc-center">
+${settingsCogSvg}
 </div></div></span>
     `;
+
+    // Clone the current home-header action so the injected control inherits AI
+    // Dungeon's live 44px pill styling instead of relying on hashed class names.
+    function createHomeSettingsButton(sourceWrapper) {
+        const wrapper = sourceWrapper.cloneNode(true);
+        const button = wrapper.querySelector('button');
+        const icon = wrapper.querySelector('.font_icons');
+        if (!button || !icon) return null;
+
+        wrapper.classList.add('bd-mobile-settings');
+        button.setAttribute('aria-label', 'BetterDungeon Settings');
+        button.setAttribute('title', 'BetterDungeon Settings');
+        button.removeAttribute('aria-haspopup');
+        button.removeAttribute('aria-expanded');
+        button.removeAttribute('data-state');
+        button.removeAttribute('data-slot');
+        icon.outerHTML = settingsCogSvg.trim();
+        button.addEventListener('click', onSettingsClick);
+        return wrapper;
+    }
 
     function onSettingsClick(e) {
         if (e) { e.preventDefault(); e.stopPropagation(); }
@@ -46,22 +54,16 @@
         }
     }
     function injectSettingsButtons() {
-        // 1. Home Page Target — right side of the top bar, before the rightmost nav button.
-        //    When logged in the right slot holds "Notifications"; when logged out it holds
-        //    "Sign in". We try both so the gear appears regardless of auth state.
-        const anchorEl = (
-            document.querySelector('div[aria-label="Notifications"]') ??
-            document.querySelector('div[aria-label="Sign in"]')
+        // 1. Home Page Target — beside Social in the new Primary header action group.
+        const socialButton = document.querySelector(
+            '[aria-label="Primary header"][role="navigation"] button[aria-label="Social"]'
         );
-        if (anchorEl) {
-            const buttonWrapper = anchorEl.parentElement;
-            const parentRow = buttonWrapper?.parentElement;
-            if (parentRow && !parentRow.querySelector('.bd-mobile-settings')) {
-                const template = document.createElement('template');
-                template.innerHTML = gearHomeHtml.trim();
-                const node = template.content.firstChild;
-                node.addEventListener('click', onSettingsClick);
-                parentRow.insertBefore(node, buttonWrapper);
+        if (socialButton) {
+            const socialWrapper = socialButton.parentElement;
+            const actionGroup = socialWrapper?.parentElement;
+            if (actionGroup && !actionGroup.querySelector('.bd-mobile-settings')) {
+                const node = createHomeSettingsButton(socialWrapper);
+                if (node) actionGroup.insertBefore(node, socialWrapper);
             }
         }
 

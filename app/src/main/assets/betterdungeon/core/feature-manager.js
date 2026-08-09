@@ -57,6 +57,10 @@ class FeatureManager {
       this.featureClasses.set('characterPreset', CharacterPresetFeature);
     }
 
+    if (typeof NavigatorFeature !== 'undefined') {
+      this.featureClasses.set('navigator', NavigatorFeature);
+    }
+
     if (typeof AutoSeeFeature !== 'undefined') {
       this.featureClasses.set('autoSee', AutoSeeFeature);
     }

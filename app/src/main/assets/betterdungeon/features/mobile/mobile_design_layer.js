@@ -1,8 +1,7 @@
 // ═══ mobile_design_layer.js ═══
 // Mobile-specific UI enhancements for the input mode switcher menu.
 // Converts the input mode menu from a static element to a scrollable
-// container when Command or Try mode is enabled (since those modes
-// inject extra buttons that overflow on narrow screens).
+// container whenever the expanded mode list overflows on narrow screens.
 // Also injects a gradient fade affordance so the player knows the
 // menu is scrollable.
 
@@ -10,13 +9,15 @@
   'use strict';
 
   const STYLE_ID = 'bd-mobile-mode-menu-styles';
-  const GRADIENT_ID = 'bd-mode-menu-gradient';
+  const GRADIENT_CLASS = 'bd-mode-menu-gradient';
   const TOUCH_DRAG_THRESHOLD = 6;
   const touchBindings = new Map();
+  const gradientBindings = new Map();
 
   function findInputModeMenu() {
     const button = document.querySelector('[aria-label="Set to \'Do\' mode"]') ||
       document.querySelector('[aria-label="Set to \'Story\' mode"]') ||
+      document.querySelector('[aria-label="Set to \'Guide\' mode"]') ||
       document.querySelector('[aria-label="Set to \'Try\' mode"]') ||
       document.querySelector('[aria-label="Set to \'Command\' mode"]');
     return button?.parentElement || null;
@@ -25,8 +26,6 @@
   function markMenu(menu) {
     if (!menu) return null;
     menu.setAttribute('data-bd-mode-menu', 'true');
-    const menuLeft = parseFloat(menu.style.left) || Math.max(8, Math.round(menu.getBoundingClientRect().left || 12));
-    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
     return menu;
   }
 
@@ -41,12 +40,6 @@
          React sets overflow:hidden as an inline style on the container;
          !important overrides it so our scroll behaviour persists. */
       [data-bd-mode-menu] {
-        /* AI Dungeon 2.16.14 changed this to flex: 0 1 0% inline. Give the
-           absolutely-positioned menu an intrinsic width again so its children
-           overflow inside the viewport instead of being clipped by it. */
-        width: max-content !important;
-        max-width: calc(100vw - var(--bd-menu-left, 12px) - 8px) !important;
-        flex: 0 0 auto !important;
         overflow-x: auto !important;
         overflow-y: hidden !important;
         -webkit-overflow-scrolling: touch;
@@ -64,9 +57,28 @@
         -ms-overflow-style: none; /* IE/Edge */
       }
 
-      /* Prevent buttons from shrinking — let the menu scroll instead */
-      [data-bd-mode-menu] > [role="button"] {
-        flex: 0 0 auto !important;
+      /* Sticky overlays remain pinned to the visible edges while the menu's
+         buttons move underneath them. Opacity is updated from scroll state. */
+      [data-bd-mode-menu] > .${GRADIENT_CLASS} {
+        position: sticky;
+        top: 0;
+        align-self: stretch;
+        flex: 0 0 24px;
+        min-width: 24px;
+        pointer-events: none;
+        z-index: 3;
+        opacity: 0;
+        transition: opacity 160ms ease;
+      }
+      [data-bd-mode-menu] > .${GRADIENT_CLASS}--left {
+        left: 0;
+        margin-right: -24px;
+        background: linear-gradient(to right, var(--bd-mode-menu-background, rgb(47, 53, 57)), transparent);
+      }
+      [data-bd-mode-menu] > .${GRADIENT_CLASS}--right {
+        right: 0;
+        margin-left: -24px;
+        background: linear-gradient(to left, var(--bd-mode-menu-background, rgb(47, 53, 57)), transparent);
       }
     `;
     document.head.appendChild(style);
@@ -126,6 +138,11 @@
       state.dragging = false;
     };
 
+    const onTouchCancel = () => {
+      state.tracking = false;
+      state.dragging = false;
+    };
+
     const onClick = (event) => {
       if (Date.now() > state.suppressClickUntil) return;
       state.suppressClickUntil = 0;
@@ -136,14 +153,14 @@
     menu.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
     menu.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
     menu.addEventListener('touchend', onTouchEnd, { capture: true, passive: true });
-    menu.addEventListener('touchcancel', onTouchEnd, { capture: true, passive: true });
+    menu.addEventListener('touchcancel', onTouchCancel, { capture: true, passive: true });
     menu.addEventListener('click', onClick, true);
 
     touchBindings.set(menu, () => {
       menu.removeEventListener('touchstart', onTouchStart, true);
       menu.removeEventListener('touchmove', onTouchMove, true);
       menu.removeEventListener('touchend', onTouchEnd, true);
-      menu.removeEventListener('touchcancel', onTouchEnd, true);
+      menu.removeEventListener('touchcancel', onTouchCancel, true);
       menu.removeEventListener('click', onClick, true);
     });
   }
@@ -159,65 +176,55 @@
     if (el) el.remove();
   }
 
-  /**
-   * Inject a gradient fade element on the right edge of the menu
-   * to hint that more buttons are available via scrolling.
-   */
+  /** Inject edge fades that track whether more content exists in each direction. */
   function injectGradient(menu) {
-    if (!menu) return;
+    if (!menu || gradientBindings.has(menu)) return;
 
-    // Avoid duplicate
-    if (menu.querySelector('#' + GRADIENT_ID)) return;
+    const background = getComputedStyle(menu).backgroundColor;
+    if (background && background !== 'rgba(0, 0, 0, 0)') {
+      menu.style.setProperty('--bd-mode-menu-background', background);
+    }
 
-    // The gradient must sit inside the menu's coordinate space.
-    // The menu is position:absolute from AI Dungeon, so we can use
-    // a sticky-right child that floats at the trailing edge.
-    const gradient = document.createElement('div');
-    gradient.id = GRADIENT_ID;
-    gradient.style.cssText = `
-      position: sticky;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      min-width: 28px;
-      width: 28px;
-      flex-shrink: 0;
-      pointer-events: none;
-      background: linear-gradient(to right, transparent, var(--background, rgba(0,0,0,0.85)) 80%);
-      z-index: 1;
-      margin-left: -28px;
-    `;
-    menu.appendChild(gradient);
+    const leftGradient = document.createElement('div');
+    leftGradient.className = `${GRADIENT_CLASS} ${GRADIENT_CLASS}--left`;
+    leftGradient.setAttribute('aria-hidden', 'true');
+    const rightGradient = document.createElement('div');
+    rightGradient.className = `${GRADIENT_CLASS} ${GRADIENT_CLASS}--right`;
+    rightGradient.setAttribute('aria-hidden', 'true');
+    menu.insertBefore(leftGradient, menu.firstChild);
+    menu.appendChild(rightGradient);
 
-    // Hide the gradient once the user has scrolled to the end
     const updateGradientVisibility = () => {
+      const canScroll = menu.scrollWidth > menu.clientWidth + 2;
+      const atStart = menu.scrollLeft <= 2;
       const atEnd = menu.scrollLeft + menu.clientWidth >= menu.scrollWidth - 2;
-      gradient.style.opacity = atEnd ? '0' : '1';
+      leftGradient.style.opacity = canScroll && !atStart ? '1' : '0';
+      rightGradient.style.opacity = canScroll && !atEnd ? '1' : '0';
     };
-    gradient.style.transition = 'opacity 0.2s ease';
     menu.addEventListener('scroll', updateGradientVisibility, { passive: true });
-    // Run once on inject to set initial state
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(updateGradientVisibility)
+      : null;
+    resizeObserver?.observe(menu);
+    gradientBindings.set(menu, () => {
+      menu.removeEventListener('scroll', updateGradientVisibility);
+      resizeObserver?.disconnect();
+      leftGradient.remove();
+      rightGradient.remove();
+      menu.style.removeProperty('--bd-mode-menu-background');
+    });
     requestAnimationFrame(updateGradientVisibility);
   }
 
   /** Remove gradient elements from the menu. */
   function removeGradient() {
-    document.querySelectorAll('#' + GRADIENT_ID).forEach((el) => el.remove());
+    for (const removeGradientBinding of gradientBindings.values()) removeGradientBinding();
+    gradientBindings.clear();
   }
 
-  /** Check whether either Command or Try is currently enabled. */
+  /** Guide makes the native list overflow too, so every rendered menu qualifies. */
   function shouldBeActive() {
-    const fm = window.betterDungeonInstance?.featureManager;
-    const managerEnabled = !!fm &&
-      (fm.isFeatureEnabled('command') || fm.isFeatureEnabled('try'));
-
-    // mobile_design_layer.js loads before main.js. During startup, the custom
-    // buttons can be injected before window.betterDungeonInstance is visible,
-    // so the DOM is also a reliable source of truth for this short race.
-    const customButtonPresent = !!document.querySelector(
-      '[aria-label="Set to \'Try\' mode"], [aria-label="Set to \'Command\' mode"]'
-    );
-    return managerEnabled || customButtonPresent;
+    return !!(document.querySelector('[data-bd-mode-menu]') || findInputModeMenu());
   }
 
   function activateMenu(menu) {
@@ -231,6 +238,11 @@
       removeListeners();
       touchBindings.delete(boundMenu);
     }
+    for (const [boundMenu, removeListeners] of gradientBindings.entries()) {
+      if (boundMenu.isConnected) continue;
+      removeListeners();
+      gradientBindings.delete(boundMenu);
+    }
 
     injectScrollStyles();
     enableTouchScrolling(menu);
@@ -238,7 +250,7 @@
     return menu;
   }
 
-  /** Apply or tear down the scrollable menu based on current feature state. */
+  /** Apply or tear down the scrollable treatment with the menu lifecycle. */
   function sync() {
     const active = shouldBeActive();
     if (active) {
@@ -259,10 +271,15 @@
   // 1. MutationObserver: whenever the menu appears/re-renders, sync.
   const observer = new MutationObserver(() => {
     if (injecting) return;
-    if (!shouldBeActive()) return;
+    if (!shouldBeActive()) {
+      removeScrollStyles();
+      removeGradient();
+      disableTouchScrolling();
+      return;
+    }
 
     const menu = document.querySelector('[data-bd-mode-menu]') || findInputModeMenu();
-    if (menu && (!menu.querySelector('#' + GRADIENT_ID) || !touchBindings.has(menu))) {
+    if (menu && (!gradientBindings.has(menu) || !touchBindings.has(menu))) {
       injecting = true;
       activateMenu(menu);
       injecting = false;
@@ -270,8 +287,7 @@
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // 2. Listen for feature toggles from the popup so we can
-  //    enable/disable the design layer reactively.
+  // 2. Custom mode toggles can resize a menu that is already open.
   if (typeof chrome !== 'undefined' && chrome.runtime) {
     chrome.runtime.onMessage.addListener((message) => {
       if (message.type === 'FEATURE_TOGGLE' &&

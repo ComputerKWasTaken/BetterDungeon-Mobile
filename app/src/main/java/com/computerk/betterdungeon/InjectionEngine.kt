@@ -74,6 +74,7 @@ class InjectionEngine(private val context: Context) {
             "features/plot_presets_feature.js",
             "features/input_mode_color_feature.js",
             "features/character_preset_feature.js",
+            "features/navigator_feature.js",
             "features/auto_see_feature.js",
             "features/story_card_analytics_feature.js",
             "features/notes_feature.js",

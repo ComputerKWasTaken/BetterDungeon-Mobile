@@ -35,6 +35,7 @@ const DEFAULT_MODE_COLORS = {
   try: '#a855f7',      // Purple - Uncertainty, magic, RNG
   say: '#22c55e',      // Green - Dialogue, communication
   story: '#fbbf24',    // Amber/Gold - Authorial, creativity
+  guide: '#ec4899',    // Pink - Direction, guidance, navigation
   see: '#06b6d4',      // Cyan - Clarity, vision, perception
   command: '#f97316'   // Orange - Authority, directives
 };
