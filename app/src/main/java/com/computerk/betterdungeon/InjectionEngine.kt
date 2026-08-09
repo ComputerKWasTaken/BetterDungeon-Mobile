@@ -58,6 +58,7 @@ class InjectionEngine(private val context: Context) {
             "modules/audio/module.js",
             "modules/ai/executor.js",
             "modules/ai/gemini-backend.js",
+            "modules/ai/openai-backend.js",
             "modules/ai/module.js",
             "modules/widget/validators.js",
             "modules/widget/renderer.js",
