@@ -26,6 +26,8 @@
   function markMenu(menu) {
     if (!menu) return null;
     menu.setAttribute('data-bd-mode-menu', 'true');
+    const menuLeft = parseFloat(menu.style.left) || Math.max(8, Math.round(menu.getBoundingClientRect().left || 12));
+    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
     return menu;
   }
 
@@ -40,12 +42,22 @@
          React sets overflow:hidden as an inline style on the container;
          !important overrides it so our scroll behaviour persists. */
       [data-bd-mode-menu] {
+        /* Size the rail to its contents, then cap only the visible viewport.
+           This creates real horizontal overflow without pixel measurements. */
+        width: max-content !important;
+        max-width: calc(100vw - var(--bd-menu-left, 12px) - 8px) !important;
+        flex: 0 0 auto !important;
         overflow-x: auto !important;
         overflow-y: hidden !important;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-x: contain;
         touch-action: pan-x;
         flex-wrap: nowrap !important;
+      }
+
+      /* The rail, rather than individual controls, absorbs the overflow. */
+      [data-bd-mode-menu] > [role="button"] {
+        flex: 0 0 auto !important;
       }
 
       /* Hide the scrollbar but keep scroll functional */
