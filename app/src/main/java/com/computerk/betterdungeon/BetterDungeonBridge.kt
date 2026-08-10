@@ -30,6 +30,7 @@ class BetterDungeonBridge(private val context: Context) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val webFetchClient = WebFetchClient()
+    private val aiTransportClient = AiTransportClient()
 
     // References set by MainActivity after initialization
     var mainWebView: WebView? = null
@@ -202,6 +203,29 @@ class BetterDungeonBridge(private val context: Context) {
                 )
             }
         }
+    }
+
+    /** Start a cancellable native AI request and stream events to the main WebView. */
+    @JavascriptInterface
+    fun aiFetch(requestJson: String, requestId: String) {
+        aiTransportClient.execute(requestJson, requestId) { eventJson ->
+            val encodedRequestId = JSONObject.quote(requestId)
+            val encodedEvent = JSONObject.quote(eventJson)
+            mainHandler.post {
+                mainWebView?.evaluateJavascript(
+                    "window.__bdNativeAiTransportEvent?.($encodedRequestId, $encodedEvent);",
+                    null
+                )
+            }
+        }
+    }
+
+    /** Abort an active native AI request. */
+    @JavascriptInterface
+    fun aiCancel(requestId: String): Boolean = aiTransportClient.cancel(requestId)
+
+    fun shutdown() {
+        aiTransportClient.cancelAll()
     }
 
     /**

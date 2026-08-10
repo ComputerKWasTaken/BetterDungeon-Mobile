@@ -192,6 +192,7 @@
   // In-page event bus replacing chrome.runtime.onMessage / chrome.tabs.sendMessage
 
   var messageListeners = [];
+  var connectListeners = [];
 
   var onMessageAPI = {
     addListener: function (listener) {
@@ -278,6 +279,100 @@
     moduleStates: 'ultrascripts_enabled_modules',
     debug: 'ultrascripts_debug'
   };
+
+  var onConnectAPI = {
+    addListener: function (listener) {
+      if (typeof listener === 'function' && connectListeners.indexOf(listener) === -1) {
+        connectListeners.push(listener);
+      }
+    },
+    removeListener: function (listener) {
+      var idx = connectListeners.indexOf(listener);
+      if (idx !== -1) connectListeners.splice(idx, 1);
+    },
+    hasListener: function (listener) {
+      return connectListeners.indexOf(listener) !== -1;
+    }
+  };
+
+  function createPortEvent(listeners) {
+    return {
+      addListener: function (listener) {
+        if (typeof listener === 'function' && listeners.indexOf(listener) === -1) listeners.push(listener);
+      },
+      removeListener: function (listener) {
+        var idx = listeners.indexOf(listener);
+        if (idx !== -1) listeners.splice(idx, 1);
+      },
+      hasListener: function (listener) {
+        return listeners.indexOf(listener) !== -1;
+      }
+    };
+  }
+
+  function runtimeConnect(connectInfo) {
+    var name = connectInfo && typeof connectInfo.name === 'string' ? connectInfo.name : '';
+    var state = { disconnected: false };
+    var clientMessageListeners = [];
+    var clientDisconnectListeners = [];
+    var runtimeMessageListeners = [];
+    var runtimeDisconnectListeners = [];
+    var clientPort;
+    var runtimePort;
+
+    function dispatchPortMessage(listeners, message, targetPort) {
+      if (state.disconnected) return;
+      var snapshot = listeners.slice();
+      Promise.resolve().then(function () {
+        if (state.disconnected) return;
+        snapshot.forEach(function (listener) {
+          try { listener(message, targetPort); }
+          catch (err) { console.error('[WebView Polyfill] Port listener failed:', err); }
+        });
+      });
+    }
+
+    function disconnect() {
+      if (state.disconnected) return;
+      state.disconnected = true;
+      clientDisconnectListeners.slice().forEach(function (listener) {
+        try { listener(clientPort); } catch (err) { console.error('[WebView Polyfill] Port disconnect listener failed:', err); }
+      });
+      runtimeDisconnectListeners.slice().forEach(function (listener) {
+        try { listener(runtimePort); } catch (err) { console.error('[WebView Polyfill] Port disconnect listener failed:', err); }
+      });
+    }
+
+    clientPort = {
+      name: name,
+      error: null,
+      onMessage: createPortEvent(clientMessageListeners),
+      onDisconnect: createPortEvent(clientDisconnectListeners),
+      postMessage: function (message) {
+        if (state.disconnected) throw new Error('Attempting to use a disconnected port object');
+        dispatchPortMessage(runtimeMessageListeners, message, runtimePort);
+      },
+      disconnect: disconnect
+    };
+    runtimePort = {
+      name: name,
+      error: null,
+      sender: { id: 'betterdungeon-android' },
+      onMessage: createPortEvent(runtimeMessageListeners),
+      onDisconnect: createPortEvent(runtimeDisconnectListeners),
+      postMessage: function (message) {
+        if (state.disconnected) throw new Error('Attempting to use a disconnected port object');
+        dispatchPortMessage(clientMessageListeners, message, clientPort);
+      },
+      disconnect: disconnect
+    };
+
+    connectListeners.slice().forEach(function (listener) {
+      try { listener(runtimePort); }
+      catch (err) { console.error('[WebView Polyfill] runtime.onConnect listener failed:', err); }
+    });
+    return clientPort;
+  }
   var SDK_DEFAULT_FEATURES = {
     ultrascripts: true,
     markdown: true,
@@ -308,6 +403,8 @@
   ];
   var nativeWebFetchSequence = 0;
   var nativeWebFetchPending = {};
+  var nativeAiSequence = 0;
+  var nativeAiPending = {};
   var geminiRuntimeState = {
     lastResolvedModel: null,
     lastProviderModel: null,
@@ -350,6 +447,179 @@
   function storageSetPromise(area, data) {
     return Promise.resolve(area.set(data));
   }
+
+  function createNativeAiStream(onCancel) {
+    var chunks = [];
+    var waiters = [];
+    var closed = false;
+    var failure = null;
+    var locked = false;
+
+    function settleWaiters() {
+      while (waiters.length && chunks.length) {
+        waiters.shift().resolve({ done: false, value: chunks.shift() });
+      }
+      if (!waiters.length) return;
+      if (failure) {
+        while (waiters.length) waiters.shift().reject(failure);
+      } else if (closed) {
+        while (waiters.length) waiters.shift().resolve({ done: true, value: undefined });
+      }
+    }
+
+    return {
+      enqueue: function (chunk) {
+        if (closed || failure) return;
+        chunks.push(chunk);
+        settleWaiters();
+      },
+      close: function () {
+        if (closed || failure) return;
+        closed = true;
+        settleWaiters();
+      },
+      fail: function (error) {
+        if (closed || failure) return;
+        failure = error;
+        settleWaiters();
+      },
+      body: {
+        getReader: function () {
+          if (locked) throw new TypeError('AI response stream is already locked');
+          locked = true;
+          return {
+            read: function () {
+              if (chunks.length) return Promise.resolve({ done: false, value: chunks.shift() });
+              if (failure) return Promise.reject(failure);
+              if (closed) return Promise.resolve({ done: true, value: undefined });
+              return new Promise(function (resolve, reject) { waiters.push({ resolve: resolve, reject: reject }); });
+            },
+            cancel: function () {
+              if (typeof onCancel === 'function') onCancel();
+              closed = true;
+              settleWaiters();
+              return Promise.resolve();
+            }
+          };
+        }
+      }
+    };
+  }
+
+  function decodeBase64Bytes(value) {
+    var binary = atob(String(value || ''));
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  window.__bdNativeAiTransportEvent = function (requestId, rawEvent) {
+    var id = String(requestId || '');
+    var pending = nativeAiPending[id];
+    if (!pending) return;
+    var event;
+    try { event = typeof rawEvent === 'string' ? JSON.parse(rawEvent) : rawEvent; }
+    catch (err) { event = { type: 'error', error: { code: 'invalid_response', message: 'Native AI transport returned invalid JSON.' } }; }
+
+    if (event && event.type === 'response') {
+      if (pending.responseStarted) return;
+      pending.responseStarted = true;
+      var headers = event.headers && typeof event.headers === 'object' ? event.headers : {};
+      var response = {
+        status: Number(event.status || 0),
+        statusText: String(event.statusText || ''),
+        headers: {
+          get: function (name) { return headers[String(name || '').toLowerCase()] || null; }
+        },
+        body: pending.stream.body,
+        text: async function () {
+          var reader = pending.stream.body.getReader();
+          var decoder = new TextDecoder('utf-8');
+          var text = '';
+          while (true) {
+            var chunk = await reader.read();
+            if (chunk.done) break;
+            text += decoder.decode(chunk.value, { stream: true });
+          }
+          return text + decoder.decode();
+        }
+      };
+      response.ok = response.status >= 200 && response.status < 300;
+      response.json = async function () { return JSON.parse(await response.text()); };
+      pending.resolve(response);
+      return;
+    }
+    if (event && event.type === 'chunk') {
+      try { pending.stream.enqueue(decodeBase64Bytes(event.data)); }
+      catch (err) { pending.stream.fail(err); }
+      return;
+    }
+    if (event && event.type === 'complete') {
+      pending.stream.close();
+      pending.cleanup();
+      delete nativeAiPending[id];
+      return;
+    }
+    if (event && event.type === 'error') {
+      var error = normalizeRuntimeError(event.error || { code: 'network_failed', message: 'Native AI transport failed.' });
+      if (!pending.responseStarted) pending.reject(error);
+      else pending.stream.fail(error);
+      pending.cleanup();
+      delete nativeAiPending[id];
+    }
+  };
+
+  function nativeAiFetch(url, options) {
+    options = options || {};
+    if (!window.BetterDungeonBridge || typeof window.BetterDungeonBridge.aiFetch !== 'function') {
+      return Promise.reject({ code: 'unavailable', message: 'Native AI transport is unavailable.', retryable: true });
+    }
+    if (options.signal && options.signal.aborted) {
+      return Promise.reject(new DOMException('The operation was aborted.', 'AbortError'));
+    }
+    var requestId = 'ai-' + Date.now().toString(36) + '-' + (++nativeAiSequence).toString(36);
+    return new Promise(function (resolve, reject) {
+      var abortHandler = function () {
+        try { window.BetterDungeonBridge.aiCancel(requestId); } catch (e) { /* noop */ }
+        var pending = nativeAiPending[requestId];
+        if (!pending) return;
+        var error = new DOMException('The operation was aborted.', 'AbortError');
+        if (!pending.responseStarted) pending.reject(error);
+        else pending.stream.fail(error);
+        pending.cleanup();
+        delete nativeAiPending[requestId];
+      };
+      var stream = createNativeAiStream(function () {
+        try { window.BetterDungeonBridge.aiCancel(requestId); } catch (e) { /* noop */ }
+      });
+      var cleanup = function () {
+        try { options.signal && options.signal.removeEventListener('abort', abortHandler); } catch (e) { /* noop */ }
+      };
+      nativeAiPending[requestId] = {
+        resolve: resolve,
+        reject: reject,
+        stream: stream,
+        responseStarted: false,
+        cleanup: cleanup
+      };
+      if (options.signal) options.signal.addEventListener('abort', abortHandler, { once: true });
+      try {
+        window.BetterDungeonBridge.aiFetch(JSON.stringify({
+          url: String(url || ''),
+          method: String(options.method || 'POST'),
+          headers: options.headers || {},
+          body: options.body === undefined ? '' : String(options.body),
+          timeoutMs: GEMINI_DEFAULT_TIMEOUT_MS
+        }), requestId);
+      } catch (err) {
+        cleanup();
+        delete nativeAiPending[requestId];
+        reject({ code: 'unavailable', message: err && err.message ? err.message : 'Native AI transport could not start.', retryable: true });
+      }
+    });
+  }
+
+  window.__bdNativeAiFetch = nativeAiFetch;
 
   function normalizeGeminiModel(value) {
     var model = String(value || GEMINI_DEFAULT_MODEL).trim().replace(/^models\//, '');
@@ -1101,6 +1371,12 @@
 
   function handleRuntimeMessage(message) {
     if (!message || typeof message !== 'object') return null;
+    if (message.type === GEMINI_MESSAGE && window.__bdAiRuntime && window.__bdAiRuntime.handleGemini) {
+      return window.__bdAiRuntime.handleGemini(message.request);
+    }
+    if (message.type === OPENAI_MESSAGE && window.__bdAiRuntime && window.__bdAiRuntime.handleOpenAi) {
+      return window.__bdAiRuntime.handleOpenAi(message.request);
+    }
     if (message.type === GEMINI_MESSAGE) return handleGemini(message.request);
     if (message.type === OPENAI_MESSAGE) return handleOpenAi(message.request);
     if (message.type === WEBFETCH_MESSAGE) return handleWebFetch(message.request);
@@ -1184,6 +1460,8 @@
           : (typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback);
         return runtimeSendMessage(message, callback);
       },
+      connect: runtimeConnect,
+      onConnect: onConnectAPI,
       onMessage: onMessageAPI
     },
     storage: {
@@ -1279,6 +1557,24 @@
   // instead of setting a global. Handles both sync and async message handlers.
   window.__bdDispatchMessageFromPopup = function (message, requestId) {
     var sender = { id: 'betterdungeon-popup' };
+
+    var handled = handleRuntimeMessage(message);
+    if (handled) {
+      Promise.resolve(handled)
+        .then(function (data) {
+          window.BetterDungeonBridge.sendResponseToPopup(
+            JSON.stringify({ ok: true, data: data }),
+            requestId
+          );
+        })
+        .catch(function (error) {
+          window.BetterDungeonBridge.sendResponseToPopup(
+            JSON.stringify({ ok: false, error: normalizeRuntimeError(error) }),
+            requestId
+          );
+        });
+      return;
+    }
 
     for (var i = 0; i < messageListeners.length; i++) {
       try {

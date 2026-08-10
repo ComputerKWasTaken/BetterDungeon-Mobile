@@ -111,6 +111,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        bridge.shutdown()
         ttsManager.shutdown()
         mainWebView.destroy()
         popupWebView.destroy()
@@ -348,6 +349,35 @@ class MainActivity : AppCompatActivity() {
                         pending.callback(response);
                     }
                     pending.resolve(response);
+                };
+
+                // Runtime messages (AI provider status/settings/tests) belong
+                // to the main WebView runtime, where native stream callbacks
+                // are delivered. Forward them through the same request map.
+                chrome.runtime.sendMessage = function(messageOrExtensionId, messageOrCallback, optionsOrCallback, maybeCallback) {
+                    var message = typeof messageOrExtensionId === 'string' ? messageOrCallback : messageOrExtensionId;
+                    var callback = typeof messageOrCallback === 'function'
+                        ? messageOrCallback
+                        : (typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback);
+                    var requestId = 'popup-runtime-' + Date.now() + '-' + (++window.__bdPopupRequestCounter);
+                    var messageJson = JSON.stringify(message);
+
+                    return new Promise(function(resolve) {
+                        var timeoutId = setTimeout(function() {
+                            var pending = window.__bdPopupCallbacks[requestId];
+                            if (pending) {
+                                delete window.__bdPopupCallbacks[requestId];
+                                if (typeof callback === 'function') callback(undefined);
+                                resolve(undefined);
+                            }
+                        }, 120000);
+                        window.__bdPopupCallbacks[requestId] = {
+                            callback: callback,
+                            resolve: resolve,
+                            timeoutId: timeoutId
+                        };
+                        BetterDungeonBridge.forwardToMainWebView(messageJson, requestId);
+                    });
                 };
 
                 chrome.tabs.sendMessage = function(tabId, message, optionsOrCallback, maybeCallback) {

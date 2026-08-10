@@ -12,6 +12,8 @@
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
   const DEFAULT_THINKING_LEVEL = 'minimal';
+  const CHAT_MAX_TOOLS = 16;
+  const CHAT_MAX_TOOL_RESULTS = 16;
 
   const state = {
     providers: new Map(),
@@ -124,6 +126,174 @@
     };
     if (output.schema) task.responseContract.schema = cloneJson(output.schema);
     return task;
+  }
+
+  function normalizeChatBudget(budget) {
+    if (!isObject(budget)) {
+      throw invalidArgs('budget is required and must be an object');
+    }
+
+    const maxInputChars = Number(budget.maxInputChars);
+    const maxOutputTokens = Number(budget.maxOutputTokens);
+    if (!Number.isSafeInteger(maxInputChars) || maxInputChars <= 0) {
+      throw invalidArgs('budget.maxInputChars must be a positive integer');
+    }
+    if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+      throw invalidArgs('budget.maxOutputTokens must be a positive integer');
+    }
+    return { maxInputChars, maxOutputTokens };
+  }
+
+  function normalizeChatMessages(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) {
+      throw invalidArgs('messages is required and must be a non-empty array');
+    }
+
+    const normalized = messages.map((message, index) => {
+      if (!isObject(message)) {
+        throw invalidArgs(`messages[${index}] must be an object`);
+      }
+      if (message.role !== 'user' && message.role !== 'assistant') {
+        throw invalidArgs(`messages[${index}].role must be user or assistant`);
+      }
+      if (typeof message.content !== 'string' || !message.content.trim()) {
+        throw invalidArgs(`messages[${index}].content must be a non-empty string`);
+      }
+      return { role: message.role, content: message.content };
+    });
+
+    if (normalized[normalized.length - 1].role !== 'user') {
+      throw invalidArgs('the final chat message must have role user');
+    }
+    return normalized;
+  }
+
+  function normalizeChatTools(tools) {
+    if (tools === undefined || tools === null) return [];
+    if (!Array.isArray(tools) || tools.length > CHAT_MAX_TOOLS) {
+      throw invalidArgs(`tools must be an array with at most ${CHAT_MAX_TOOLS} entries`);
+    }
+    const names = new Set();
+    return tools.map((tool, index) => {
+      if (!isObject(tool)) throw invalidArgs(`tools[${index}] must be an object`);
+      const name = typeof tool.name === 'string' ? tool.name.trim() : '';
+      if (!/^[a-z][a-z0-9_]{0,63}$/.test(name)) {
+        throw invalidArgs(`tools[${index}].name must be a stable lowercase function name`);
+      }
+      if (names.has(name)) throw invalidArgs(`tools contains duplicate name '${name}'`);
+      names.add(name);
+      if (typeof tool.description !== 'string' || !tool.description.trim()) {
+        throw invalidArgs(`tools[${index}].description must be a non-empty string`);
+      }
+      if (!isObject(tool.parameters)) {
+        throw invalidArgs(`tools[${index}].parameters must be a JSON schema object`);
+      }
+      return {
+        name,
+        description: tool.description.trim(),
+        parameters: cloneJson(tool.parameters),
+      };
+    });
+  }
+
+  function normalizeChatToolResults(results) {
+    if (results === undefined || results === null) return [];
+    if (!Array.isArray(results) || results.length > CHAT_MAX_TOOL_RESULTS) {
+      throw invalidArgs(`toolResults must be an array with at most ${CHAT_MAX_TOOL_RESULTS} entries`);
+    }
+    return results.map((result, index) => {
+      if (!isObject(result)) throw invalidArgs(`toolResults[${index}] must be an object`);
+      const callId = typeof result.callId === 'string' ? result.callId.trim() : '';
+      const name = typeof result.name === 'string' ? result.name.trim() : '';
+      if (!callId) throw invalidArgs(`toolResults[${index}].callId is required`);
+      if (!/^[a-z][a-z0-9_]{0,63}$/.test(name)) {
+        throw invalidArgs(`toolResults[${index}].name must be a stable lowercase function name`);
+      }
+      return {
+        callId,
+        name,
+        result: cloneJson(result.result),
+        isError: result.isError === true,
+      };
+    });
+  }
+
+  function normalizeChatContinuation(value) {
+    if (value === undefined || value === null) return null;
+    if (!isObject(value)) throw invalidArgs('continuation must be an object');
+    const provider = typeof value.provider === 'string' ? value.provider.trim().toLowerCase() : '';
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(provider)) {
+      throw invalidArgs('continuation.provider must be a stable provider id');
+    }
+    return { ...cloneJson(value), provider };
+  }
+
+  function normalizeChat(args) {
+    const normalized = normalizeArgs(args);
+    if (typeof normalized.systemInstruction !== 'string' || !normalized.systemInstruction.trim()) {
+      throw invalidArgs('systemInstruction is required and must be a non-empty string');
+    }
+
+    const messages = normalizeChatMessages(normalized.messages);
+    const budget = normalizeChatBudget(normalized.budget);
+    const tools = normalizeChatTools(normalized.tools);
+    const toolResults = normalizeChatToolResults(normalized.toolResults);
+    const continuation = normalizeChatContinuation(normalized.continuation);
+    if (toolResults.length && !continuation) {
+      throw invalidArgs('continuation is required when toolResults are supplied');
+    }
+    const systemInstructionChars = normalized.systemInstruction.length;
+    const messageChars = messages.reduce((total, message) => total + message.content.length, 0);
+    const toolsChars = JSON.stringify(tools).length;
+    const toolResultsChars = JSON.stringify(toolResults).length;
+    const continuationChars = continuation ? JSON.stringify(continuation).length : 0;
+    const inputChars = systemInstructionChars + messageChars + toolsChars + toolResultsChars + continuationChars;
+    if (inputChars > budget.maxInputChars) {
+      throw invalidArgs(`chat input must be ${budget.maxInputChars} characters or less`, {
+        maxChars: budget.maxInputChars,
+        actualChars: inputChars,
+      });
+    }
+
+    return {
+      messages,
+      systemInstruction: normalized.systemInstruction,
+      systemInstructionChars,
+      inputChars,
+      budget,
+      thinking: normalizeThinking(normalized.thinking),
+      tools,
+      toolResults,
+      continuation,
+    };
+  }
+
+  function createChatTask(args, meta = {}) {
+    const chat = normalizeChat(args);
+    return {
+      v: 1,
+      id: typeof meta.requestId === 'string' && meta.requestId ? meta.requestId : null,
+      module: 'ai',
+      op: 'chat',
+      createdAtIso: new Date().toISOString(),
+      messages: cloneJson(chat.messages),
+      systemInstruction: chat.systemInstruction,
+      systemInstructionChars: chat.systemInstructionChars,
+      inputChars: chat.inputChars,
+      messageCount: chat.messages.length,
+      budget: cloneJson(chat.budget),
+      thinking: cloneJson(chat.thinking),
+      tools: cloneJson(chat.tools),
+      toolResults: cloneJson(chat.toolResults),
+      continuation: cloneJson(chat.continuation),
+      responseContract: {
+        type: 'text',
+        streaming: true,
+        tools: chat.tools.map(tool => tool.name),
+        thinking: cloneJson(chat.thinking),
+        budget: cloneJson(chat.budget),
+      },
+    };
   }
 
   function normalizeSupports(value) {
@@ -338,6 +508,44 @@
     return { text: normalizeTextResult(result), meta };
   }
 
+  function normalizeChatResultMeta(result, task, provider) {
+    const providerId = result?.provider || result?.backend || provider?.id || null;
+    const meta = {
+      provider: providerId,
+      providerLabel: provider?.label || null,
+      backend: providerId,
+      outputType: 'text',
+      inputChars: task.inputChars,
+      systemInstructionChars: task.systemInstructionChars,
+      messageCount: task.messageCount,
+      budget: cloneJson(task.budget),
+      toolCount: Array.isArray(task.tools) ? task.tools.length : 0,
+      generatedAtIso: result?.generatedAtIso || new Date().toISOString(),
+    };
+    if (typeof result?.model === 'string') meta.model = result.model;
+    if (typeof result?.providerModel === 'string') meta.providerModel = result.providerModel;
+    if (result?.thinking) meta.thinking = cloneJson(result.thinking);
+    if (result?.fallback) meta.fallback = cloneJson(result.fallback);
+    if (result?.usage) meta.usage = cloneJson(result.usage);
+    return meta;
+  }
+
+  function normalizeToolCalls(result) {
+    if (result?.toolCalls === undefined || result?.toolCalls === null) return [];
+    if (!Array.isArray(result.toolCalls) || result.toolCalls.length > CHAT_MAX_TOOL_RESULTS) {
+      throw invalidResponse('AI backend returned an invalid toolCalls collection');
+    }
+    return result.toolCalls.map((call, index) => {
+      if (!isObject(call)) throw invalidResponse(`AI backend toolCalls[${index}] must be an object`);
+      const id = typeof call.id === 'string' ? call.id.trim() : '';
+      const name = typeof call.name === 'string' ? call.name.trim() : '';
+      if (!id || !/^[a-z][a-z0-9_]{0,63}$/.test(name) || !isObject(call.arguments)) {
+        throw invalidResponse(`AI backend toolCalls[${index}] is malformed`);
+      }
+      return { id, name, arguments: cloneJson(call.arguments) };
+    });
+  }
+
   function setBackend(backend) {
     return registerProvider(backend, { default: true });
   }
@@ -383,12 +591,87 @@
     return normalizeProviderResult(result, task, provider);
   }
 
+  async function chat(args, options = {}) {
+    if (!isObject(options)) throw invalidArgs('chat options must be an object');
+    const task = createChatTask(args, options);
+    const resolved = resolveProvider(options.consumer);
+    const provider = resolved.provider;
+    if (!provider) {
+      throw {
+        code: 'not_configured',
+        message: 'No AI provider is configured yet.',
+        retryable: false,
+        provider: null,
+        backend: null,
+        phase: status({ consumer: resolved.consumer }).phase,
+        task: {
+          id: task.id,
+          inputChars: task.inputChars,
+          messageCount: task.messageCount,
+        },
+      };
+    }
+
+    if (typeof provider.streamChat !== 'function') {
+      throw {
+        code: 'unavailable',
+        message: 'The selected AI provider does not support streaming chat.',
+        retryable: false,
+        provider: provider.id,
+        backend: provider.id,
+      };
+    }
+
+    if (options.signal !== undefined && (
+      !options.signal ||
+      typeof options.signal !== 'object' ||
+      typeof options.signal.addEventListener !== 'function' ||
+      typeof options.signal.aborted !== 'boolean'
+    )) {
+      throw invalidArgs('signal must be an AbortSignal');
+    }
+    if (options.onDelta !== undefined && typeof options.onDelta !== 'function') {
+      throw invalidArgs('onDelta must be a function');
+    }
+    if (options.signal?.aborted) {
+      throw {
+        code: 'aborted',
+        message: 'AI chat request was aborted.',
+        retryable: false,
+        provider: provider.id,
+        backend: provider.id,
+      };
+    }
+
+    const result = await provider.streamChat(cloneJson(task), {
+      signal: options.signal || null,
+      onDelta: options.onDelta || null,
+    });
+    const toolCalls = normalizeToolCalls(result);
+    const responseText = typeof result?.text === 'string' ? result.text : '';
+    if (!responseText && !toolCalls.length) {
+      throw invalidResponse('AI backend returned neither text nor tool calls');
+    }
+    const continuation = toolCalls.length ? normalizeChatContinuation(result?.continuation) : null;
+    if (toolCalls.length && !continuation) {
+      throw invalidResponse('AI backend returned tool calls without continuation state');
+    }
+    return {
+      text: responseText,
+      toolCalls,
+      continuation,
+      meta: normalizeChatResultMeta(result, task, provider),
+    };
+  }
+
   const executor = {
     VERSION,
     PROMPT_MAX_CHARS,
     OUTPUT_TYPES,
     createTask,
+    createChatTask,
     query,
+    chat,
     status,
     refreshStatus,
     registerProvider,
