@@ -30,6 +30,7 @@
     inputHistory: true,
     textToSpeech: false,
     customDynamic: false,
+    navigator: true,
   };
   const ULTRASCRIPTS_MODULES = [
     'widget',

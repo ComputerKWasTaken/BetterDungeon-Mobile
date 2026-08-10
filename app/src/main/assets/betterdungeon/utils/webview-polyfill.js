@@ -278,6 +278,34 @@
     moduleStates: 'ultrascripts_enabled_modules',
     debug: 'ultrascripts_debug'
   };
+  var SDK_DEFAULT_FEATURES = {
+    ultrascripts: true,
+    markdown: true,
+    command: true,
+    try: true,
+    triggerHighlight: true,
+    favoriteInstructions: true,
+    inputModeColor: true,
+    characterPreset: true,
+    autoSee: false,
+    notes: true,
+    autoEnableScripts: true,
+    inputHistory: true,
+    textToSpeech: false,
+    customDynamic: false,
+    navigator: true
+  };
+  var SDK_ULTRASCRIPTS_MODULES = [
+    'widget',
+    'webfetch',
+    'clock',
+    'sdk',
+    'audio',
+    'weather',
+    'network',
+    'system',
+    'ai'
+  ];
   var nativeWebFetchSequence = 0;
   var nativeWebFetchPending = {};
   var geminiRuntimeState = {
@@ -1055,15 +1083,18 @@
     var sync = await storageGetPromise(syncStorageArea, Object.keys(SDK_SYNC_STORAGE_KEYS).map(function (k) {
       return SDK_SYNC_STORAGE_KEYS[k];
     }));
-    var features = isObject(sync[SDK_SYNC_STORAGE_KEYS.features]) ? sync[SDK_SYNC_STORAGE_KEYS.features] : {};
-    var modules = isObject(sync[SDK_SYNC_STORAGE_KEYS.moduleStates]) ? sync[SDK_SYNC_STORAGE_KEYS.moduleStates] : {};
+    var savedFeatures = isObject(sync[SDK_SYNC_STORAGE_KEYS.features]) ? sync[SDK_SYNC_STORAGE_KEYS.features] : {};
+    var savedModules = isObject(sync[SDK_SYNC_STORAGE_KEYS.moduleStates]) ? sync[SDK_SYNC_STORAGE_KEYS.moduleStates] : {};
+    var features = Object.assign({}, SDK_DEFAULT_FEATURES, savedFeatures);
+    var modulePreferences = {};
+    SDK_ULTRASCRIPTS_MODULES.forEach(function (moduleId) {
+      modulePreferences[moduleId] = savedModules[moduleId] !== false;
+    });
     return {
-      platform: 'android-webview',
       features: features,
       ultrascripts: {
-        enabled: features.ultrascripts !== false,
         debug: sync[SDK_SYNC_STORAGE_KEYS.debug] === true,
-        modules: modules
+        modulePreferences: modulePreferences
       }
     };
   }

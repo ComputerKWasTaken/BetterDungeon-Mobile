@@ -57,7 +57,8 @@ const DEFAULT_FEATURES = {
   autoEnableScripts: true,
   inputHistory: true,
   textToSpeech: false,
-  customDynamic: false
+  customDynamic: false,
+  navigator: true
 };
 
 const ULTRASCRIPTS_PUBLIC_MODULES = [

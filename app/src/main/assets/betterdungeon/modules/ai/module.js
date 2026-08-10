@@ -38,7 +38,7 @@
 
   const UltrascriptsAIModule = {
     id: 'ai',
-    version: '0.6.0',
+    version: '1.0.0',
     label: 'AI',
     description: 'Asynchronous AI query executor using the configured provider.',
 
