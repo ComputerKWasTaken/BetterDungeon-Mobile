@@ -65,6 +65,7 @@ class AutoSeeFeature {
         actionWindow(limit: $limit, desc: $desc) {
           id
           adventureId
+          type
           updatedAt
           __typename
         }
@@ -439,24 +440,20 @@ class AutoSeeFeature {
 
     try {
       this.log('[AutoSee] Sending GraphQL See action', { operationId, requestKey, baseline });
-      let identity = await gql.getAdventureIdentity(adventureAtStart, { timeoutMs: 10000 });
-      const shortId = identity.shortId || adventureAtStart;
+      const identity = await gql.getAdventureIdentity(adventureAtStart, { timeoutMs: 10000 });
       const completion = gql.waitForActionUpdate(
         (detail) => (
           this.isOperationValid(operationId) &&
           this.currentAdventureId === adventureAtStart &&
           this.isSeeActionComplete(detail, requestKey)
         ),
-        this.TIMEOUTS.PROCESSING_OPERATION
+        this.TIMEOUTS.PROCESSING_OPERATION - 1000
       );
-
-      if (!identity.scenarioId) {
-        identity = await this.loadScenarioIdentity(identity, shortId);
-      }
+      const shortId = identity.shortId || adventureAtStart;
 
       const batchResults = await gql.requestBatch([
         this.createSubmitTelemetryOperation(identity),
-        this.createLatestActionOperation('GetLatestActionForTimeout', shortId),
+        this.createLatestActionOperation(shortId),
         this.createActionRequestOperation(identity, requestKey),
       ], { timeoutMs: this.TIMEOUTS.PROCESSING_OPERATION });
 
@@ -465,7 +462,31 @@ class AutoSeeFeature {
         throw new Error(actionRequest.message || 'ActionRequest failed.');
       }
 
-      const completionDetail = await completion;
+      let completionDetail;
+      try {
+        completionDetail = await completion;
+      } catch (error) {
+        if (!this.isOperationValid(operationId)) return;
+        const fallback = await gql.request(
+          'GetLatestActionForTimeout',
+          this.createLatestActionOperation(shortId).variables,
+          this.GET_LATEST_ACTION_FOR_TIMEOUT_QUERY,
+          { timeoutMs: 10000 }
+        );
+        const latest = fallback?.data?.adventure?.actionWindow?.[0];
+        const landed = !!(
+          latest &&
+          String(latest.type || '').toLowerCase() === 'see' &&
+          this.isAfterBaseline(latest.id, baseline)
+        );
+        this.log(
+          landed
+            ? '[AutoSee] Matching actionUpdates frame timed out, but latest-action fallback confirms See landed; completion telemetry skipped.'
+            : '[AutoSee] Matching actionUpdates frame timed out and latest-action fallback did not confirm See; completion telemetry skipped.',
+          { requestKey, latest, error: error.message || error }
+        );
+        return;
+      }
       const completedAt = Date.now();
       await gql.request(
         'SendEvent',
@@ -500,8 +521,6 @@ class AutoSeeFeature {
       actionType: 'see',
     };
 
-    if (identity.scenarioId) clientInfo.scenarioId = identity.scenarioId;
-
     return {
       operationName: 'SendEvent',
       variables: {
@@ -515,9 +534,9 @@ class AutoSeeFeature {
     };
   }
 
-  createLatestActionOperation(operationName, shortId) {
+  createLatestActionOperation(shortId) {
     return {
-      operationName,
+      operationName: 'GetLatestActionForTimeout',
       variables: {
         shortId,
         limit: 1,
@@ -534,7 +553,6 @@ class AutoSeeFeature {
         input: {
           adventureId: identity.adventureId,
           type: 'see',
-          // Native plain See requests omit the optional fields when they are undefined.
           classicStoryStreamingEnabled: false,
           text: '',
           key: requestKey,
@@ -555,37 +573,18 @@ class AutoSeeFeature {
             userAgent: String(navigator.userAgent || '').toLowerCase(),
             nativeAppPlatform: null,
             surface: 'aidungeon',
+            actionType: 'see',
+            requestKey,
+            roundtripMs: completedAt - this.operationStartTime,
+            actionCount: Array.isArray(detail?.actions) ? detail.actions.length : 0,
             adventureId: identity.adventureId,
             scenarioId: identity.scenarioId || undefined,
-            actionType: 'see',
+            submittedAt: this.operationStartTime,
+            completedAt,
           },
-          actionType: 'see',
-          requestKey,
-          roundtripMs: completedAt - this.operationStartTime,
-          actionCount: Array.isArray(detail?.actions) ? detail.actions.length : 0,
-          adventureId: identity.adventureId,
-          scenarioId: identity.scenarioId || undefined,
-          submittedAt: this.operationStartTime,
-          completedAt,
         },
       },
     };
-  }
-
-  async loadScenarioIdentity(identity, shortId) {
-    const query = window.BetterDungeonGQLService?.QUERIES?.adventureIdentity;
-    if (!query) return identity;
-
-    const result = await window.BetterDungeonGQL.request(
-      'GetBetterDungeonAdventureIdentity',
-      { shortId },
-      query,
-      { timeoutMs: 10000 }
-    );
-    const adventure = result?.data?.adventure;
-    return adventure?.scenarioId
-      ? { ...identity, scenarioId: adventure.scenarioId }
-      : identity;
   }
 
   findBatchResult(batchResults, dataKey) {
@@ -635,10 +634,6 @@ class AutoSeeFeature {
   createRequestKey() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-  }
-
-  wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   detectCurrentInputMode() {
