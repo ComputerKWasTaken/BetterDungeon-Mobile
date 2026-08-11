@@ -1,0 +1,411 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const ROOT = path.resolve(__dirname, '..', 'app', 'src', 'main', 'assets', 'betterdungeon');
+const APP_ROOT = path.resolve(__dirname, '..');
+const localStorage = new Map();
+const syncStorage = new Map();
+const storageListeners = new Set();
+
+global.window = global;
+global.location = {
+  href: 'https://play.aidungeon.com/adventure/test-adventure',
+  pathname: '/adventure/test-adventure',
+};
+
+function clone(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function storageArea(areaName, store) {
+  return {
+    get(keys, callback) {
+      const requested = Array.isArray(keys) ? keys : [keys];
+      const result = {};
+      for (const key of requested) {
+        if (typeof key === 'string' && store.has(key)) result[key] = clone(store.get(key));
+      }
+      callback(result);
+    },
+    set(items, callback) {
+      const changes = {};
+      for (const [key, value] of Object.entries(items || {})) {
+        const oldValue = clone(store.get(key));
+        store.set(key, clone(value));
+        changes[key] = { oldValue, newValue: clone(value) };
+      }
+      for (const listener of storageListeners) listener(changes, areaName);
+      callback?.();
+    },
+    remove(keys, callback) {
+      for (const key of Array.isArray(keys) ? keys : [keys]) store.delete(key);
+      callback?.();
+    },
+  };
+}
+
+global.chrome = {
+  runtime: { id: 'navigator-contract-test', lastError: null },
+  storage: {
+    local: storageArea('local', localStorage),
+    sync: storageArea('sync', syncStorage),
+    onChanged: {
+      addListener(listener) { storageListeners.add(listener); },
+      removeListener(listener) { storageListeners.delete(listener); },
+    },
+  },
+};
+
+function load(relativePath) {
+  const filename = path.join(ROOT, relativePath);
+  vm.runInThisContext(fs.readFileSync(filename, 'utf8'), { filename });
+}
+
+load('services/graphql-service.js');
+load('services/navigator/primer.js');
+load('services/navigator/context.js');
+load('services/navigator/tools.js');
+load('services/navigator/session.js');
+
+async function expectCode(promise, code) {
+  await assert.rejects(promise, error => error?.code === code);
+}
+
+async function testInjectionOrder() {
+  const source = fs.readFileSync(
+    path.join(APP_ROOT, 'app', 'src', 'main', 'java', 'com', 'computerk', 'betterdungeon', 'InjectionEngine.kt'),
+    'utf8'
+  );
+  const paths = [
+    'services/story-card-cache.js',
+    'services/navigator/primer.js',
+    'services/navigator/context.js',
+    'services/navigator/tools.js',
+    'services/navigator/session.js',
+    'services/story-card-scanner.js',
+    'features/navigator_feature.js',
+  ];
+  const offsets = paths.map(value => source.indexOf(`"${value}"`));
+  assert.ok(offsets.every(value => value >= 0), 'every Phase 3 asset must be injected');
+  assert.deepEqual(offsets, offsets.slice().sort((left, right) => left - right));
+}
+
+async function testGraphqlReaders() {
+  const gql = window.BetterDungeonGQL;
+  const seen = [];
+  const signal = new AbortController().signal;
+  gql.request = async (operation, variables, document, options) => {
+    seen.push({ operation, variables, document, options });
+    if (operation === 'GetBetterDungeonNavigatorContext') {
+      return {
+        data: {
+          adventure: {
+            id: 101,
+            shortId: 'test-adventure',
+            title: 'The Test Quest',
+            actionCount: 12,
+            editedAt: '2026-08-10T12:00:00.000Z',
+            thirdPerson: true,
+            memory: 'The hero carries a silver key.',
+            authorsNote: 'Keep the pace tense.',
+            instructions: 'Unused flat instructions',
+            state: {
+              instructions: { custom: ['Use vivid prose.', { text: 'Never speak for the player.' }] },
+              storySummary: 'The hero reached the sealed gate.',
+            },
+          },
+        },
+      };
+    }
+    if (operation === 'GetBetterDungeonStoryCards') {
+      return {
+        data: {
+          adventure: {
+            id: 101,
+            shortId: 'test-adventure',
+            storyCardCount: 2,
+            storyCards: [{ id: 'card-1', title: 'Silver Dragon', value: 'A patient guardian.' }],
+          },
+        },
+      };
+    }
+    throw new Error(`Unexpected GraphQL operation: ${operation}`);
+  };
+
+  const adventure = await gql.getNavigatorAdventureContext('test-adventure', { signal });
+  assert.equal(adventure.id, '101');
+  assert.equal(adventure.instructions, 'Use vivid prose.\nNever speak for the player.');
+  assert.equal(adventure.instructionsSource, 'state');
+  assert.equal(adventure.storySummary, 'The hero reached the sealed gate.');
+
+  const cards = await gql.getNavigatorStoryCards('test-adventure', { signal });
+  assert.equal(cards.id, '101');
+  assert.equal(cards.storyCardCount, 2);
+  assert.equal(cards.cards[0].id, 'card-1');
+
+  assert.equal(seen[0].operation, 'GetBetterDungeonNavigatorContext');
+  assert.equal(seen[0].variables.shortId, 'test-adventure');
+  assert.equal(seen[0].options.signal, signal);
+  assert.equal(seen[1].operation, 'GetBetterDungeonStoryCards');
+  assert.equal(seen[1].options.signal, signal);
+  assert.match(window.BetterDungeonGQLService.QUERIES.navigatorAdventureContext, /state\s*\{/);
+
+  gql.request = async () => ({
+    data: {
+      adventure: {
+        id: '102',
+        shortId: 'flat-fallback',
+        instructions: { aiInstructions: 'Use the flat fallback.' },
+        state: { storySummary: '' },
+      },
+    },
+  });
+  const fallback = await gql.getNavigatorAdventureContext('flat-fallback');
+  assert.equal(fallback.instructions, 'Use the flat fallback.');
+  assert.equal(fallback.instructionsSource, 'flat');
+}
+
+function createLiveWs() {
+  return {
+    getAdventureShortId: () => 'test-adventure',
+    getAdventureId: () => '101',
+    getLiveCount: () => 3,
+    getActions: () => new Map([
+      ['late', { id: '10', type: 'story', text: 'The silver dragon opened the gate.' }],
+      ['early', { id: '2', type: 'do', text: 'The hero raised the silver key.' }],
+      ['undone', { id: '3', type: 'say', text: 'This action was undone.', undoneAt: '2026-08-10' }],
+    ]),
+    getCards: () => new Map(),
+  };
+}
+
+function adventureRecord() {
+  return {
+    id: '101',
+    shortId: 'test-adventure',
+    title: 'The Test Quest',
+    actionCount: 12,
+    editedAt: '2026-08-10T12:00:00.000Z',
+    thirdPerson: false,
+    memory: 'The hero carries a silver key.',
+    authorsNote: 'Keep the pace tense.',
+    instructions: 'Use vivid prose.',
+    storySummary: 'The hero reached the sealed gate.',
+  };
+}
+
+function cardRecords() {
+  return [
+    {
+      id: 'card-1',
+      type: 'character',
+      title: 'Silver Dragon',
+      description: 'A principal guardian.',
+      keys: 'dragon, guardian',
+      value: 'The Silver Dragon patiently guards the northern gate.',
+      updatedAt: '2026-08-10T12:00:00.000Z',
+    },
+    {
+      id: 'deleted-card',
+      type: 'location',
+      title: 'Deleted Tower',
+      keys: 'tower',
+      value: 'This must never enter the snapshot.',
+      deletedAt: '2026-08-09T12:00:00.000Z',
+    },
+  ];
+}
+
+async function testContextAndFallback() {
+  window.Ultrascripts = { ws: createLiveWs() };
+  window.BetterDungeonGQL = {
+    getNavigatorAdventureContext: async (_shortId, options) => {
+      assert.ok(options.signal instanceof AbortSignal);
+      return adventureRecord();
+    },
+    getNavigatorStoryCards: async (_shortId, options) => {
+      assert.ok(options.signal instanceof AbortSignal);
+      return { id: '101', shortId: 'test-adventure', storyCardCount: 2, cards: cardRecords() };
+    },
+  };
+
+  const reader = new window.NavigatorContext('test-adventure');
+  const snapshot = await reader.build({ signal: new AbortController().signal });
+  assert.ok(snapshot.systemInstruction.length <= window.NavigatorContext.BUDGETS.systemInstruction);
+  assert.equal(snapshot.partial, false);
+  assert.equal(snapshot.index.source, 'graphql');
+  assert.equal(snapshot.index.cards.length, 1, 'deleted cards must be filtered');
+  assert.equal(snapshot.summary.actionsTotal, 2, 'undone actions must be filtered');
+  assert.ok(
+    snapshot.systemInstruction.indexOf('The hero raised the silver key.') <
+      snapshot.systemInstruction.indexOf('The silver dragon opened the gate.'),
+    'recent actions must be ordered oldest to newest'
+  );
+  assert.doesNotMatch(snapshot.systemInstruction, /Deleted Tower/);
+
+  window.storyCardCache = {
+    getCardArray: () => [{ id: 'cached-card', type: 'location', title: 'Cached Harbor', keys: 'harbor', value: 'A foggy port.' }],
+  };
+  window.BetterDungeonGQL.getNavigatorStoryCards = async () => {
+    throw new Error('GraphQL unavailable');
+  };
+  const fallback = await reader.build();
+  assert.equal(fallback.partial, true);
+  assert.equal(fallback.index.source, 'cache');
+  assert.equal(fallback.index.cards[0].id, 'cached-card');
+  assert.match(fallback.warnings.join(' '), /live page cache/i);
+
+  const controller = new AbortController();
+  controller.abort();
+  await expectCode(reader.build({ signal: controller.signal }), 'aborted');
+  return snapshot;
+}
+
+async function testReadTools(snapshot) {
+  const longEntry = 'dragon lore '.repeat(700);
+  const index = {
+    ...snapshot.index,
+    cards: [
+      ...snapshot.index.cards,
+      { id: 'long-card', type: 'lore', title: 'Dragon Archive', keys: 'dragon', value: longEntry },
+    ],
+  };
+  const tools = new window.NavigatorTools('test-adventure');
+  const definitions = tools.definitions();
+  assert.deepEqual(definitions.map(item => item.name), ['get_story_card', 'search_story_cards']);
+  definitions[0].name = 'modified';
+  assert.equal(tools.definitions()[0].name, 'get_story_card', 'definitions must be cloned');
+
+  const search = await tools.execute('search_story_cards', { query: 'dragon', limit: 2 }, { index });
+  assert.equal(search.ok, true);
+  assert.equal(search.data.totalMatches, 2);
+  assert.deepEqual(search.data.cards.map(card => card.id), ['card-1', 'long-card']);
+
+  const card = await tools.execute('get_story_card', { id: 'long-card' }, { index });
+  assert.equal(card.data.card.id, 'long-card');
+  assert.equal(card.data.entryTruncated, true);
+  assert.ok(card.data.card.value.length <= 6000);
+
+  await expectCode(tools.execute('search_story_cards', { query: '', limit: 1 }, { index }), 'invalid_tool_args');
+  await expectCode(tools.execute('missing_tool', {}, { index }), 'unknown_tool');
+  const controller = new AbortController();
+  controller.abort();
+  await expectCode(tools.execute('get_story_card', { id: 'card-1' }, { index, signal: controller.signal }), 'aborted');
+  return index;
+}
+
+function sessionSnapshot(index) {
+  return {
+    systemInstruction: `${window.NavigatorPrimer.TEXT}\n\n=== TEST SNAPSHOT ===`,
+    capturedAtIso: '2026-08-10T12:00:00.000Z',
+    partial: false,
+    warnings: [],
+    index,
+    summary: { title: 'The Test Quest', cardsTotal: index.cards.length, actionsTotal: 2 },
+  };
+}
+
+async function testSessionStreamingPersistenceAndAbort(index) {
+  syncStorage.set('betterDungeon_navigator_read_only', true);
+  const snapshot = sessionSnapshot(index);
+  const session = new window.NavigatorSession('test-adventure');
+  session.contextReader = { build: async () => snapshot };
+  await session.settingsReady;
+  assert.deepEqual(session.getPermissionState(), { readOnly: true });
+  assert.ok(session.getToolDefinitions().every(tool => !tool.name.startsWith('propose_')));
+  assert.match(await session.buildSystemInstruction(new AbortController().signal), /READ-ONLY MODE/);
+
+  let chatRound = 0;
+  window.UltrascriptsAIExecutor = {
+    refreshStatus: async options => {
+      assert.equal(options.consumer, 'navigator');
+      return { ready: true };
+    },
+    chat: async (request, options) => {
+      assert.equal(options.consumer, 'navigator');
+      if (chatRound++ === 0) {
+        options.onDelta({ text: 'Checking the current card.' });
+        return {
+          continuation: { id: 'continuation-1' },
+          toolCalls: [{ id: 'call-1', name: 'get_story_card', arguments: { id: 'card-1' } }],
+        };
+      }
+      assert.deepEqual(request.continuation, { id: 'continuation-1' });
+      assert.equal(request.toolResults[0].result.ok, true);
+      assert.equal(request.toolResults[0].result.data.card.id, 'card-1');
+      options.onDelta({ text: ' The guardian is patient.' });
+      return { toolCalls: [], meta: { provider: 'mock' } };
+    },
+  };
+
+  await session.send('What guards the gate?');
+  const assistant = session.getMessages().find(message => message.role === 'assistant');
+  assert.equal(assistant.status, 'complete');
+  assert.match(assistant.content, /guardian is patient/);
+  assert.equal(assistant.meta.toolRounds, 1);
+  assert.deepEqual(assistant.meta.readToolsCompleted, ['get_story_card']);
+  assert.equal(chatRound, 2);
+
+  session.persist();
+  const persisted = localStorage.get('betterDungeon_navigator_session_test-adventure');
+  assert.equal(persisted.v, 1);
+  assert.equal(persisted.messages.length, 2);
+
+  chrome.storage.sync.set({ betterDungeon_navigator_read_only: false });
+  assert.deepEqual(session.getPermissionState(), { readOnly: false });
+  session.destroy();
+
+  localStorage.set('betterDungeon_navigator_session_restore-test', {
+    v: 1,
+    messages: [{ id: 'streaming-message', role: 'assistant', status: 'streaming', content: 'Partial answer' }],
+  });
+  const restored = new window.NavigatorSession('restore-test');
+  await restored.load();
+  assert.equal(restored.getMessages()[0].status, 'aborted');
+  assert.equal(restored.getMessages()[0].content, 'Partial answer');
+  restored.destroy();
+
+  const aborted = new window.NavigatorSession('abort-test');
+  aborted.contextReader = { build: async () => snapshot };
+  await aborted.settingsReady;
+  window.UltrascriptsAIExecutor = {
+    refreshStatus: async () => ({ ready: true }),
+    chat: (_request, options) => new Promise((_resolve, reject) => {
+      options.onDelta({ text: 'Partial stream' });
+      options.signal.addEventListener('abort', () => reject({ code: 'aborted', message: 'Stopped.' }), { once: true });
+    }),
+  };
+
+  const sending = aborted.send('Start a long answer.');
+  for (let attempt = 0; attempt < 20 && !aborted.controller; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  assert.ok(aborted.controller, 'the session should expose an active turn controller');
+  aborted.abort();
+  await sending;
+  const abortedAssistant = aborted.getMessages().find(message => message.role === 'assistant');
+  const abortedUser = aborted.getMessages().find(message => message.role === 'user');
+  assert.equal(abortedAssistant.status, 'aborted');
+  assert.equal(abortedAssistant.content, 'Partial stream');
+  assert.equal(abortedAssistant.excluded, true);
+  assert.equal(abortedUser.excluded, true);
+  aborted.destroy();
+}
+
+async function main() {
+  await testInjectionOrder();
+  await testGraphqlReaders();
+  const snapshot = await testContextAndFallback();
+  const index = await testReadTools(snapshot);
+  await testSessionStreamingPersistenceAndAbort(index);
+  console.log('Navigator Phase 3 contract tests passed');
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -32,6 +32,26 @@
         }
       }`,
 
+      navigatorAdventureContext: `query GetBetterDungeonNavigatorContext($shortId: String) {
+        adventure(shortId: $shortId) {
+          id
+          shortId
+          title
+          actionCount
+          editedAt
+          thirdPerson
+          memory
+          authorsNote
+          instructions
+          state {
+            instructions
+            storySummary
+            __typename
+          }
+          __typename
+        }
+      }`,
+
       storyCards: `query GetBetterDungeonStoryCards($shortId: String) {
         adventure(shortId: $shortId) {
           id
@@ -344,6 +364,95 @@
       };
       this.identityCache.set(resolvedShortId, identity);
       return identity;
+    }
+
+    async getNavigatorAdventureContext(shortId = null, options = {}) {
+      const ws = this.getWs();
+      const resolvedShortId = shortId || ws?.getAdventureShortId?.() || this.getShortIdFromUrl();
+      if (!resolvedShortId) {
+        throw new Error('Adventure shortId is unknown. Open an adventure first.');
+      }
+
+      const result = await this.request(
+        'GetBetterDungeonNavigatorContext',
+        { shortId: resolvedShortId },
+        BetterDungeonGQLService.QUERIES.navigatorAdventureContext,
+        options
+      );
+      const adventure = result?.data?.adventure;
+      if (!adventure?.id) {
+        throw new Error(`Navigator context lookup returned no adventure for ${resolvedShortId}.`);
+      }
+
+      const stateInstructions = this.normalizeInstructionText(adventure.state?.instructions);
+      const flatInstructions = this.normalizeInstructionText(adventure.instructions);
+      const hasStateInstructions = !!adventure.state && Object.prototype.hasOwnProperty.call(adventure.state, 'instructions');
+
+      return {
+        id: String(adventure.id),
+        shortId: adventure.shortId || resolvedShortId,
+        title: typeof adventure.title === 'string' ? adventure.title : '',
+        actionCount: Number.isFinite(adventure.actionCount) ? adventure.actionCount : null,
+        editedAt: typeof adventure.editedAt === 'string' ? adventure.editedAt : null,
+        thirdPerson: typeof adventure.thirdPerson === 'boolean' ? adventure.thirdPerson : null,
+        memory: typeof adventure.memory === 'string' ? adventure.memory : '',
+        authorsNote: typeof adventure.authorsNote === 'string' ? adventure.authorsNote : '',
+        instructions: hasStateInstructions ? stateInstructions : flatInstructions,
+        instructionsSource: hasStateInstructions ? 'state' : (flatInstructions ? 'flat' : 'none'),
+        storySummary: typeof adventure.state?.storySummary === 'string' ? adventure.state.storySummary : '',
+      };
+    }
+
+    async getNavigatorStoryCards(shortId = null, options = {}) {
+      const ws = this.getWs();
+      const resolvedShortId = shortId || ws?.getAdventureShortId?.() || this.getShortIdFromUrl();
+      if (!resolvedShortId) {
+        throw new Error('Adventure shortId is unknown. Open an adventure first.');
+      }
+
+      const result = await this.request(
+        'GetBetterDungeonStoryCards',
+        { shortId: resolvedShortId },
+        BetterDungeonGQLService.QUERIES.storyCards,
+        options
+      );
+      const adventure = result?.data?.adventure;
+      if (!adventure?.id || !Array.isArray(adventure.storyCards)) {
+        throw new Error(`Story Card lookup returned no adventure data for ${resolvedShortId}.`);
+      }
+      return {
+        id: String(adventure.id),
+        shortId: adventure.shortId || resolvedShortId,
+        storyCardCount: Number.isFinite(adventure.storyCardCount) ? adventure.storyCardCount : null,
+        cards: adventure.storyCards,
+      };
+    }
+
+    normalizeInstructionText(value) {
+      if (typeof value === 'string') return value.trim() ? value : '';
+      if (Array.isArray(value)) {
+        return value
+          .map(item => this.normalizeInstructionText(item))
+          .filter(Boolean)
+          .join('\n');
+      }
+      if (!value || typeof value !== 'object') return '';
+
+      if (Object.prototype.hasOwnProperty.call(value, 'custom')) {
+        return this.normalizeInstructionText(value.custom);
+      }
+
+      const preferredKeys = ['custom', 'aiInstructions', 'instructions', 'text', 'content', 'value', 'prompt'];
+      for (const key of preferredKeys) {
+        const normalized = this.normalizeInstructionText(value[key]);
+        if (normalized) return normalized;
+      }
+
+      const normalizedValues = Object.entries(value)
+        .filter(([key]) => key !== 'type')
+        .map(([, item]) => this.normalizeInstructionText(item))
+        .filter(Boolean);
+      return normalizedValues.join('\n');
     }
 
     async getAiVisibleVersions(options = {}) {
