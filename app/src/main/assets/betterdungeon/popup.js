@@ -285,9 +285,6 @@ function initUltrascriptsSettings() {
   });
 
   document.getElementById('ultrascripts-refresh')?.addEventListener('click', refreshUltrascriptsState);
-  window.addEventListener('betterdungeon:popup-bridge-ready', () => {
-    void loadAIEndpointSettings();
-  }, { once: true });
 }
 
 // Desktop V2.1 provider settings parity.

@@ -321,7 +321,13 @@ function markAIEndpointDirty() {
 }
 
 function initAIEndpointSettings() {
-  loadAIEndpointSettings();
+  const loadInitialStatus = () => void loadAIEndpointSettings();
+  if (window.__bdPopupBridgeReady) {
+    loadInitialStatus();
+  } else {
+    updateEndpointStatus({ pending: 'Loading...' });
+    window.addEventListener('betterdungeon:popup-bridge-ready', loadInitialStatus, { once: true });
+  }
   document.getElementById('ai-endpoint-service')?.addEventListener('change', event => {
     renderEndpointProfile(event.target.value, { markDirty: true });
   });

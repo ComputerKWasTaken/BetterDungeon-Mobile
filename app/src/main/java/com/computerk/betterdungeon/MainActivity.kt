@@ -416,6 +416,11 @@ class MainActivity : AppCompatActivity() {
                     BetterDungeonBridge.closePopup();
                 };
 
+                // Let popup controllers distinguish the temporary WebView
+                // polyfill from the native cross-WebView message route. The
+                // flag also covers the unlikely case where a controller is
+                // initialized after this event has already fired.
+                window.__bdPopupBridgeReady = true;
                 window.dispatchEvent(new CustomEvent('betterdungeon:popup-bridge-ready'));
                 console.log('[BetterDungeon] Popup bridge injected');
             })();
