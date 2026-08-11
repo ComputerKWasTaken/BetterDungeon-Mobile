@@ -35,7 +35,14 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "BetterDungeon"
-        private const val AI_DUNGEON_URL = "https://play.aidungeon.com"
+        private const val DEFAULT_AI_DUNGEON_URL = "https://play.aidungeon.com"
+        private const val APP_PREFERENCES = "betterdungeon_app_preferences"
+        private const val AI_DUNGEON_BRANCH_PREFERENCE = "ai_dungeon_branch"
+        private val AI_DUNGEON_HOSTS = setOf(
+            "play.aidungeon.com",
+            "beta.aidungeon.com",
+            "alpha.aidungeon.com"
+        )
     }
 
     private lateinit var mainWebView: BetterDungeonWebView
@@ -107,8 +114,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Preserve the full path, query, and fragment when launched from an
-        // AI Dungeon link. Normal launcher starts still open the homepage.
-        loadAiDungeonUrl(intent.data ?: Uri.parse(AI_DUNGEON_URL))
+        // AI Dungeon link. Normal launcher starts reopen the remembered branch.
+        loadAiDungeonUrl(intent.data)
     }
 
     override fun onDestroy() {
@@ -125,8 +132,13 @@ class MainActivity : AppCompatActivity() {
         intent.data?.let(::loadAiDungeonUrl)
     }
 
-    private fun loadAiDungeonUrl(uri: Uri) {
-        val url = if (isAiDungeonUri(uri)) uri.toString() else AI_DUNGEON_URL
+    private fun loadAiDungeonUrl(uri: Uri?) {
+        val requestedUri = uri?.takeIf(::isAiDungeonUri)
+        if (requestedUri != null) {
+            rememberAiDungeonBranch(requestedUri)
+        }
+
+        val url = requestedUri?.toString() ?: rememberedAiDungeonBranchUrl()
         mainWebView.loadUrl(url)
         Log.i(TAG, "Loading AI Dungeon: $url")
     }
@@ -135,11 +147,28 @@ class MainActivity : AppCompatActivity() {
         if (uri.scheme?.lowercase() !in setOf("http", "https")) return false
 
         val host = uri.host?.lowercase() ?: return false
-        return host in setOf(
-            "play.aidungeon.com",
-            "beta.aidungeon.com",
-            "alpha.aidungeon.com"
-        )
+        return host in AI_DUNGEON_HOSTS
+    }
+
+    private fun rememberAiDungeonBranch(uri: Uri) {
+        if (!isAiDungeonUri(uri)) return
+        val host = uri.host?.lowercase() ?: return
+        val preferences = getSharedPreferences(APP_PREFERENCES, MODE_PRIVATE)
+        if (preferences.getString(AI_DUNGEON_BRANCH_PREFERENCE, null) == host) return
+
+        preferences.edit()
+            .putString(AI_DUNGEON_BRANCH_PREFERENCE, host)
+            .apply()
+        Log.i(TAG, "Remembered AI Dungeon branch: $host")
+    }
+
+    private fun rememberedAiDungeonBranchUrl(): String {
+        val rememberedHost = getSharedPreferences(APP_PREFERENCES, MODE_PRIVATE)
+            .getString(AI_DUNGEON_BRANCH_PREFERENCE, null)
+            ?.lowercase()
+            ?.takeIf { it in AI_DUNGEON_HOSTS }
+
+        return rememberedHost?.let { "https://$it" } ?: DEFAULT_AI_DUNGEON_URL
     }
 
     // ── Main WebView ──────────────────────────────────────────────────
@@ -184,7 +213,9 @@ class MainActivity : AppCompatActivity() {
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 Log.d(TAG, "Page started loading: $url")
-                if (isAiDungeonUri(Uri.parse(url))) {
+                val uri = Uri.parse(url)
+                if (isAiDungeonUri(uri)) {
+                    rememberAiDungeonBranch(uri)
                     injectionEngine.injectEarly(view)
                 }
             }
@@ -328,7 +359,7 @@ class MainActivity : AppCompatActivity() {
                 chrome.tabs.query = function(queryInfo, callback) {
                     var fakeTabs = [{
                         id: 1,
-                        url: '$AI_DUNGEON_URL',
+                        url: '$DEFAULT_AI_DUNGEON_URL',
                         active: true,
                         currentWindow: true
                     }];
