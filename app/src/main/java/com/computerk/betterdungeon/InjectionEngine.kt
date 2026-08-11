@@ -37,7 +37,7 @@ class InjectionEngine(private val context: Context) {
          */
         private val JS_FILES = listOf(
             "utils/webview-polyfill.js",   // Must be first — sets up chrome.* shim
-            "utils/ai-native-runtime.js", // Desktop-compatible AI handlers + streaming Ports
+            "utils/ai-native-runtime.js", // Unified compatible AI handler + streaming Port
             "utils/android-editable-scroll-fix.js",
             "services/ultrascripts/ws-stream.js", // Early stream shimming
             "utils/dom.js",
@@ -58,8 +58,7 @@ class InjectionEngine(private val context: Context) {
             "modules/sdk/module.js",
             "modules/audio/module.js",
             "modules/ai/executor.js",
-            "modules/ai/gemini-backend.js",
-            "modules/ai/openai-backend.js",
+            "modules/ai/openai-compatible-backend.js",
             "modules/ai/module.js",
             "modules/widget/validators.js",
             "modules/widget/renderer.js",

@@ -36,7 +36,7 @@ The current release is **BetterDungeon Mobile v2.1.0**. Its headline addition is
 - **Confirmed modifications** — Navigator can propose changes to Plot Components, Third Person, and all five editable Story Card fields. Every write requires direct approval, conflict checks, and server read-back.
 - **Mobile-native Navigator UI** — A draggable compass opens a safe-area-aware full-screen sheet with IME handling, large touch targets, and Navigator-first Android Back behavior.
 - **Read-only mode** — Remove Navigator's mutation tools while retaining chat and Story Card research, with live synchronization between the settings and gameplay WebViews.
-- **AI provider choice** — Select Gemini or an OpenAI-compatible endpoint for Ultrascripts, Character Prefill, and Navigator. OpenRouter is the default compatible service, with custom HTTPS endpoints also supported.
+- **One compatible AI backend** — Gemini (default), OpenRouter, and remote custom HTTPS services share one OpenAI-compatible Chat Completions implementation for Ultrascripts, Character Prefill, and Navigator.
 - **Native streaming transport** — Gemini and OpenAI-compatible chat stream through Android's native HTTPS layer with cancellation, timeouts, bounded payloads, and extension-compatible Port events.
 - **Ultrascripts upgrades** — A stronger liveness heartbeat, revised WebFetch behavior, modernized Gemini backend, and bounded Audio module preserve the public script contracts while improving reliability.
 
