@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ttsManager: TextToSpeechManager
 
     private var popupLoaded = false
+    private var backNavigationPending = false
 
     // ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -448,17 +449,36 @@ class MainActivity : AppCompatActivity() {
     private fun setupBackNavigation() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                when {
-                    // Close popup first if open
-                    popupContainer.visibility == View.VISIBLE -> {
-                        hidePopup()
-                    }
-                    // Then navigate back in WebView
-                    mainWebView.canGoBack() -> {
+                // The native settings popup always has first priority.
+                if (popupContainer.visibility == View.VISIBLE) {
+                    hidePopup()
+                    return
+                }
+
+                // evaluateJavascript is asynchronous. Ignore repeat presses until
+                // Navigator has either consumed Back or yielded to WebView history.
+                if (backNavigationPending) return
+                backNavigationPending = true
+
+                mainWebView.evaluateJavascript(
+                    """
+                    (function() {
+                        try {
+                            return typeof window.__bdNavigatorHandleBack === 'function' &&
+                                window.__bdNavigatorHandleBack() === true;
+                        } catch (error) {
+                            console.warn('[BetterDungeon] Navigator Back handler failed:', error);
+                            return false;
+                        }
+                    })();
+                    """.trimIndent()
+                ) { result ->
+                    backNavigationPending = false
+                    if (result.trim().equals("true", ignoreCase = true)) return@evaluateJavascript
+
+                    if (mainWebView.canGoBack()) {
                         mainWebView.goBack()
-                    }
-                    // Finally, let the system handle it (exit app)
-                    else -> {
+                    } else {
                         isEnabled = false
                         onBackPressedDispatcher.onBackPressed()
                     }

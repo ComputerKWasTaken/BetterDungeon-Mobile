@@ -55,6 +55,9 @@ class BetterDungeon {
       } else if (message.type === 'SET_ANDROID_CARET_SCROLL_FIX') {
         const enabled = this.handleSetAndroidCaretScrollFix(message.enabled);
         sendResponse({ success: true, enabled });
+      } else if (message.type === 'SET_NAVIGATOR_READ_ONLY') {
+        this.handleRefreshNavigatorPermissions().then(sendResponse);
+        return true;
       } else if (message.type === 'STOP_TEXT_TO_SPEECH') {
         this.handleStopTextToSpeech();
       } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
@@ -319,6 +322,24 @@ class BetterDungeon {
 
   async handleFeatureToggle(featureId, enabled) {
     await this.featureManager.toggleFeature(featureId, enabled);
+  }
+
+  async handleRefreshNavigatorPermissions() {
+    const feature = this.featureManager.getFeature('navigator');
+    if (!feature?.refreshPermissionState) {
+      return { success: false, readOnly: true, error: 'Navigator is not active.' };
+    }
+    try {
+      const state = await feature.refreshPermissionState();
+      return { success: true, readOnly: state.readOnly === true };
+    } catch (error) {
+      console.warn('[BetterDungeon] Navigator permission refresh failed:', error);
+      return {
+        success: false,
+        readOnly: true,
+        error: error?.message || 'Navigator permission refresh failed.',
+      };
+    }
   }
 
 
