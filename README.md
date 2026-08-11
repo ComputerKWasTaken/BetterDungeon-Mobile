@@ -6,7 +6,7 @@
 
 The Android WebView port of BetterDungeon for AI Dungeon, bringing the features that make sense on a touch screen together with a few mobile-specific improvements.
 
-[![Version](https://img.shields.io/badge/version-2.0.2-7c3aed?style=for-the-badge)](app/build.gradle.kts)
+[![Version](https://img.shields.io/badge/version-2.1.0-7c3aed?style=for-the-badge)](app/build.gradle.kts)
 [![Android](https://img.shields.io/badge/Android-API_27%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/)
 [![License](https://img.shields.io/github/license/ComputerKWasTaken/BetterDungeon?style=for-the-badge)](https://github.com/ComputerKWasTaken/BetterDungeon/blob/main/LICENSE)
 
@@ -28,15 +28,19 @@ Hey everyone, it's computerK here. BetterDungeon Mobile is the Android side of t
 
 The goal is not to force every desktop feature onto a phone. The goal is to bring the good stuff over, make it feel natural with touch controls, and add the Android bridge work needed to make extension-style features function inside a native app.
 
-The current release is **BetterDungeon Mobile v2.0.2**, with shared feature parity wherever mobile can support it. Some desktop-only tools, such as Hotkeys and the Story Card Modal Dock, are intentionally not included on mobile.
+The current release is **BetterDungeon Mobile v2.1.0**. Its headline addition is Navigator, a grounded AI agent for understanding and safely maintaining the adventure you are currently playing. Some desktop-only tools, such as Hotkeys and the Story Card Modal Dock, remain intentionally excluded from Mobile.
 
-### What's new in v2.0.2
+### What's new in v2.1.0
 
-- **Revamped Custom Dynamic** — Supports the latest AI Dungeon models, different versions of the same model, switch frequency from 1–20 turns, streamlined configuration, and an enabled-state replacement icon.
-- **Versioned release history** — The What's New panel now keeps previous release notes available through a version switcher.
-- **Experimental caret jitter fix** — Adds an optional workaround for a WebView caret-following quirk.
-- **AI Dungeon links** — BetterDungeon Mobile can open `play.aidungeon.com`, `beta.aidungeon.com`, and `alpha.aidungeon.com` links.
-- **Mobile login guidance** — Adds a mobile-specific login warning and removes the Google and Apple login options because they do not function correctly in the WebView.
+- **Navigator** — Grounded, multi-turn streaming chat with Plot Component and Recent Story context, selective Story Card research, Markdown, quick actions, visible tool activity, and per-adventure history.
+- **Confirmed modifications** — Navigator can propose changes to Plot Components, Third Person, and all five editable Story Card fields. Every write requires direct approval, conflict checks, and server read-back.
+- **Mobile-native Navigator UI** — A draggable compass opens a safe-area-aware full-screen sheet with IME handling, large touch targets, and Navigator-first Android Back behavior.
+- **Read-only mode** — Remove Navigator's mutation tools while retaining chat and Story Card research, with live synchronization between the settings and gameplay WebViews.
+- **AI provider choice** — Select Gemini or an OpenAI-compatible endpoint for Ultrascripts, Character Prefill, and Navigator. OpenRouter is the default compatible service, with custom HTTPS endpoints also supported.
+- **Native streaming transport** — Gemini and OpenAI-compatible chat stream through Android's native HTTPS layer with cancellation, timeouts, bounded payloads, and extension-compatible Port events.
+- **Ultrascripts upgrades** — A stronger liveness heartbeat, revised WebFetch behavior, modernized Gemini backend, and bounded Audio module preserve the public script contracts while improving reliability.
+
+Previous Mobile release notes remain available from the version switcher in BetterDungeon Settings.
 
 ## Getting started
 
@@ -80,6 +84,7 @@ The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built AP
 
 ### Control and navigation
 
+- **Navigator** — Chat with a grounded adventure copilot, research Story Cards, and approve conflict-safe changes from a touch-native full-screen sheet.
 - **Input History** — Cycle through recent inputs with a touch-friendly history bar scoped to each adventure.
 - **Input Mode Colors** — Color-code the input area based on the active action mode.
 - **Mobile Settings Gear** — Open BetterDungeon settings directly from the AI Dungeon interface.
@@ -102,7 +107,8 @@ Ultrascripts is BetterDungeon's extension-to-script communication system. Mobile
 
 | Module | What it enables |
 | --- | --- |
-| `ai` | Gemini-backed status and query operations |
+| `ai` | Gemini or OpenAI-compatible status, query, and streaming chat operations |
+| `audio` | Bounded synthesized sound effects with configurable waveforms and envelopes |
 | `widget` | Interactive script-rendered UI widgets |
 | `webfetch` | Bounded, credential-free reads of public HTTPS resources |
 | `clock` | Local time, timezone, and formatting helpers |
@@ -127,8 +133,9 @@ This lets the mobile build share a large portion of BetterDungeon's feature code
 BetterDungeon Mobile:
 
 - Loads AI Dungeon in a WebView and needs Internet access for AI Dungeon and enabled network features.
-- Stores settings, presets, notes, and Gemini API keys locally on the device.
-- Does not expose Gemini API keys through the Ultrascripts SDK/config surface.
+- Stores settings, presets, notes, and configured AI-provider credentials locally on the device.
+- Does not expose provider API keys or endpoint credentials through the Ultrascripts SDK/config surface.
+- Sends AI requests only to the explicitly selected provider; it does not silently fall back across providers.
 - Opens non-AI-Dungeon links in the system browser.
 - Disables Android app-data backup for release builds so local secrets and settings are not copied through cloud backup or device transfer by default.
 

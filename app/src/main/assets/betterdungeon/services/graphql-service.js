@@ -160,6 +160,78 @@
           __typename
         }
       }`,
+
+      navigatorAdventurePlot: `mutation UpdateAdventurePlot($input: AdventurePlotInput) {
+        updateAdventurePlot(input: $input) {
+          adventure {
+            id
+            shortId
+            thirdPerson
+            memory
+            authorsNote
+            editedAt
+            __typename
+          }
+          message
+          success
+          __typename
+        }
+      }`,
+
+      navigatorAdventureState: `mutation UpdateAdventureState($input: AdventureStateInput) {
+        updateAdventureState(input: $input) {
+          adventure {
+            id
+            shortId
+            state {
+              instructions
+              storySummary
+              storyCardStoryInformation
+              storyCardInstructions
+              imageStyle
+              __typename
+            }
+            editedAt
+            __typename
+          }
+          message
+          success
+          __typename
+        }
+      }`,
+
+      navigatorStoryCardUpsert: `mutation UseAutoSaveStoryCard($input: UpdateStoryCardInput!) {
+        updateStoryCard(input: $input) {
+          success
+          message
+          storyCard {
+            id
+            type
+            title
+            description
+            keys
+            value
+            useForCharacterCreation
+            updatedAt
+            deletedAt
+            __typename
+          }
+          __typename
+        }
+      }`,
+
+      navigatorStoryCardDelete: `mutation UseDeleteStoryCard($input: DeleteStoryCardInput!) {
+        deleteStoryCard(input: $input) {
+          success
+          message
+          storyCard {
+            id
+            deletedAt
+            __typename
+          }
+          __typename
+        }
+      }`,
     };
 
     log(...args) {
@@ -426,6 +498,105 @@
         storyCardCount: Number.isFinite(adventure.storyCardCount) ? adventure.storyCardCount : null,
         cards: adventure.storyCards,
       };
+    }
+
+    async updateNavigatorAdventurePlot(shortId, changes, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      if (!resolvedShortId) throw new Error('Navigator plot update requires an adventure shortId.');
+      if (!changes || typeof changes !== 'object' || Array.isArray(changes)) {
+        throw new Error('Navigator plot update requires a changes object.');
+      }
+
+      const input = { shortId: resolvedShortId };
+      if (Object.prototype.hasOwnProperty.call(changes, 'memory')) input.memory = String(changes.memory ?? '');
+      if (Object.prototype.hasOwnProperty.call(changes, 'authorsNote')) input.authorsNote = String(changes.authorsNote ?? '');
+      if (Object.prototype.hasOwnProperty.call(changes, 'thirdPerson')) input.thirdPerson = changes.thirdPerson === true;
+      if (Object.keys(input).length === 1) throw new Error('Navigator plot update has no supported changes.');
+
+      const result = await this.request(
+        'UpdateAdventurePlot',
+        { input },
+        BetterDungeonGQLService.MUTATIONS.navigatorAdventurePlot,
+        options
+      );
+      const response = result?.data?.updateAdventurePlot;
+      if (!response?.success || !response.adventure) {
+        throw new Error(response?.message || 'AI Dungeon rejected the Plot Component update.');
+      }
+      return response;
+    }
+
+    async updateNavigatorAdventureState(shortId, state, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      if (!resolvedShortId) throw new Error('Navigator state update requires an adventure shortId.');
+      if (!state || typeof state !== 'object' || Array.isArray(state) || !Object.keys(state).length) {
+        throw new Error('Navigator state update requires a non-empty state object.');
+      }
+
+      const result = await this.request(
+        'UpdateAdventureState',
+        { input: { shortId: resolvedShortId, state } },
+        BetterDungeonGQLService.MUTATIONS.navigatorAdventureState,
+        options
+      );
+      const response = result?.data?.updateAdventureState;
+      if (!response?.success || !response.adventure) {
+        throw new Error(response?.message || 'AI Dungeon rejected the adventure state update.');
+      }
+      return response;
+    }
+
+    async updateNavigatorStoryCard(shortId, card, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      if (!resolvedShortId) throw new Error('Navigator Story Card update requires an adventure shortId.');
+      if (!card || typeof card !== 'object' || Array.isArray(card)) {
+        throw new Error('Navigator Story Card update requires a complete card record.');
+      }
+
+      const input = {
+        id: String(card.id || ''),
+        shortId: resolvedShortId,
+        contentType: 'adventure',
+        type: String(card.type ?? ''),
+        title: String(card.title ?? ''),
+        description: String(card.description ?? ''),
+        keys: String(card.keys ?? ''),
+        value: String(card.value ?? ''),
+        useForCharacterCreation: card.useForCharacterCreation === true,
+      };
+      if (!input.id) throw new Error('Navigator Story Card update requires a stable card ID.');
+
+      const result = await this.request(
+        'UseAutoSaveStoryCard',
+        { input },
+        BetterDungeonGQLService.MUTATIONS.navigatorStoryCardUpsert,
+        options
+      );
+      const response = result?.data?.updateStoryCard;
+      if (!response?.success || !response.storyCard) {
+        throw new Error(response?.message || 'AI Dungeon rejected the Story Card update.');
+      }
+      return response;
+    }
+
+    async deleteNavigatorStoryCard(shortId, id, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      const resolvedId = String(id || '').trim();
+      if (!resolvedShortId || !resolvedId) {
+        throw new Error('Navigator Story Card deletion requires an adventure shortId and card ID.');
+      }
+
+      const result = await this.request(
+        'UseDeleteStoryCard',
+        { input: { id: resolvedId, shortId: resolvedShortId, contentType: 'adventure' } },
+        BetterDungeonGQLService.MUTATIONS.navigatorStoryCardDelete,
+        options
+      );
+      const response = result?.data?.deleteStoryCard;
+      if (!response?.success || String(response.storyCard?.id || '') !== resolvedId) {
+        throw new Error(response?.message || 'AI Dungeon rejected the Story Card deletion.');
+      }
+      return response;
     }
 
     normalizeInstructionText(value) {
