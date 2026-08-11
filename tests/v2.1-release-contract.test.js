@@ -59,7 +59,7 @@ function testPopupReleaseHistory() {
   assert.match(release210, /OpenAI-compatible endpoint/);
   assert.match(release210, /Ultrascripts V2\.1/);
   assert.match(release210, /Remember Your Branch/);
-  assert.match(release210, /Stable, Beta, or Alpha/);
+  assert.match(release210, /Production, Beta, or Alpha/);
 
   const css = read('app/src/main/assets/betterdungeon/popup.css');
   for (const selector of [
