@@ -90,7 +90,7 @@
       this.contextControllers = new Set();
       this.applyController = null;
       this.mutationQueue = Promise.resolve();
-      this.readOnly = typeof NavigatorSettings !== 'undefined';
+      this.readOnly = true;
       this.boundStorageChange = (changes, areaName) => this.onStorageChange(changes, areaName);
       this.settings = typeof NavigatorSettings !== 'undefined'
         ? { ...NavigatorSettings.DEFAULTS }
