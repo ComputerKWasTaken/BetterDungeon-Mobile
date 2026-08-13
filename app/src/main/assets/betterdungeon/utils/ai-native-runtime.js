@@ -33,6 +33,7 @@
   const LEGACY_SYNC_KEYS = Object.freeze(['ultrascripts_ai_default_provider']);
   const SERVICES = Object.freeze(['gemini', 'openrouter', 'custom']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
+  const CHAT_THINKING_LEVELS = Object.freeze(['off', ...THINKING_LEVELS]);
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const TIMEOUT_MS = 120000;
   const KEEPALIVE_MS = 20000;
@@ -327,14 +328,15 @@
     };
   }
 
-  function normalizeThinking(value) {
+  function normalizeThinking(value, chat = false) {
     if (value === undefined || value === null) return { level: AI_DEFAULT_THINKING_LEVEL };
     const raw = typeof value === 'string' ? value : value?.level;
     const level = trim(raw || AI_DEFAULT_THINKING_LEVEL).toLowerCase();
-    if (!THINKING_LEVELS.includes(level)) {
-      throw { code: 'invalid_args', message: `thinking.level must be one of: ${THINKING_LEVELS.join(', ')}`, retryable: false };
+    const levels = chat ? CHAT_THINKING_LEVELS : THINKING_LEVELS;
+    if (!levels.includes(level)) {
+      throw { code: 'invalid_args', message: `thinking.level must be one of: ${levels.join(', ')}`, retryable: false };
     }
-    return { level };
+    return chat ? { level, sendReasoningToCustom: value?.sendReasoningToCustom === true } : { level };
   }
 
   const AI_DEFAULT_THINKING_LEVEL = 'minimal';
@@ -358,7 +360,7 @@
       id: typeof task.id === 'string' ? task.id : null,
       prompt: task.prompt,
       promptChars: Number(task.promptChars || task.prompt.length),
-      thinking: normalizeThinking(task.thinking),
+      thinking: normalizeThinking(task.thinking, true),
       output: { type, schema: output.schema ? cloneJson(output.schema) : undefined },
     };
   }
@@ -455,8 +457,21 @@
   }
 
   function applyThinking(payload, settings, model, thinking) {
-    if (settings.service !== 'gemini') return null;
-    const requestedLevel = normalizeThinking(thinking).level;
+    const chatThinking = normalizeThinking(thinking, true);
+    const requestedLevel = chatThinking.level;
+    if (settings.service === 'openrouter') {
+      payload.reasoning = requestedLevel === 'off'
+        ? { enabled: false }
+        : { effort: requestedLevel, exclude: true };
+      return { requestedLevel, appliedLevel: requestedLevel, family: 'openrouter', applied: true, defaulted: requestedLevel === AI_DEFAULT_THINKING_LEVEL };
+    }
+    if (settings.service === 'custom') {
+      if (chatThinking.sendReasoningToCustom !== true) {
+        return { requestedLevel, appliedLevel: null, family: 'custom', applied: false, defaulted: requestedLevel === AI_DEFAULT_THINKING_LEVEL, reason: 'disabled' };
+      }
+      payload.reasoning_effort = requestedLevel;
+      return { requestedLevel, appliedLevel: requestedLevel, family: 'custom', applied: true, defaulted: requestedLevel === AI_DEFAULT_THINKING_LEVEL };
+    }
     if (/^gemma-/i.test(model)) {
       if (requestedLevel !== 'minimal') {
         payload.extra_body = {
@@ -476,7 +491,7 @@
         toggle: true,
       };
     }
-    payload.reasoning_effort = requestedLevel;
+    payload.reasoning_effort = requestedLevel === 'off' ? 'none' : requestedLevel;
     return {
       requestedLevel,
       appliedLevel: requestedLevel,
@@ -829,13 +844,17 @@
       return { id: call.id, name: call.function.name, arguments: args };
     });
     if (!text && !publicCalls.length) {
+      if (finishReason === 'length') {
+        throw { code: 'output_exhausted', message: `Navigator used its whole output budget at the ${settings.requestedThinkingLevel || AI_DEFAULT_THINKING_LEVEL} thinking level; lower the thinking level.`, retryable: false, backend: PROVIDER_ID, service: settings.service, model };
+      }
       throw { code: 'invalid_response', message: sawDone ? 'OpenAI-compatible provider returned no streamed output.' : 'OpenAI-compatible stream closed before completion.', retryable: !sawDone, backend: PROVIDER_ID, service: settings.service, model };
     }
     return { text, toolCalls: publicCalls, assistantMessage, providerModel, usage };
   }
 
-  async function chatAttempt(config, settings, task, session, model, attempted, onDelta) {
+  async function chatAttempt(config, settings, task, session, model, attempted, onDelta, onStage) {
     const info = chatPayload(task, settings, model);
+    settings.requestedThinkingLevel = info.thinking?.requestedLevel || AI_DEFAULT_THINKING_LEVEL;
     let response;
     try {
       response = await fetchWithTimeout(`${settings.baseUrl}/chat/completions`, {
@@ -852,7 +871,15 @@
     if (!response.ok) throw httpError(response, await response.text(), model, settings);
     let streamed;
     try {
-      streamed = await readStream(response, model, settings, onDelta);
+      onStage?.('connected');
+      let streamingEmitted = false;
+      streamed = await readStream(response, model, settings, (text, sequence) => {
+        if (!streamingEmitted) {
+          streamingEmitted = true;
+          onStage?.('streaming');
+        }
+        onDelta(text, sequence);
+      });
     } catch (error) {
       if (session.controller.signal.aborted) {
         const timeout = session.abortReason === 'timeout';
@@ -883,7 +910,7 @@
     return result;
   }
 
-  async function callChatStream(config, task, session, onDelta) {
+  async function callChatStream(config, task, session, onDelta, onStage) {
     const settings = settingsFor(config);
     if (!settings.configured) throw notConfigured(settings);
     const models = modelsFor(settings);
@@ -892,7 +919,7 @@
       const model = models[index];
       attempted.push(model);
       try {
-        return await chatAttempt(config, settings, task, session, model, attempted, onDelta);
+        return await chatAttempt(config, settings, task, session, model, attempted, onDelta, onStage);
       } catch (error) {
         if (!(error?.code === 'rate_limit' && settings.service === 'gemini' && settings.modelMode === 'auto' && index < models.length - 1)) throw error;
       }
@@ -999,6 +1026,8 @@
       getConfig()
         .then(config => callChatStream(config, task, session, (text, sequence) => {
           if (!session.closed && !session.terminal && !safePost({ v: 1, type: 'delta', requestId: session.requestId, sequence, text })) teardown('delta-post-failed');
+        }, stage => {
+          if (!session.closed && !session.terminal && !safePost({ v: 1, type: 'stage', requestId: session.requestId, stage })) teardown('stage-post-failed');
         }))
         .then(result => { clearTimeout(timeout); if (!session.closed) terminal('complete', { result }); })
         .catch(error => { clearTimeout(timeout); if (!session.closed) terminal('error', { error: normalizeError(error) }); });

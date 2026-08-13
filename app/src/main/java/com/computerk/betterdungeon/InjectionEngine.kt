@@ -69,6 +69,7 @@ class InjectionEngine(private val context: Context) {
             "services/navigator/context.js",
             "services/navigator/tools.js",
             "services/navigator/mutations.js",
+            "services/navigator/settings.js",
             "services/navigator/session.js",
             "services/story-card-scanner.js",
             "features/ultrascripts_feature.js",

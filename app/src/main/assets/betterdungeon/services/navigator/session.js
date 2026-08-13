@@ -90,17 +90,36 @@
       this.contextControllers = new Set();
       this.applyController = null;
       this.mutationQueue = Promise.resolve();
-      this.readOnly = false;
+      this.readOnly = typeof NavigatorSettings !== 'undefined';
       this.boundStorageChange = (changes, areaName) => this.onStorageChange(changes, areaName);
-      this.settingsReady = this.loadReadOnlyMode();
+      this.settings = typeof NavigatorSettings !== 'undefined'
+        ? { ...NavigatorSettings.DEFAULTS }
+        : { readOnly: false, thinkingLevel: 'low', sendReasoningToCustom: false };
+      this.boundSettingsChange = settings => this.onSettingsChange(settings);
+      this.settingsUnsubscribe = null;
+      this.settingsReady = this.loadSettings();
       this.destroyed = false;
       this.debug = false;
 
       try {
+        if (typeof NavigatorSettings !== 'undefined') {
+          this.settingsUnsubscribe = NavigatorSettings.watch(this.boundSettingsChange);
+        }
         chrome.storage?.onChanged?.addListener(this.boundStorageChange);
       } catch {
         /* noop */
       }
+    }
+
+    setReadOnlyMode(enabled) {
+      this.readOnly = enabled === true;
+      this.emit('permissions', this.getPermissionState());
+      return this.getPermissionState();
+    }
+
+    onStorageChange(changes, areaName) {
+      if (areaName !== 'sync' || !changes?.[READ_ONLY_STORAGE_KEY]) return;
+      this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue);
     }
 
     log(message, ...args) {
@@ -219,48 +238,48 @@
       this.emit('reset', this.messages);
     }
 
-    async loadReadOnlyMode() {
-      if (!isExtensionContextValid()) {
-        return this.setReadOnlyMode(true);
-      }
-      const readOnly = await new Promise(resolve => {
-        let settled = false;
-        const finish = value => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          resolve(value);
-        };
-        const timer = setTimeout(() => finish(true), 2000);
-        try {
-          chrome.storage.sync.get(READ_ONLY_STORAGE_KEY, result => {
-            try {
-              if (chrome.runtime?.lastError) {
-                finish(true);
-                return;
-              }
-              finish((result || {})[READ_ONLY_STORAGE_KEY] === true);
-            } catch {
-              finish(true);
-            }
-          });
-        } catch {
-          finish(true);
+    async loadSettings() {
+      if (!isExtensionContextValid() || typeof NavigatorSettings === 'undefined') {
+        if (typeof NavigatorSettings === 'undefined') {
+          try {
+            const legacy = await new Promise((resolve, reject) => {
+              let settled = false;
+              const timer = setTimeout(() => {
+                if (!settled) {
+                  settled = true;
+                  reject(new Error('Navigator read-only storage timed out.'));
+                }
+              }, 2000);
+              chrome.storage.sync.get(READ_ONLY_STORAGE_KEY, result => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                if (chrome.runtime?.lastError) reject(chrome.runtime.lastError);
+                else resolve(result?.[READ_ONLY_STORAGE_KEY] === true);
+              });
+            });
+            this.readOnly = legacy;
+          } catch {
+            this.readOnly = true;
+          }
         }
-      });
-      return this.setReadOnlyMode(readOnly);
+        return;
+      }
+      try {
+        this.settings = await NavigatorSettings.load();
+      } catch {
+        this.settings = { ...NavigatorSettings.DEFAULTS, readOnly: true };
+      }
+      this.readOnly = this.settings.readOnly === true;
+      this.emit('permissions', { readOnly: this.readOnly });
+      this.emit('settings', this.settings);
     }
 
-    setReadOnlyMode(enabled) {
-      this.readOnly = enabled === true;
-      const state = this.getPermissionState();
-      this.emit('permissions', state);
-      return state;
-    }
-
-    onStorageChange(changes, areaName) {
-      if (areaName !== 'sync' || !changes?.[READ_ONLY_STORAGE_KEY]) return;
-      this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue);
+    onSettingsChange(settings) {
+      this.settings = settings;
+      this.readOnly = settings.readOnly === true;
+      this.emit('permissions', { readOnly: this.readOnly });
+      this.emit('settings', settings);
     }
 
     getPermissionState() {
@@ -589,7 +608,13 @@
         return;
       }
 
-      const assistant = this.addMessage({ role: 'assistant', status: 'pending', content: '' });
+      const assistant = this.addMessage({
+        role: 'assistant',
+        status: 'pending',
+        content: '',
+        streamStage: 'connecting',
+        streamStartedAt: Date.now(),
+      });
       this.streamingMessageId = assistant.id;
       const turnController = new AbortController();
       this.controller = turnController;
@@ -634,8 +659,16 @@
           const result = await window.UltrascriptsAIExecutor.chat({
             systemInstruction: request.systemInstruction,
             messages: request.messages,
-            budget: { maxInputChars: MAX_INPUT_CHARS, maxOutputTokens: MAX_OUTPUT_TOKENS },
-            thinking: { level: 'low' },
+            budget: {
+              maxInputChars: MAX_INPUT_CHARS,
+              maxOutputTokens: typeof NavigatorSettings !== 'undefined'
+                ? NavigatorSettings.outputTokensFor(this.settings.thinkingLevel)
+                : MAX_OUTPUT_TOKENS,
+            },
+            thinking: {
+              level: this.settings.thinkingLevel,
+              sendReasoningToCustom: this.settings.sendReasoningToCustom === true,
+            },
             tools,
             ...(continuation ? { continuation, toolResults } : {}),
           }, {
@@ -652,9 +685,17 @@
               roundReceivedDelta = true;
               message.content += delta.text;
               message.status = 'streaming';
+              message.streamStage = 'writing';
               message.toolActivity = null;
               this.emit('update', message);
               this.schedulePersist();
+            },
+            onStage: (stage) => {
+              if (this.streamingMessageId !== assistant.id) return;
+              const message = this.findMessage(assistant.id);
+              if (!message) return;
+              message.streamStage = stage === 'connected' ? 'reasoning' : 'writing';
+              this.emit('update', message);
             },
           });
 
@@ -713,6 +754,8 @@
           toolActivity: null,
           meta: {
             ...(finalMeta || {}),
+            durationMs: assistant.streamStartedAt ? Math.max(0, Date.now() - assistant.streamStartedAt) : null,
+            thinkingLevel: finalMeta?.thinking?.appliedLevel || this.settings.thinkingLevel,
             toolRounds,
             toolResultChars,
             toolsUsed: Array.from(new Set(toolNames)),
@@ -933,11 +976,8 @@
         this.saveTimer = null;
       }
       this.persist();
-      try {
-        chrome.storage?.onChanged?.removeListener(this.boundStorageChange);
-      } catch {
-        /* noop */
-      }
+      try { this.settingsUnsubscribe?.(); } catch { /* noop */ }
+      try { chrome.storage?.onChanged?.removeListener(this.boundStorageChange); } catch { /* noop */ }
       this.listeners.clear();
     }
   }

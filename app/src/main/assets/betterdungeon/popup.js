@@ -234,10 +234,12 @@ function initToggles() {
     if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoApply] ?? false;
   });
 
-  chrome.storage.sync.get(STORAGE_KEYS.navigatorReadOnly, (result) => {
+  NavigatorSettings.load().then((settings) => {
     const toggle = document.getElementById('navigator-read-only');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.navigatorReadOnly] === true;
-  });
+    if (toggle) toggle.checked = settings.readOnly === true;
+    const level = document.getElementById('navigator-thinking-level');
+    if (level) level.value = settings.thinkingLevel;
+  }).catch(() => {});
 
   // Setup change handlers
   document.querySelectorAll('input[type="checkbox"][id^="feature-"]').forEach(toggle => {
@@ -255,9 +257,12 @@ function initToggles() {
 
   document.getElementById('navigator-read-only')?.addEventListener('change', (e) => {
     const enabled = e.target.checked === true;
-    chrome.storage.sync.set({ [STORAGE_KEYS.navigatorReadOnly]: enabled }, () => {
+    NavigatorSettings.save({ readOnly: enabled }).then(() => {
       notifyContentScript('SET_NAVIGATOR_READ_ONLY', { enabled });
-    });
+    }).catch(() => {});
+  });
+  document.getElementById('navigator-thinking-level')?.addEventListener('change', (event) => {
+    NavigatorSettings.save({ thinkingLevel: event.target.value }).catch(() => {});
   });
 
   // Ultrascripts debug toggle
@@ -3093,4 +3098,3 @@ document.querySelectorAll('.feature-credit a').forEach(link => {
     chrome.tabs.create({ url: link.href });
   });
 });
-

@@ -35,6 +35,9 @@ class NavigatorFeature {
     this.stopBtn = null;
     this.emptyEl = null;
     this.readOnlyBadge = null;
+    this.settingsUnsubscribe = null;
+    this.settingsSelect = null;
+    this.reasoningTimer = null;
     this.messageNodes = new Map();
 
     this.isOpen = false;
@@ -412,6 +415,10 @@ class NavigatorFeature {
     this.stopBtn = null;
     this.emptyEl = null;
     this.readOnlyBadge = null;
+    try { this.settingsUnsubscribe?.(); } catch { /* noop */ }
+    this.settingsUnsubscribe = null;
+    if (this.reasoningTimer) clearInterval(this.reasoningTimer);
+    this.reasoningTimer = null;
     this.messageNodes.clear();
     this.isOpen = false;
     this.inputComposing = false;
@@ -468,6 +475,9 @@ class NavigatorFeature {
         <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
           <span class="icon-eraser" aria-hidden="true"></span>
         </button>
+        <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings">
+          <span class="icon-settings" aria-hidden="true"></span>
+        </button>
         <button type="button" class="bd-navigator-icon-btn bd-navigator-close" aria-label="Close Navigator" title="Close Navigator">
           <span class="icon-x" aria-hidden="true"></span>
         </button>
@@ -523,6 +533,10 @@ class NavigatorFeature {
 
     header.querySelector('.bd-navigator-close').addEventListener('click', () => this.closeDrawer());
     header.querySelector('.bd-navigator-clear').addEventListener('click', () => this.handleClear());
+    header.querySelector('.bd-navigator-settings').addEventListener('click', () => {
+      const current = this.drawer.querySelector('.bd-navigator-settings-panel');
+      if (current) current.hidden = !current.hidden;
+    });
     this.stopBtn.addEventListener('click', () => this.session?.abort());
 
     this.sendBtn.addEventListener('click', () => this.handleSend());
@@ -531,6 +545,19 @@ class NavigatorFeature {
     });
 
     this.inputEl.addEventListener('input', () => this.autosizeInput());
+    const settingsPanel = document.createElement('div');
+    settingsPanel.className = 'bd-navigator-settings-panel';
+    settingsPanel.hidden = true;
+    settingsPanel.innerHTML = '<label>Thinking level <select><option value="off">Off</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>';
+    drawer.insertBefore(settingsPanel, transcript);
+    this.settingsSelect = settingsPanel.querySelector('select');
+    if (typeof NavigatorSettings !== 'undefined') {
+      NavigatorSettings.load().then(settings => { this.settingsSelect.value = settings.thinkingLevel; }).catch(() => {});
+      this.settingsSelect.addEventListener('change', () => NavigatorSettings.save({ thinkingLevel: this.settingsSelect.value }).catch(() => {}));
+      this.settingsUnsubscribe = NavigatorSettings.watch(settings => {
+        if (this.settingsSelect && document.activeElement !== this.settingsSelect) this.settingsSelect.value = settings.thinkingLevel;
+      });
+    }
     this.inputEl.addEventListener('compositionstart', () => {
       this.inputComposing = true;
     });
@@ -820,6 +847,13 @@ class NavigatorFeature {
     this.updateEmptyState();
     this.updateComposerState();
     this.scrollToBottom(true);
+    if (!this.reasoningTimer && this.session?.isChatBusy) {
+      this.reasoningTimer = setInterval(() => {
+        for (const message of this.session?.getMessages?.() || []) {
+          if (message.streamStage === 'reasoning') this.updateMessageNode(message);
+        }
+      }, 1000);
+    }
   }
 
   updateEmptyState() {
@@ -875,11 +909,18 @@ class NavigatorFeature {
     } else if (readToolActivity.length) {
       status.replaceChildren(this.createToolActivityIndicator(readToolActivity, false));
       status.className = 'bd-navigator-message-status';
-    } else if (message.status === 'pending') {
-      status.replaceChildren(this.createThinkingIndicator());
+    } else if (message.status === 'pending' && message.streamStage === 'connecting') {
+      status.replaceChildren(this.createStageIndicator('Connecting', message));
+      status.className = 'bd-navigator-message-status';
+    } else if (message.status === 'pending' && message.streamStage === 'reasoning') {
+      status.replaceChildren(this.createStageIndicator('Reasoning', message));
       status.className = 'bd-navigator-message-status';
     } else if (message.status === 'complete' && completedReadTools.length) {
       status.replaceChildren(this.createToolActivityIndicator(completedReadTools, true));
+      status.appendChild(this.createCompletionFooter(message));
+      status.className = 'bd-navigator-message-status';
+    } else if (message.status === 'complete') {
+      status.replaceChildren(this.createCompletionFooter(message));
       status.className = 'bd-navigator-message-status';
     } else {
       status.replaceChildren();
@@ -1448,6 +1489,32 @@ class NavigatorFeature {
     }
     wrap.appendChild(dots);
     return wrap;
+  }
+
+  createStageIndicator(stage, message) {
+    const wrap = document.createElement('span');
+    wrap.className = 'bd-navigator-thinking';
+    const elapsed = message.streamStartedAt ? Math.floor((Date.now() - message.streamStartedAt) / 1000) : 0;
+    const level = message.meta?.thinkingLevel || this.session?.settings?.thinkingLevel || 'low';
+    const label = document.createElement('span');
+    label.className = 'bd-navigator-activity-label';
+    label.textContent = stage === 'Reasoning' && elapsed >= (level === 'high' ? 90 : 30)
+      ? `Still reasoning — ${level} · ${elapsed}s · you can stop`
+      : `${stage} · ${level} · ${elapsed}s`;
+    wrap.appendChild(label);
+    return wrap;
+  }
+
+  createCompletionFooter(message) {
+    const footer = document.createElement('span');
+    footer.className = 'bd-navigator-status-muted';
+    const meta = message.meta || {};
+    const level = meta.thinking?.appliedLevel || meta.thinkingLevel || this.session?.settings?.thinkingLevel || 'low';
+    const duration = Number.isFinite(meta.durationMs) ? `${Math.round(meta.durationMs / 1000)}s` : '—';
+    footer.textContent = level === 'off' ? duration : `Applied ${level} · ${duration}`;
+    const tokens = meta.usage?.completion_tokens_details?.reasoning_tokens;
+    if (Number.isFinite(tokens)) footer.textContent += ` · ${tokens} reasoning tokens`;
+    return footer;
   }
 
   getReadToolNames(names) {

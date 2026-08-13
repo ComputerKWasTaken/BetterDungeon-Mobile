@@ -518,7 +518,8 @@
           return text + decoder.decode();
         }
       };
-      response.ok = response.status >= 200 && response.status < 300;
+        response.ok = response.status >= 200 && response.status < 300;
+      response.stage = event.stage === 'connected' ? 'connected' : null;
       response.json = async function () { return JSON.parse(await response.text()); };
       pending.resolve(response);
       return;
