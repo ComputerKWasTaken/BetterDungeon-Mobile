@@ -214,7 +214,6 @@ class AiTransportClient {
         }
         return JSONObject()
             .put("type", "response")
-            .put("stage", "connected")
             .put("status", status)
             .put("statusText", connection.responseMessage ?: "")
             .put("headers", headers)

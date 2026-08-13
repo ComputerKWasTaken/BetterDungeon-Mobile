@@ -417,6 +417,7 @@ class NavigatorFeature {
     this.readOnlyBadge = null;
     try { this.settingsUnsubscribe?.(); } catch { /* noop */ }
     this.settingsUnsubscribe = null;
+    this.settingsSelect = null;
     if (this.reasoningTimer) clearInterval(this.reasoningTimer);
     this.reasoningTimer = null;
     this.messageNodes.clear();
@@ -548,7 +549,7 @@ class NavigatorFeature {
     const settingsPanel = document.createElement('div');
     settingsPanel.className = 'bd-navigator-settings-panel';
     settingsPanel.hidden = true;
-    settingsPanel.innerHTML = '<label>Thinking level <select><option value="off">Off</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>';
+    settingsPanel.innerHTML = '<label class="bd-navigator-settings-row"><span>Thinking level</span><select class="bd-navigator-settings-select"><option value="off">Off</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>';
     drawer.insertBefore(settingsPanel, transcript);
     this.settingsSelect = settingsPanel.querySelector('select');
     if (typeof NavigatorSettings !== 'undefined') {
@@ -798,11 +799,13 @@ class NavigatorFeature {
   updateComposerState() {
     const busy = !!this.session?.isBusy;
     const chatBusy = !!this.session?.isChatBusy;
+    const activeMessage = this.session?.getMessages?.().find(message => message.id === this.session.streamingMessageId);
     if (this.sendBtn) {
       this.sendBtn.disabled = busy;
       this.sendBtn.hidden = chatBusy;
     }
     if (this.stopBtn) this.stopBtn.hidden = !chatBusy;
+    this.stopBtn?.classList.toggle('bd-navigator-stop-emphasized', activeMessage?.streamStage === 'reasoning');
     this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
       button.disabled = busy;
     });
@@ -1502,6 +1505,13 @@ class NavigatorFeature {
       ? `Still reasoning — ${level} · ${elapsed}s · you can stop`
       : `${stage} · ${level} · ${elapsed}s`;
     wrap.appendChild(label);
+    if (stage === 'Reasoning') {
+      const dots = document.createElement('span');
+      dots.className = 'bd-navigator-thinking-dots';
+      dots.setAttribute('aria-hidden', 'true');
+      for (let i = 0; i < 3; i += 1) dots.appendChild(document.createElement('i'));
+      wrap.appendChild(dots);
+    }
     return wrap;
   }
 
@@ -1514,6 +1524,7 @@ class NavigatorFeature {
     footer.textContent = level === 'off' ? duration : `Applied ${level} · ${duration}`;
     const tokens = meta.usage?.completion_tokens_details?.reasoning_tokens;
     if (Number.isFinite(tokens)) footer.textContent += ` · ${tokens} reasoning tokens`;
+    if (meta.thinking?.applied === false) footer.textContent += ' · provider did not apply it';
     return footer;
   }
 
