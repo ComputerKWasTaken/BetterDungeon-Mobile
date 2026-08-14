@@ -44,6 +44,7 @@ class InjectionEngine(private val context: Context) {
             "utils/storage.js",
             "utils/markdown-config.js",
             "services/graphql-service.js",
+            "services/apollo-cache-service.js",
             "services/ai-dungeon-service.js",
             "services/ultrascripts/write-queue.js",
             "services/ultrascripts/envelope.js",
@@ -146,6 +147,7 @@ class InjectionEngine(private val context: Context) {
     fun injectEarly(webView: WebView) {
         Log.i(TAG, "Injecting WebSocket interceptor early...")
         val files = listOf(
+            "services/apollo-bridge.js",
             "services/ultrascripts/ws-interceptor.js",
             "services/custom-dynamic-router.js"
         )
