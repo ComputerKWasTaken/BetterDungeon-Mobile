@@ -46,6 +46,7 @@ class InjectionEngine(private val context: Context) {
             "services/graphql-service.js",
             "services/apollo-cache-service.js",
             "services/adventure-read-service.js",
+            "services/adventure-write-hydration.js",
             "services/ai-dungeon-service.js",
             "services/ultrascripts/write-queue.js",
             "services/ultrascripts/envelope.js",
