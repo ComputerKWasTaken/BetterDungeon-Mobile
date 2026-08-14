@@ -172,6 +172,29 @@ function snapshot(live) {
   };
 }
 
+async function testAuthoritativeCardGate() {
+  const live = { adventure: initialAdventure(), cards: initialCards(), adventureReads: 0, cardReads: 0 };
+  const mutations = new window.NavigatorMutations('test-adventure');
+  const authoritative = {
+    ...snapshot(live),
+    source: 'apollo',
+    authoritativeSource: true,
+  };
+  const proposal = mutations.createProposal('propose_story_card_update', {
+    id: 'card-1',
+    changes: { title: 'Apollo Title' },
+  }, { index: authoritative });
+  assert.equal(proposal.changes[0].before, 'Silver Dragon');
+
+  await expectCode(
+    Promise.resolve().then(() => mutations.createProposal('propose_story_card_update', {
+      id: 'card-1',
+      changes: { title: 'Cache Title' },
+    }, { index: { ...authoritative, source: 'cache', authoritativeSource: false } })),
+    'unavailable'
+  );
+}
+
 function installLiveGql(live, writes) {
   window.BetterDungeonGQL = {
     async getNavigatorAdventureContext() {
@@ -410,6 +433,7 @@ function testStaticIntegration() {
 async function main() {
   testStaticIntegration();
   await testGraphqlWriters();
+  await testAuthoritativeCardGate();
   await testMutationSafetyBoundary();
   await testSessionApprovalFlow();
   console.log('Navigator Phase 5 mutation contract tests passed');

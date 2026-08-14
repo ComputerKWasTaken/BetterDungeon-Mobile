@@ -66,6 +66,7 @@ function load(relativePath) {
 }
 
 load('services/graphql-service.js');
+load('services/adventure-read-service.js');
 load('services/navigator/primer.js');
 load('services/navigator/context.js');
 load('services/navigator/tools.js');
@@ -81,6 +82,8 @@ async function testInjectionOrder() {
     'utf8'
   );
   const paths = [
+    'services/apollo-cache-service.js',
+    'services/adventure-read-service.js',
     'services/story-card-cache.js',
     'services/navigator/primer.js',
     'services/navigator/context.js',
@@ -188,7 +191,7 @@ function adventureRecord() {
     id: '101',
     shortId: 'test-adventure',
     title: 'The Test Quest',
-    actionCount: 12,
+    actionCount: 2,
     editedAt: '2026-08-10T12:00:00.000Z',
     thirdPerson: false,
     memory: 'The hero carries a silver key.',
@@ -222,6 +225,13 @@ function cardRecords() {
 
 async function testContextAndFallback() {
   window.Ultrascripts = { ws: createLiveWs() };
+  window.BetterDungeonApolloCache = {
+    readAdventure: async () => ({
+      available: false,
+      data: null,
+      error: { code: 'not_found', message: 'Apollo cache is cold' },
+    }),
+  };
   window.BetterDungeonGQL = {
     getNavigatorAdventureContext: async (_shortId, options) => {
       assert.ok(options.signal instanceof AbortSignal);
@@ -239,7 +249,7 @@ async function testContextAndFallback() {
   assert.equal(snapshot.partial, false);
   assert.equal(snapshot.index.source, 'graphql');
   assert.equal(snapshot.index.cards.length, 1, 'deleted cards must be filtered');
-  assert.equal(snapshot.summary.actionsTotal, 2, 'undone actions must be filtered');
+  assert.equal(snapshot.summary.actionsTotal, 2, 'authoritative action count must be preserved');
   assert.ok(
     snapshot.systemInstruction.indexOf('The hero raised the silver key.') <
       snapshot.systemInstruction.indexOf('The silver dragon opened the gate.'),
@@ -257,7 +267,7 @@ async function testContextAndFallback() {
   assert.equal(fallback.partial, true);
   assert.equal(fallback.index.source, 'cache');
   assert.equal(fallback.index.cards[0].id, 'cached-card');
-  assert.match(fallback.warnings.join(' '), /live page cache/i);
+  assert.match(fallback.warnings.join(' '), /GraphQL unavailable/i);
 
   const controller = new AbortController();
   controller.abort();
