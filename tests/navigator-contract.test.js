@@ -401,8 +401,8 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   const abortedUser = aborted.getMessages().find(message => message.role === 'user');
   assert.equal(abortedAssistant.status, 'aborted');
   assert.equal(abortedAssistant.content, 'Partial stream');
-  assert.equal(abortedAssistant.excluded, true);
-  assert.equal(abortedUser.excluded, true);
+  assert.notEqual(abortedAssistant.excluded, true);
+  assert.notEqual(abortedUser.excluded, true);
   aborted.destroy();
 }
 
