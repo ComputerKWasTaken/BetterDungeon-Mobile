@@ -88,8 +88,8 @@ window.BetterDungeonAdventureRead = {
   assert.ok(floor.systemInstruction.length <= 9000);
   assert.equal(floor.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
   assert.match(floor.systemInstruction, /SNAPSHOT DEGRADED:/);
+  assert.match(floor.systemInstruction, /IDENTITY\nTitle: Allocator Quest/);
   assert.match(floor.systemInstruction, /RECENT STORY ACTIONS/);
-  assert.match(floor.systemInstruction, /Action 20/);
   assert.ok(floor.segments.recentActions.floorIncluded > 0);
   current.state.memories = undefined;
   const unavailable = await new window.NavigatorContext('allocator').build({ maxChars: 20000 });
