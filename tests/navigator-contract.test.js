@@ -323,8 +323,15 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   syncStorage.set('betterDungeon_navigator_read_only', true);
   syncStorage.set('betterDungeon_navigator_thinking_level', 'high');
   const snapshot = sessionSnapshot(index);
+  let activeSnapshot = snapshot;
   const session = new window.NavigatorSession('test-adventure');
-  session.contextReader = { build: async () => snapshot };
+  session.contextReader = { build: async () => activeSnapshot };
+  let executedSnapshot;
+  const executeToolCalls = session.executeToolCalls.bind(session);
+  session.executeToolCalls = async (...args) => {
+    executedSnapshot = args[4];
+    return executeToolCalls(...args);
+  };
   await session.settingsReady;
   assert.deepEqual(session.getPermissionState(), { readOnly: true });
   assert.equal(session.thinkingLevel, 'high');
@@ -342,6 +349,11 @@ async function testSessionStreamingPersistenceAndAbort(index) {
       assert.equal(request.thinking.level, 'low');
       if (chatRound++ === 0) {
         options.onDelta({ text: 'Checking the current card.' });
+        activeSnapshot = {
+          ...snapshot,
+          index: { ...snapshot.index, cards: [{ id: 'retargeted-card' }] },
+        };
+        await session.refreshContext();
         return {
           continuation: { id: 'continuation-1' },
           toolCalls: [{ id: 'call-1', name: 'get_story_card', arguments: { id: 'card-1' } }],
@@ -362,6 +374,21 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   assert.equal(assistant.meta.toolRounds, 1);
   assert.deepEqual(assistant.meta.readToolsCompleted, ['get_story_card']);
   assert.equal(chatRound, 2);
+  assert.deepEqual(executedSnapshot.index.cards.map(card => card.id), ['card-1', 'long-card']);
+  const trimmedResults = session.trimToolResults([
+    { id: 'a', name: 'get_story_card', result: { data: 'a'.repeat(500) } },
+    { id: 'b', name: 'get_story_card', result: { data: 'b'.repeat(500) } },
+  ], 300);
+  assert.ok(trimmedResults.every(item => item.result?.error?.code === 'context_budget_omitted'));
+  const exhausted = await session.executeToolCalls(
+    [{ id: 'budget-call', name: 'get_story_card', arguments: { id: 'card-1' } }],
+    new AbortController().signal,
+    0,
+    'budget-message',
+    snapshot
+  );
+  assert.equal(exhausted.exhausted, true);
+  assert.match(exhausted.note, /tool budget/);
 
   session.persist();
   const persisted = localStorage.get('betterDungeon_navigator_session_test-adventure');
@@ -407,6 +434,20 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   assert.notEqual(abortedAssistant.excluded, true);
   assert.notEqual(abortedUser.excluded, true);
   aborted.destroy();
+
+  const prohibited = new window.NavigatorSession('prohibited-test');
+  prohibited.contextReader = { build: async () => snapshot };
+  await prohibited.settingsReady;
+  window.UltrascriptsAIExecutor = {
+    refreshStatus: async () => ({ ready: true }),
+    chat: async () => {
+      throw { code: 'prohibited_content', message: 'Blocked.' };
+    },
+  };
+  await prohibited.send('A prohibited prompt.');
+  const prohibitedUser = prohibited.getMessages().find(message => message.role === 'user');
+  assert.equal(prohibitedUser.excluded, true);
+  prohibited.destroy();
 }
 
 async function main() {
