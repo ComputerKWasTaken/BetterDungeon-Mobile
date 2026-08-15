@@ -321,11 +321,13 @@ function sessionSnapshot(index) {
 
 async function testSessionStreamingPersistenceAndAbort(index) {
   syncStorage.set('betterDungeon_navigator_read_only', true);
+  syncStorage.set('betterDungeon_navigator_thinking_level', 'high');
   const snapshot = sessionSnapshot(index);
   const session = new window.NavigatorSession('test-adventure');
   session.contextReader = { build: async () => snapshot };
   await session.settingsReady;
   assert.deepEqual(session.getPermissionState(), { readOnly: true });
+  assert.equal(session.thinkingLevel, 'high');
   assert.ok(session.getToolDefinitions().every(tool => !tool.name.startsWith('propose_')));
   assert.match(await session.buildSystemInstruction(new AbortController().signal), /READ-ONLY MODE/);
 
@@ -333,10 +335,11 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   window.UltrascriptsAIExecutor = {
     refreshStatus: async options => {
       assert.equal(options.consumer, 'navigator');
-      return { ready: true };
+      return { ready: true, config: { thinkingLevels: ['minimal', 'low'] } };
     },
     chat: async (request, options) => {
       assert.equal(options.consumer, 'navigator');
+      assert.equal(request.thinking.level, 'low');
       if (chatRound++ === 0) {
         options.onDelta({ text: 'Checking the current card.' });
         return {
