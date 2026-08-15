@@ -24,7 +24,11 @@ const current = {
   memory: 'Persistent fact '.repeat(120), authorsNote: 'Scene note '.repeat(60),
   storySummary: 'Summary sentence. '.repeat(180),
   state: {
-    memories: Array.from({ length: 15 }, (_, index) => `Memory ${index + 1}: ${'detail '.repeat(18)}`),
+    memories: Array.from({ length: 15 }, (_, index) => ({
+      __typename: 'Memory',
+      actionIds: ['1', '2'],
+      text: `Memory ${index + 1}: ${'detail '.repeat(18)}`,
+    })),
     lastSummarizedActionId: '8', lastMemoryActionId: '9',
   },
 };
@@ -44,6 +48,8 @@ window.BetterDungeonAdventureRead = {
   assert.ok(small.systemInstruction.length <= 20000);
   assert.match(small.systemInstruction, /MEMORY BANK/);
   assert.match(small.systemInstruction, /returned \d+ of 15 entries/);
+  assert.match(small.systemInstruction, /Memory 1:/);
+  assert.doesNotMatch(small.systemInstruction, /__typename|actionIds/);
   assert.match(small.systemInstruction, /Action 20/);
   assert.equal(small.partial, true);
   assert.equal(small.segments.recentActions.floorIncluded, 10);
@@ -51,6 +57,16 @@ window.BetterDungeonAdventureRead = {
   assert.ok(small.segments.storyCardDirectory.coverage);
   assert.equal(small.segments.allocation.shrinkOrder[0], 'memory');
   assert.equal(small.segments.allocation.reasons[small.segments.allocation.shrinkOrder[0]], 'total budget');
+  if (small.segments.memoryBank.truncated) {
+    assert.equal(
+      small.segments.memoryBank.truncatedReason,
+      small.segments.allocation.reasons.memory
+    );
+    assert.match(
+      small.systemInstruction,
+      new RegExp(`Memory Bank:.*${small.segments.memoryBank.truncatedReason}`)
+    );
+  }
   const generous = await new window.NavigatorContext('allocator').build({ maxChars: 100000 });
   assert.ok(generous.systemInstruction.length <= 100000);
   assert.match(generous.systemInstruction, /Rule one\. Rule two\.\n\nRule three/);
@@ -68,6 +84,13 @@ window.BetterDungeonAdventureRead = {
     assert.ok(bounded.systemInstruction.length <= budget);
     assert.equal(bounded.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
   }
+  const floor = await new window.NavigatorContext('allocator').build({ maxChars: 9000 });
+  assert.ok(floor.systemInstruction.length <= 9000);
+  assert.equal(floor.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
+  assert.match(floor.systemInstruction, /SNAPSHOT DEGRADED:/);
+  assert.match(floor.systemInstruction, /RECENT STORY ACTIONS/);
+  assert.match(floor.systemInstruction, /Action 20/);
+  assert.ok(floor.segments.recentActions.floorIncluded > 0);
   current.state.memories = undefined;
   const unavailable = await new window.NavigatorContext('allocator').build({ maxChars: 20000 });
   assert.match(unavailable.systemInstruction, /MEMORY BANK\n\(Memory Bank is unavailable/i);
