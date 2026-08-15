@@ -91,6 +91,33 @@ window.BetterDungeonAdventureRead = {
   assert.match(floor.systemInstruction, /IDENTITY\nTitle: Allocator Quest/);
   assert.match(floor.systemInstruction, /RECENT STORY ACTIONS/);
   assert.ok(floor.segments.recentActions.floorIncluded > 0);
+  current.actionCount = 292;
+  current.instructions = 'Instruction '.repeat(300);
+  current.memory = 'Fact '.repeat(300);
+  current.authorsNote = 'Note '.repeat(200);
+  current.storySummary = 'Summary '.repeat(500);
+  current.state.instructions = current.instructions;
+  current.state.storySummary = current.storySummary;
+  current.state.memories = Array.from({ length: 48 }, (_, index) => ({
+    text: `Memory ${index + 1}: ${'detail '.repeat(600)}`,
+  }));
+  for (let index = actions.length; index < 292; index += 1) {
+    actions.push({
+      id: String(index + 1),
+      type: 'do',
+      text: `Action ${index + 1}: ${'story '.repeat(30)}`,
+    });
+  }
+  const large = await new window.NavigatorContext('allocator').build({ maxChars: 554119 });
+  assert.ok(large.systemInstruction.length <= 554119);
+  assert.equal(large.segments.memoryBank.included, 48);
+  assert.ok(large.segments.recentActions.included > 31);
+  assert.equal(large.segments.recentActions.coverage.included, large.segments.recentActions.included);
+  assert.equal(large.segments.total.includedChars, large.systemInstruction.length);
+  const sectionBound = await new window.NavigatorContext('allocator').build({ maxChars: 200000 });
+  assert.equal(sectionBound.segments.memoryBank.truncatedReason, 'section ceiling');
+  assert.match(sectionBound.systemInstruction, /Memory Bank:.*reduced for section ceiling/);
+  assert.ok(sectionBound.segments.total.includedChars < 200000);
   current.state.memories = undefined;
   const unavailable = await new window.NavigatorContext('allocator').build({ maxChars: 20000 });
   assert.match(unavailable.systemInstruction, /MEMORY BANK\n\(Memory Bank is unavailable/i);
