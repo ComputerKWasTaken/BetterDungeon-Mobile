@@ -47,6 +47,8 @@ window.BetterDungeonAdventureRead = {
   assert.match(small.systemInstruction, /Action 20/);
   assert.equal(small.partial, true);
   assert.equal(small.segments.recentActions.floorIncluded, 10);
+  assert.ok(small.segments.recentActions.coverage);
+  assert.ok(small.segments.storyCardDirectory.coverage);
   assert.equal(small.segments.allocation.shrinkOrder[0], 'memory');
   assert.equal(small.segments.allocation.reasons[small.segments.allocation.shrinkOrder[0]], 'total budget');
   const generous = await new window.NavigatorContext('allocator').build({ maxChars: 100000 });
@@ -54,11 +56,13 @@ window.BetterDungeonAdventureRead = {
   assert.match(generous.systemInstruction, /Rule one\. Rule two\.\n\nRule three/);
   assert.equal(generous.segments.plotComponents.fields.instructions.truncated, false);
   assert.equal(generous.segments.memoryBank.truncated, false);
+  assert.ok(generous.segments.total.sourceChars >= generous.segments.total.includedChars, `${generous.segments.total.sourceChars} < ${generous.segments.total.includedChars}`);
   assert.equal(generous.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
   const boundary = await new window.NavigatorContext('allocator').build({ maxChars: 22000 });
   assert.ok(boundary.systemInstruction.length <= 22000);
   assert.equal(boundary.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
   assert.notEqual(boundary.segments.plotComponents.fields.storySummary.boundary, 'hard');
+  assert.ok(boundary.segments.plotComponents.fields.storySummary.maxChars > 160);
   for (const budget of [10000, 12000, 16000, 20000, 30000]) {
     const bounded = await new window.NavigatorContext('allocator').build({ maxChars: budget });
     assert.ok(bounded.systemInstruction.length <= budget);
