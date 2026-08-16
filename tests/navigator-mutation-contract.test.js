@@ -174,13 +174,14 @@ function snapshot(live) {
 
 async function testAuthoritativeCardGate() {
   const live = { adventure: initialAdventure(), cards: initialCards(), adventureReads: 0, cardReads: 0 };
+  installLiveGql(live, []);
   const mutations = new window.NavigatorMutations('test-adventure');
   const authoritative = {
     ...snapshot(live),
     source: 'apollo',
     authoritativeSource: true,
   };
-  const proposal = mutations.createProposal('propose_story_card_update', {
+  const proposal = await mutations.createProposal('propose_story_card_update', {
     id: 'card-1',
     changes: { title: 'Apollo Title' },
   }, { index: authoritative });
@@ -245,7 +246,7 @@ async function testMutationSafetyBoundary() {
   assert.ok(names.every(name => name.startsWith('propose_')));
   assert.ok(!names.some(name => /apply|update|delete_story_card$/.test(name.replace(/^propose_/, '')) && !name.startsWith('propose_')));
 
-  const inert = mutations.createProposal('propose_plot_component_change', {
+  const inert = await mutations.createProposal('propose_plot_component_change', {
     component: 'plot_essentials', content: 'The gate is open.', reason: 'Reflect the latest event.',
   }, { index: snapshot(live) });
   assert.equal(inert.status, 'pending');
@@ -263,7 +264,7 @@ async function testMutationSafetyBoundary() {
   assert.equal(live.adventure.memory, 'The gate is open.');
   assert.equal(live.adventureReads, 2, 'a plot write must be surrounded by current-state and verification reads');
 
-  const stateProposal = mutations.createProposal('propose_plot_component_change', {
+  const stateProposal = await mutations.createProposal('propose_plot_component_change', {
     component: 'ai_instructions', content: 'Never speak for the player.',
   }, { index: snapshot(live) });
   stateProposal.status = 'applying';
@@ -272,7 +273,7 @@ async function testMutationSafetyBoundary() {
     type: 'custom', custom: 'Never speak for the player.',
   });
 
-  const readOnlyProposal = mutations.createProposal('propose_third_person_change', {
+  const readOnlyProposal = await mutations.createProposal('propose_third_person_change', {
     enabled: true,
   }, { index: snapshot(live) });
   readOnlyProposal.status = 'applying';
@@ -282,7 +283,7 @@ async function testMutationSafetyBoundary() {
   assert.equal(writes.length, beforeReadOnly);
   syncStorage.set(window.NavigatorMutations.READ_ONLY_STORAGE_KEY, false);
 
-  const switchedProposal = mutations.createProposal('propose_third_person_change', {
+  const switchedProposal = await mutations.createProposal('propose_third_person_change', {
     enabled: true,
   }, { index: snapshot(live) });
   switchedProposal.status = 'applying';
@@ -292,7 +293,7 @@ async function testMutationSafetyBoundary() {
   assert.equal(writes.length, beforeSwitch);
   liveShortId = 'test-adventure';
 
-  const conflictProposal = mutations.createProposal('propose_plot_component_change', {
+  const conflictProposal = await mutations.createProposal('propose_plot_component_change', {
     component: 'plot_essentials', content: 'Navigator replacement.',
   }, { index: snapshot(live) });
   conflictProposal.status = 'applying';
@@ -301,7 +302,7 @@ async function testMutationSafetyBoundary() {
   await expectCode(mutations.apply(conflictProposal), 'conflict');
   assert.equal(writes.length, beforeConflict, 'conflicts must be detected before the write');
 
-  const verifyProposal = mutations.createProposal('propose_plot_component_change', {
+  const verifyProposal = await mutations.createProposal('propose_plot_component_change', {
     component: 'plot_essentials', content: 'Value that must be verified.',
   }, { index: snapshot(live) });
   verifyProposal.status = 'applying';
@@ -312,7 +313,7 @@ async function testMutationSafetyBoundary() {
   await expectCode(mutations.apply(verifyProposal), 'verification_failed');
   window.BetterDungeonGQL.updateNavigatorAdventurePlot = realPlotUpdate;
 
-  const createProposal = mutations.createProposal('propose_story_card_create', {
+  const createProposal = await mutations.createProposal('propose_story_card_create', {
     type: 'location', title: 'Moon Harbor', triggers: 'harbor, moon',
     entry: 'A harbor lit by blue lanterns.', notes: 'A recurring location.',
   }, { index: snapshot(live) });
@@ -322,7 +323,7 @@ async function testMutationSafetyBoundary() {
   assert.ok(createResult.cardId);
   assert.equal(live.cards.find(card => card.id === createResult.cardId).title, 'Moon Harbor');
 
-  const updateProposal = mutations.createProposal('propose_story_card_update', {
+  const updateProposal = await mutations.createProposal('propose_story_card_update', {
     id: createResult.cardId,
     changes: { entry: 'The blue lanterns guide lost ships.', notes: '' },
   }, { index: snapshot(live) });
@@ -330,7 +331,7 @@ async function testMutationSafetyBoundary() {
   await mutations.apply(updateProposal);
   assert.equal(live.cards.find(card => card.id === createResult.cardId).value, 'The blue lanterns guide lost ships.');
 
-  const cardConflict = mutations.createProposal('propose_story_card_update', {
+  const cardConflict = await mutations.createProposal('propose_story_card_update', {
     id: 'card-1', changes: { title: 'Navigator Name' },
   }, { index: snapshot(live) });
   cardConflict.status = 'applying';
@@ -339,7 +340,7 @@ async function testMutationSafetyBoundary() {
   await expectCode(mutations.apply(cardConflict), 'conflict');
   assert.equal(writes.length, beforeCardConflict);
 
-  const deleteProposal = mutations.createProposal('propose_story_card_delete', {
+  const deleteProposal = await mutations.createProposal('propose_story_card_delete', {
     id: createResult.cardId, reason: 'Player requested removal.',
   }, { index: snapshot(live) });
   assert.equal(deleteProposal.irreversible, true);
