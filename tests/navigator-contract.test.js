@@ -472,6 +472,17 @@ function testNavigatorToolGuidanceAndAllowances() {
   assert.ok(session.getTurnAllowances.call({}, 300000, true).toolResultAllowance > 16000);
 }
 
+function testToolDropUsesInstructionOnly() {
+  const source = fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8');
+  const session = {
+    isMutationTool: window.NavigatorSession.prototype.isMutationTool,
+  };
+  const guidance = window.NavigatorSession.prototype.buildToolGuidance.call(session, [], { dropped: true });
+  assert.match(guidance, /lookups.*not represented by the tools below/);
+  assert.doesNotMatch(source, /TOOL_DROP_NOTE/);
+  assert.doesNotMatch(source, /context_budget_tools_dropped/);
+}
+
 async function testProposalResultFloor() {
   const proto = window.NavigatorSession.prototype;
   const owner = { proposals: [] };
@@ -498,6 +509,15 @@ async function testProposalResultFloor() {
   assert.equal(executed.results[1].result.data.proposalId, 'proposal-1');
   assert.equal(owner.proposals.length, 1);
   assert.ok(executed.charsUsed > 0);
+  const exhaustedOwner = { proposals: [] };
+  const exhausted = await proto.executeToolCalls.call({
+    ...runner,
+    registerProposal: (_messageId, proposal) => exhaustedOwner.proposals.push(proposal),
+  }, [
+    { id: 'proposal-2', name: 'propose_story_card_create', arguments: {} },
+  ], new AbortController().signal, 0, 'message-1', {});
+  assert.equal(exhausted.results.length, 0);
+  assert.equal(exhaustedOwner.proposals.length, 0);
 }
 
 async function main() {
@@ -507,6 +527,7 @@ async function main() {
   const index = await testReadTools(snapshot);
   await testSessionStreamingPersistenceAndAbort(index);
   testNavigatorToolGuidanceAndAllowances();
+  testToolDropUsesInstructionOnly();
   await testProposalResultFloor();
   console.log('Navigator Phase 3 contract tests passed');
 }
