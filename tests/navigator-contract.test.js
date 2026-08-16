@@ -250,6 +250,9 @@ async function testContextAndFallback() {
   assert.equal(snapshot.index.source, 'graphql');
   assert.equal(snapshot.index.cards.length, 1, 'deleted cards must be filtered');
   assert.equal(snapshot.summary.actionsTotal, 2, 'authoritative action count must be preserved');
+  assert.deepEqual(snapshot.index.actions.map(item => item.id), ['2', '10']);
+  assert.deepEqual(snapshot.index.actions[0], { id: '2', type: 'do', text: 'The hero raised the silver key.' });
+  assert.equal(snapshot.index.memories, null, 'Memory Bank stays unavailable when the fallback reader has no state memories');
   assert.ok(
     snapshot.systemInstruction.indexOf('The hero raised the silver key.') <
       snapshot.systemInstruction.indexOf('The silver dragon opened the gate.'),
@@ -286,7 +289,14 @@ async function testReadTools(snapshot) {
   };
   const tools = new window.NavigatorTools('test-adventure');
   const definitions = tools.definitions();
-  assert.deepEqual(definitions.map(item => item.name), ['get_story_card', 'search_story_cards']);
+  assert.deepEqual(definitions.map(item => item.name), [
+    'get_story_card',
+    'search_story_cards',
+    'search_story_history',
+    'get_story_actions',
+    'search_memory_bank',
+    'get_memory',
+  ]);
   definitions[0].name = 'modified';
   assert.equal(tools.definitions()[0].name, 'get_story_card', 'definitions must be cloned');
 
