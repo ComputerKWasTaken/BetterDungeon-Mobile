@@ -97,6 +97,9 @@ window.BetterDungeonAdventureRead = {
     assert.equal(section.includedChars, 0);
   }
   assert.doesNotMatch(floor.systemInstruction, /MEMORY BANK\n[\s\S]*\[Memory \d+\]/);
+  const noHistory = await new window.NavigatorContext('allocator').build({ maxChars: 500 });
+  assert.equal(noHistory.segments.recentActions.included, 0);
+  assert.equal(noHistory.segments.recentActions.includedChars, 0);
   for (const budget of [8000, 9000, 500]) {
     const hostile = await new window.NavigatorContext('allocator').build({ maxChars: budget });
     assert.ok(hostile.systemInstruction.length <= budget);
