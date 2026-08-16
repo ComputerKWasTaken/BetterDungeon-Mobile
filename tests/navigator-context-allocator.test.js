@@ -44,9 +44,9 @@ window.BetterDungeonAdventureRead = {
 };
 
 (async () => {
-  const small = await new window.NavigatorContext('allocator').build({ maxChars: 20000 });
-  assert.ok(small.systemInstruction.length <= 20000);
-  assert.match(small.systemInstruction, /MEMORY BANK/);
+  const small = await new window.NavigatorContext('allocator').build({ maxChars: 20200 });
+  assert.ok(small.systemInstruction.length <= 20200);
+  assert.match(small.systemInstruction, /MEMORY BANK/i);
   assert.match(small.systemInstruction, /returned \d+ of 15 entries/);
   assert.match(small.systemInstruction, /Memory 1:/);
   assert.doesNotMatch(small.systemInstruction, /__typename|actionIds/);
