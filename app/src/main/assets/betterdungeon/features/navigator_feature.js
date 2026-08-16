@@ -634,7 +634,7 @@ class NavigatorFeature {
       return;
     }
     const value = key === 'contextCap'
-      ? (rawValue ? Math.max(8000, Number(rawValue)) : null)
+      ? (rawValue && Number(rawValue) > 0 ? Math.max(8000, Number(rawValue)) : null)
       : key === 'toolRounds'
         ? Number(rawValue)
         : key === 'includeMemoryBank'

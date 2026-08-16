@@ -284,7 +284,7 @@ function initToggles() {
     const historyMode = document.getElementById('navigator-history-mode')?.value === 'floor' ? 'floor' : 'full';
     const defaults = {
       thinkingLevel: thinking,
-      contextCap: Number.isSafeInteger(capValue) ? Math.max(8000, capValue) : null,
+    contextCap: Number.isSafeInteger(capValue) && capValue > 0 ? Math.max(8000, capValue) : null,
       toolRounds: Number.isSafeInteger(roundsValue) ? Math.max(1, Math.min(12, roundsValue)) : 6,
       includeMemoryBank,
       historyMode,
