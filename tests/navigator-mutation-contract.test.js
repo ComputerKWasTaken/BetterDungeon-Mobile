@@ -403,9 +403,9 @@ async function testSessionApprovalFlow() {
   assert.equal(rejected.status, 'rejected');
   assert.equal(writes.length, beforeReject, 'rejection must be final');
 
-  session.setReadOnlyMode(true);
+  session.readOnly = true;
   assert.deepEqual(session.getToolDefinitions().map(tool => tool.name), ['get_story_card']);
-  session.setReadOnlyMode(false);
+  session.readOnly = false;
   assert.ok(session.getToolDefinitions().some(tool => tool.name === 'propose_story_card_delete'));
   assert.ok(!session.getToolDefinitions().some(tool => tool.name.startsWith('apply_')));
   session.destroy();
