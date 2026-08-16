@@ -44,10 +44,9 @@ window.BetterDungeonAdventureRead = {
 };
 
 (async () => {
-  // Keep enough room for the primer's grounding rule while testing the small
-  // budget's included Memory Bank section rather than its degraded fallback.
-  const small = await new window.NavigatorContext('allocator').build({ maxChars: 20200 });
-  assert.ok(small.systemInstruction.length <= 20200);
+  // Primer VERSION 5 adds enough ledger text to require this headroom.
+  const small = await new window.NavigatorContext('allocator').build({ maxChars: 22000 });
+  assert.ok(small.systemInstruction.length <= 22000);
   assert.match(small.systemInstruction, /Memory Bank:.*returned \d+ of 15 entries/);
   assert.match(small.systemInstruction, /MEMORY BANK\n[\s\S]*\[Memory \d+\]/);
   assert.match(small.systemInstruction, /Memory 1:/);
