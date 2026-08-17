@@ -242,7 +242,7 @@ async function testMutationSafetyBoundary() {
   const mutations = new window.NavigatorMutations('test-adventure');
 
   const names = mutations.definitions().map(definition => definition.name);
-  assert.equal(names.length, 5);
+  assert.equal(names.length, 7);
   assert.ok(names.every(name => name.startsWith('propose_')));
   assert.ok(!names.some(name => /apply|update|delete_story_card$/.test(name.replace(/^propose_/, '')) && !name.startsWith('propose_')));
 
