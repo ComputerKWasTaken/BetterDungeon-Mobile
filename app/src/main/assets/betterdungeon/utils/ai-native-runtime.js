@@ -22,11 +22,14 @@
     'gemma-4-31b-it',
     'gemma-4-26b-a4b-it',
   ]);
-  const DEFAULT_LIMITS = Object.freeze({ maxInputChars: 100000, maxOutputTokens: 2048 });
-  // Deliberately conservative token-to-character conversion for prompt budgeting:
-  // both values under-estimate usable capacity to leave room under provider quotas.
+  const DEFAULT_INPUT_CAP_TOKENS = 128000;
+  const DEFAULT_LIMITS = Object.freeze({
+    maxInputTokens: DEFAULT_INPUT_CAP_TOKENS,
+    maxInputChars: DEFAULT_INPUT_CAP_TOKENS * 3,
+    maxOutputTokens: 2048,
+  });
   const CHARS_PER_TOKEN = 3;
-  const TOKEN_SAFETY_FACTOR = 0.75;
+  const MIN_INPUT_CAP_TOKENS = 4000;
   const MAX_DISCOVERED_OUTPUT_TOKENS = 16384;
   const CAPABILITY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   const CAPABILITY_FAILURE_TTL_MS = 5 * 60 * 1000;
@@ -144,9 +147,9 @@
       version: 1,
       activeService: 'gemini',
       profiles: {
-        gemini: { apiKey: '', modelMode: 'auto', model: DEFAULT_MODEL, maxInputTokens: 0, maxOutputTokens: 0 },
-        openrouter: { apiKey: '', model: '', maxInputTokens: 0, maxOutputTokens: 0 },
-        custom: { baseUrl: '', apiKey: '', model: '', maxInputTokens: 0, maxOutputTokens: 0 },
+        gemini: { apiKey: '', modelMode: 'auto', model: DEFAULT_MODEL, maxInputTokens: 0 },
+        openrouter: { apiKey: '', model: '', maxInputTokens: 0 },
+        custom: { baseUrl: '', apiKey: '', model: '', maxInputTokens: 0 },
       },
     };
   }
@@ -157,7 +160,9 @@
 
   function normalizeCap(value) {
     const number = Number(value);
-    return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
+    return Number.isFinite(number) && number > 0
+      ? Math.max(MIN_INPUT_CAP_TOKENS, Math.floor(number))
+      : 0;
   }
 
   function normalizeBaseUrl(value) {
@@ -182,20 +187,17 @@
           model: trim(gemini.model).replace(/^models\//, '') ||
             (gemini.modelMode === 'manual' ? '' : defaults.profiles.gemini.model),
           maxInputTokens: normalizeCap(gemini.maxInputTokens),
-          maxOutputTokens: normalizeCap(gemini.maxOutputTokens),
         },
         openrouter: {
           apiKey: trim(openrouter.apiKey),
           model: trim(openrouter.model),
           maxInputTokens: normalizeCap(openrouter.maxInputTokens),
-          maxOutputTokens: normalizeCap(openrouter.maxOutputTokens),
         },
         custom: {
           baseUrl: normalizeBaseUrl(custom.baseUrl),
           apiKey: trim(custom.apiKey),
           model: trim(custom.model),
           maxInputTokens: normalizeCap(custom.maxInputTokens),
-          maxOutputTokens: normalizeCap(custom.maxOutputTokens),
         },
       },
     };
@@ -283,42 +285,34 @@
   }
 
   function limitsFromCapability(entry, profile) {
-    if (!entry) return { ...DEFAULT_LIMITS, model: null, source: 'default', discoveryTimestamp: null };
-    const maxInputTokens = entry.inputDiscovered ? Math.max(1, entry.inputTokens) : 0;
+    const inputCap = normalizeCap(profile?.maxInputTokens) || DEFAULT_INPUT_CAP_TOKENS;
+    if (!entry) {
+      return {
+        ...DEFAULT_LIMITS,
+        maxInputTokens: inputCap,
+        maxInputChars: inputCap * CHARS_PER_TOKEN,
+        model: null,
+        source: 'default',
+        discoveryTimestamp: null,
+      };
+    }
     const maxOutputTokens = entry.outputDiscovered
       ? Math.min(MAX_DISCOVERED_OUTPUT_TOKENS, Math.max(1, entry.outputTokens))
       : DEFAULT_LIMITS.maxOutputTokens;
-    const inputTokens = entry.inputDiscovered
-      ? (entry.totalWindow ? Math.max(1, maxInputTokens - maxOutputTokens) : maxInputTokens)
-      : 0;
-    const discovered = {
-      maxInputTokens: inputTokens,
+    return {
+      maxInputTokens: inputCap,
       maxOutputTokens,
-      maxInputChars: entry.inputDiscovered
-        ? Math.floor(inputTokens * CHARS_PER_TOKEN * TOKEN_SAFETY_FACTOR)
-        : DEFAULT_LIMITS.maxInputChars,
+      maxInputChars: inputCap * CHARS_PER_TOKEN,
       model: entry.model,
-      source: entry.inputDiscovered && entry.outputDiscovered ? 'discovered' : 'partial',
+      source: entry.outputDiscovered ? 'discovered' : 'partial',
     };
-    const inputCap = normalizeCap(profile?.maxInputTokens);
-    const outputCap = normalizeCap(profile?.maxOutputTokens);
-    if (inputCap) {
-      discovered.maxInputTokens = Math.min(discovered.maxInputTokens, inputCap);
-      discovered.maxInputChars = Math.min(
-        discovered.maxInputChars,
-        Math.floor(inputCap * CHARS_PER_TOKEN * TOKEN_SAFETY_FACTOR)
-      );
-    }
-    if (outputCap) discovered.maxOutputTokens = Math.min(discovered.maxOutputTokens, outputCap);
-    if (inputCap || outputCap) discovered.source = 'user-capped';
-    return discovered;
   }
 
   function resolveLimits(models, settings) {
     const cache = capabilityCache.get(settings?.service);
     const resolved = models.map(model => limitsFromCapability(capabilityEntry(model, cache), settings?.profile));
-    const maxInputChars = Math.min(...resolved.map(item => item.maxInputChars));
-    const maxInputTokens = Math.min(...resolved.map(item => item.maxInputTokens || 0));
+    const maxInputChars = resolved[0]?.maxInputChars || DEFAULT_LIMITS.maxInputChars;
+    const maxInputTokens = resolved[0]?.maxInputTokens || DEFAULT_LIMITS.maxInputTokens;
     const maxOutputTokens = Math.min(...resolved.map(item => item.maxOutputTokens));
     const bindingIndexes = resolved
       .map((item, index) => item.maxInputChars === maxInputChars && item.maxOutputTokens === maxOutputTokens ? index : -1)
@@ -328,10 +322,8 @@
       maxOutputTokens,
       model: models.length === 1 ? (resolved[0].model || models[0]) : (bindingIndexes.length ? resolved[bindingIndexes[0]].model : null),
       maxInputTokens,
-      source: resolved.some(item => item.source === 'user-capped')
-        ? 'user-capped'
-        : resolved.every(item => item.source === 'discovered') ? 'discovered'
-          : resolved.some(item => item.source === 'partial') ? 'partial' : 'default',
+      source: resolved.every(item => item.source === 'discovered') ? 'discovered'
+        : resolved.some(item => item.source === 'partial') ? 'partial' : 'default',
       discoveryTimestamp: cache?.fetchedAtIso || null,
     };
   }
@@ -342,15 +334,11 @@
     for (const row of rows) {
       const model = trim(row?.id || row?.name).replace(/^models\//, '');
       if (!model) continue;
-      const inputTokens = Number(row.inputTokenLimit || row.context_length || row.max_model_len || 0);
       const outputTokens = Number(row.outputTokenLimit || row.top_provider?.max_completion_tokens || row.max_completion_tokens || 0);
-      if (!inputTokens && !outputTokens) continue;
+      if (!outputTokens) continue;
       entries[model.toLowerCase()] = {
-        inputTokens,
         outputTokens,
-        inputDiscovered: inputTokens > 0,
         outputDiscovered: outputTokens > 0,
-        totalWindow: service === 'openrouter' || !!row.context_length || !!row.max_model_len,
         thinking: service === 'gemini' ? row.thinking === true :
           service === 'openrouter' ? Array.isArray(row.supported_parameters) && row.supported_parameters.includes('reasoning') : undefined,
       };
