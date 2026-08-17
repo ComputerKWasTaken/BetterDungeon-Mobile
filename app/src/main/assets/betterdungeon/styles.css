@@ -4236,6 +4236,7 @@ body.bd-navigator-open {
   min-height: 60px;
   padding-right: 60px;
   border-radius: 30px;
+  font-size: 16px;
 }
 
 .bd-navigator-send,
@@ -4246,8 +4247,12 @@ body.bd-navigator-open {
   height: 44px;
 }
 
-.bd-navigator-input {
-  font-size: 16px;
+/* The sheet is exactly one viewport tall, so the inspection panel yields
+   height instead of pushing the composer off screen. */
+.bd-navigator-inspection-panel {
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 45vh;
 }
 
 .bd-navigator-ime-visible .bd-navigator-header {
