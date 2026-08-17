@@ -349,12 +349,14 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   assert.match(await session.buildSystemInstruction(new AbortController().signal), /READ-ONLY MODE/);
 
   let chatRound = 0;
+  const receivedRequests = [];
   window.UltrascriptsAIExecutor = {
     refreshStatus: async options => {
       assert.equal(options.consumer, 'navigator');
       return { ready: true, config: { thinkingLevels: ['minimal', 'low'] } };
     },
     chat: async (request, options) => {
+      receivedRequests.push(request);
       assert.equal(options.consumer, 'navigator');
       assert.equal(request.thinking.level, 'low');
       if (chatRound++ === 0) {
@@ -384,6 +386,17 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   assert.equal(assistant.meta.toolRounds, 1);
   assert.deepEqual(assistant.meta.readToolsCompleted, ['get_story_card']);
   assert.equal(chatRound, 2);
+  const inspection = session.getLastRequestInspection();
+  assert.equal(inspection.rounds.length, receivedRequests.length);
+  inspection.rounds.forEach((round, index) => {
+    const request = receivedRequests[index];
+    assert.equal(round.systemInstruction, request.systemInstruction);
+    assert.deepEqual(round.messages, request.messages);
+    assert.deepEqual(round.tools, request.tools);
+    assert.deepEqual(round.toolResults, request.toolResults);
+    assert.equal(round.continuationPresent, Object.prototype.hasOwnProperty.call(request, 'continuation'));
+    assert.deepEqual(round.budget, request.budget);
+  });
   assert.deepEqual(executedSnapshot.index.cards.map(card => card.id), ['card-1', 'long-card']);
   const trimmedResults = session.trimToolResults([
     { id: 'a', name: 'get_story_card', result: { data: 'a'.repeat(500) } },
@@ -457,6 +470,13 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   await prohibited.send('A prohibited prompt.');
   const prohibitedUser = prohibited.getMessages().find(message => message.role === 'user');
   assert.equal(prohibitedUser.excluded, true);
+  const failedInspection = prohibited.getLastRequestInspection();
+  assert.equal(failedInspection.rounds.length, 1);
+  assert.equal(failedInspection.error.code, 'prohibited_content');
+  assert.equal(failedInspection.meta.toolRounds, 0);
+  prohibited.persist();
+  const failedPersisted = localStorage.get('betterDungeon_navigator_session_prohibited-test');
+  assert.equal(failedPersisted.inspection, undefined);
   prohibited.destroy();
 }
 
@@ -560,6 +580,13 @@ function testRequestInspectionRetentionAndContract() {
   assert.equal(inspection.rounds[0].round, 0);
   assert.equal(inspection.rounds.at(-1).round, 2);
   assert.ok(inspection.rounds.some(round => round.omitted === true));
+  const oversized = { emit() {}, lastRequestInspection: null, getLastRequestInspection: window.NavigatorSession.prototype.getLastRequestInspection };
+  proto.beginRequestInspection.call(oversized);
+  proto.retainInspectionRound.call(oversized, { round: 0, systemInstruction: 'x'.repeat(window.NavigatorSession.MAX_INSPECTION_CHARS + 1000), messages: [], tools: [], toolResults: [], continuationPresent: false, budget: {}, thinking: {}, projectedInputChars: window.NavigatorSession.MAX_INSPECTION_CHARS + 1000 });
+  const oversizedInspection = proto.getLastRequestInspection.call(oversized);
+  assert.ok(JSON.stringify(oversizedInspection).length <= window.NavigatorSession.MAX_INSPECTION_CHARS);
+  assert.equal(oversizedInspection.rounds[0].truncated, true);
+  assert.match(oversizedInspection.rounds[0].systemInstruction, /Inspection text truncated/);
   const source = require('node:fs').readFileSync(require('node:path').join(ROOT, 'services/navigator/session.js'), 'utf8');
   assert.match(source, /const requestPayload =/);
   assert.match(source, /chat\(requestPayload/);

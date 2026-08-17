@@ -3258,28 +3258,6 @@ html.bd-story-card-dock-active > body {
   opacity: 0.35;
 }
 
-.bd-navigator-input {
-  min-height: 60px;
-  padding-right: 60px;
-  border-radius: 30px;
-}
-
-.bd-navigator-send,
-.bd-navigator-stop {
-  right: 8px;
-  bottom: 8px;
-  width: 44px;
-  height: 44px;
-}
-
-.bd-navigator-inspection-panel {
-  position: absolute;
-  z-index: 2;
-  inset: 64px 0 0;
-  max-height: none;
-  height: auto;
-}
-
 /* ================================================================
    NAVIGATOR
    ================================================================
@@ -3424,7 +3402,6 @@ body.bd-navigator-resizing {
   letter-spacing: var(--bd-tracking-tight);
   color: var(--bd-text-primary);
 }
-
 
 .bd-navigator-settings-panel {
   padding: var(--bd-space-3);
@@ -3648,7 +3625,6 @@ body.bd-navigator-resizing {
   cursor: not-allowed;
   opacity: 0.45;
 }
-
 
 .bd-navigator-message {
   display: flex;
@@ -4254,6 +4230,20 @@ body.bd-navigator-open {
   min-width: 44px;
   min-height: 44px;
   touch-action: manipulation;
+}
+
+.bd-navigator-input {
+  min-height: 60px;
+  padding-right: 60px;
+  border-radius: 30px;
+}
+
+.bd-navigator-send,
+.bd-navigator-stop {
+  right: 8px;
+  bottom: 8px;
+  width: 44px;
+  height: 44px;
 }
 
 .bd-navigator-input {
