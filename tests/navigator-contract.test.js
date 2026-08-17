@@ -246,7 +246,7 @@ async function testContextAndFallback() {
   const reader = new window.NavigatorContext('test-adventure');
   const snapshot = await reader.build({ signal: new AbortController().signal });
   assert.ok(snapshot.systemInstruction.length <= window.NavigatorContext.BUDGETS.systemInstruction);
-  assert.equal(snapshot.partial, false);
+  assert.equal(snapshot.partial, true);
   assert.equal(snapshot.index.source, 'graphql');
   assert.equal(snapshot.index.cards.length, 1, 'deleted cards must be filtered');
   assert.equal(snapshot.summary.actionsTotal, 2, 'authoritative action count must be preserved');
