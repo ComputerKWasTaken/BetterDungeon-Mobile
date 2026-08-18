@@ -86,25 +86,19 @@ function testStaticMobileContracts() {
   assert.match(feature, /async refreshPermissionState\(\)/);
 
   assert.match(session, /setReadOnlyMode\(enabled\)/);
-  assert.match(session, /this\.setReadOnlyMode\(changes\[READ_ONLY_STORAGE_KEY\]\.newValue\)/);
+  assert.match(session, /changes\?\.\[READ_ONLY_STORAGE_KEY\]/);
+  assert.match(session, /NAVIGATOR_ADVENTURE_SETTINGS_PREFIX/);
 
   assert.equal((popupHtml.match(/id="feature-navigator"/g) || []).length, 1);
-  assert.equal((popupHtml.match(/id="navigator-read-only"/g) || []).length, 1);
+  for (const id of ['navigator-read-only', 'navigator-thinking-level', 'navigator-memory-bank', 'navigator-history-mode']) {
+    assert.equal((popupHtml.match(new RegExp(`id="${id}"`, 'g')) || []).length, 0);
+    assert.doesNotMatch(popupJs, new RegExp(id));
+  }
   assert.match(popupHtml, /full-screen sheet/);
   assert.match(popupHtml, /never writes without direct approval/i);
-  assert.match(popupJs, /navigatorReadOnly:\s*'betterDungeon_navigator_read_only'/);
+  assert.doesNotMatch(popupJs, /betterDungeon_navigator_(read_only|thinking_level|defaults)/);
 
-  const popupHandlerStart = popupJs.indexOf("document.getElementById('navigator-read-only')?.addEventListener");
-  const popupHandler = popupJs.slice(popupHandlerStart, popupJs.indexOf('// Ultrascripts debug toggle', popupHandlerStart));
-  assert.ok(popupHandlerStart >= 0);
-  assert.ok(
-    popupHandler.indexOf('chrome.storage.sync.set') < popupHandler.indexOf("notifyContentScript('SET_NAVIGATOR_READ_ONLY'"),
-    'the popup must persist read-only mode before notifying the main WebView'
-  );
-
-  assert.match(mainJs, /message\.type === 'SET_NAVIGATOR_READ_ONLY'/);
-  assert.match(mainJs, /handleRefreshNavigatorPermissions\(\)\.then\(sendResponse\)/);
-  assert.match(mainJs, /feature\.refreshPermissionState\(\)/);
+  assert.doesNotMatch(mainJs, /SET_NAVIGATOR_READ_ONLY|handleRefreshNavigatorPermissions/);
 
   const backHandler = activity.slice(activity.indexOf('private fun setupBackNavigation()'));
   const popupPriority = backHandler.indexOf('popupContainer.visibility == View.VISIBLE');
