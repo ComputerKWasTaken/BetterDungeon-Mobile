@@ -260,9 +260,34 @@ async function testContextAndFallback() {
   );
   assert.doesNotMatch(snapshot.systemInstruction, /Deleted Tower/);
 
+  const emptyMemoryAdventure = adventureRecord();
+  emptyMemoryAdventure.state = {
+    memories: [],
+    lastSummarizedActionId: '',
+    lastMemoryActionId: '',
+  };
+  window.BetterDungeonApolloCache.readAdventure = async () => ({
+    available: true,
+    data: {
+      adventure: emptyMemoryAdventure,
+      state: emptyMemoryAdventure.state,
+      storyCards: [],
+      actions: [],
+    },
+    error: null,
+  });
+  const emptyMemorySnapshot = await reader.build();
+  assert.equal(emptyMemorySnapshot.segments.memoryBank.includedChars, 0);
+  assert.match(emptyMemorySnapshot.systemInstruction, /lastSummarized=unknown, lastMemory=unknown/);
+
   window.storyCardCache = {
     getCardArray: () => [{ id: 'cached-card', type: 'location', title: 'Cached Harbor', keys: 'harbor', value: 'A foggy port.' }],
   };
+  window.BetterDungeonApolloCache.readAdventure = async () => ({
+    available: false,
+    data: null,
+    error: { code: 'not_found', message: 'Apollo cache is cold' },
+  });
   window.BetterDungeonGQL.getNavigatorStoryCards = async () => {
     throw new Error('GraphQL unavailable');
   };
@@ -492,10 +517,15 @@ function testNavigatorToolGuidanceAndAllowances() {
   const proposalGuidance = session.buildToolGuidance.call(session, proposal);
   const droppedGuidance = session.buildToolGuidance.call(session, [], { dropped: true });
   assert.match(readGuidance, /Every available tool is read-only/);
+  assert.match(`snapshot${readGuidance}`, /^snapshot\n=== NAVIGATOR READ TOOLS ===/);
   assert.doesNotMatch(readGuidance, /CHANGE PROPOSALS/);
   assert.match(proposalGuidance, /CHANGE PROPOSALS/);
   assert.doesNotMatch(proposalGuidance, /every available tool is read-only/);
   assert.match(proposalGuidance, /Never claim a proposal was applied/);
+  assert.match(proposalGuidance, /Third Person/);
+  assert.match(proposalGuidance, /Memory Bank/);
+  assert.match(proposalGuidance, /stable (?:card|memory) IDs/);
+  assert.match(proposalGuidance, /cannot create/);
   assert.match(droppedGuidance, /lookups.*not represented by the tools below/);
   assert.equal(session.getTurnAllowances.call({}, 40000, false).toolResultAllowance, 0);
   assert.ok(session.getTurnAllowances.call({}, 300000, true).historyAllowance > 16000);
