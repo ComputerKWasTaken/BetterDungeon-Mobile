@@ -296,8 +296,8 @@
     return key ? { ...cache.entries[key], model: key } : null;
   }
 
-  function limitsFromCapability(entry, profile) {
-    const inputCap = normalizeCap(profile?.inputCapTokens) || DEFAULT_INPUT_CAP_TOKENS;
+  function limitsFromCapability(entry, settings) {
+    const inputCap = normalizeCap(settings?.inputCapTokens) || DEFAULT_INPUT_CAP_TOKENS;
     if (!entry) {
       return {
         ...DEFAULT_LIMITS,

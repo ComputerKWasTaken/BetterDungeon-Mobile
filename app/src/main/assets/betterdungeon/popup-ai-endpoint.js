@@ -248,7 +248,6 @@ function collectEndpointConfig({ clearKey = false } = {}) {
     errors.push(inputCap.error);
     fields.push(maxInputInput?.value === 'custom' ? 'ai-endpoint-max-input-custom' : 'ai-endpoint-max-input-tokens');
   } else {
-    profile.inputCapTokens = inputCap.value;
   }
   if (clearKey) profile.apiKey = '';
   else if (enteredKey) profile.apiKey = enteredKey;
@@ -275,9 +274,12 @@ function collectEndpointConfig({ clearKey = false } = {}) {
     return null;
   }
   setEndpointValidation();
+  const profileValid = errors.length === 0;
   return {
     version: 1, activeService: service, inputCapTokens: inputCap.value,
-    profiles: { [service]: profile }, validation: errors.length ? { message: errors.join(' '), fields } : null,
+    profiles: profileValid || clearKey ? { [service]: profile } : {},
+    profileValid,
+    validation: errors.length ? { message: errors.join(' '), fields } : null,
   };
 }
 
@@ -308,12 +310,13 @@ async function persistEndpointSettings() {
   const config = collectEndpointConfig();
   if (!config) return null;
   const validation = config.validation;
+  const profileValid = config.profileValid;
   const status = await sendAIEndpointMessage({ op: 'settings:set', config });
   updateEndpointStatus({ status });
   aiEndpointCapDirty = false;
   renderEndpointProfile(status.service || config.activeService);
   if (validation) setEndpointValidation(validation.message, validation.fields);
-  return status;
+  return { ...status, profileValid };
 }
 
 async function saveAIEndpointSettings() {
@@ -321,7 +324,9 @@ async function saveAIEndpointSettings() {
   setEndpointControlsPending(true);
   updateEndpointStatus({ pending: 'Saving...' });
   try {
-    if (await persistEndpointSettings()) showToast('AI endpoint profile saved and activated', 'success');
+    const saved = await persistEndpointSettings();
+    if (saved?.profileValid) showToast('AI endpoint profile saved and activated', 'success');
+    else if (saved) showToast('Input cap saved; endpoint profile was not saved', 'warning');
     else updateEndpointStatus({ dirty: true });
   } catch (error) {
     updateEndpointStatus({ error });
@@ -338,6 +343,7 @@ async function testAIEndpointSettings() {
   try {
     const saved = await persistEndpointSettings();
     if (!saved) return updateEndpointStatus({ dirty: true });
+    if (!saved.profileValid) return;
     updateEndpointStatus({ pending: 'Testing...' });
     const result = await sendAIEndpointMessage({ op: 'test' });
     updateEndpointStatus({ status: result.status });
@@ -399,6 +405,7 @@ function initAIEndpointSettings() {
     });
   });
   document.getElementById('ai-endpoint-max-input-tokens')?.addEventListener('change', event => {
+    aiEndpointCapDirty = true;
     const custom = document.getElementById('ai-endpoint-max-input-custom');
     const isCustom = event.target.value === 'custom';
     if (isCustom) {
