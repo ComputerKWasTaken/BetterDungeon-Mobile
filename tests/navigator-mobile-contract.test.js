@@ -98,9 +98,7 @@ function testStaticMobileContracts() {
   assert.match(popupHtml, /never writes without direct approval/i);
   assert.doesNotMatch(popupJs, /betterDungeon_navigator_(read_only|thinking_level|defaults)/);
 
-  assert.match(mainJs, /message\.type === 'SET_NAVIGATOR_READ_ONLY'/);
-  assert.match(mainJs, /handleRefreshNavigatorPermissions\(\)\.then\(sendResponse\)/);
-  assert.match(mainJs, /feature\.refreshPermissionState\(\)/);
+  assert.doesNotMatch(mainJs, /SET_NAVIGATOR_READ_ONLY|handleRefreshNavigatorPermissions/);
 
   const backHandler = activity.slice(activity.indexOf('private fun setupBackNavigation()'));
   const popupPriority = backHandler.indexOf('popupContainer.visibility == View.VISIBLE');
