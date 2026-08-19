@@ -84,6 +84,15 @@ function testStaticMobileContracts() {
   assert.match(feature, /window\.__bdNavigatorHandleBack/);
   assert.match(feature, /document\.body\.classList\.add\('bd-navigator-open'\)/);
   assert.match(feature, /async refreshPermissionState\(\)/);
+  assert.equal((feature.match(/<input[^>]*data-nav-setting="/g) || []).length, 2);
+  assert.match(feature, /input type="range"[\s\S]*data-nav-setting="thinkingLevel"/);
+  assert.match(feature, /input type="checkbox" data-nav-setting="readOnly"/);
+  assert.match(feature, /fieldset class="bd-navigator-context-sections"/);
+  assert.match(feature, /data-nav-context-section="plot"[\s\S]*data-nav-context-section="history"[\s\S]*data-nav-context-section="memory"[\s\S]*data-nav-context-section="cards"/);
+  assert.doesNotMatch(feature, /fieldset[^>]*data-nav-setting="contextSections"/);
+  assert.match(feature, /updateThinkingLevelLabel\(Number\(event\.target\.value\)\)/);
+  assert.match(feature, /thinking\.disabled = supported\.length === 0/);
+  assert.doesNotMatch(feature, /includeMemoryBank|historyMode|Inherit global default/);
 
   assert.match(session, /setReadOnlyMode\(enabled\)/);
   assert.match(session, /changes\?\.\[READ_ONLY_STORAGE_KEY\]/);
