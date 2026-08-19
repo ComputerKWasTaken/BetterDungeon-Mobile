@@ -40,6 +40,17 @@ function styleStore() {
   };
 }
 
+function element() {
+  return {
+    children: [],
+    className: '',
+    textContent: '',
+    append(...children) { this.children.push(...children); },
+    appendChild(child) { this.children.push(child); },
+    setAttribute() {},
+  };
+}
+
 function testStaticMobileContracts() {
   const feature = read('app/src/main/assets/betterdungeon/features/navigator_feature.js');
   const session = read('app/src/main/assets/betterdungeon/services/navigator/session.js');
@@ -127,6 +138,7 @@ async function testFeatureRuntimeContracts() {
   global.document = {
     activeElement: null,
     body: { classList: classList() },
+    createElement: element,
   };
 
   const filename = path.join(ASSETS, 'features', 'navigator_feature.js');
@@ -153,6 +165,15 @@ async function testFeatureRuntimeContracts() {
   feature.session = { isChatBusy: false };
   feature.updateSubtitle = () => {};
   feature.scrollToBottom = () => {};
+
+  const memoryActivity = feature.createToolActivityIndicator(['search_memory_bank'], true);
+  assert.equal(memoryActivity.children[1].textContent, 'Searched Memory Bank');
+  assert.equal(memoryActivity.children[0].className, 'icon-search');
+  const historyActivity = feature.createToolActivityIndicator(['get_story_actions'], true);
+  assert.equal(historyActivity.children[1].textContent, 'Read story actions');
+  assert.equal(historyActivity.children[0].className, 'icon-wand-sparkles');
+  const mixedActivity = feature.createToolActivityIndicator(['search_story_cards', 'search_memory_bank'], true);
+  assert.equal(mixedActivity.children[1].textContent, 'Used 2 Navigator read tools');
 
   assert.equal(feature.shouldUseSheet(), true);
   feature.openDrawer();
