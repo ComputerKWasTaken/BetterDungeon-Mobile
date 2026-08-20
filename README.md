@@ -32,10 +32,11 @@ The current release is **BetterDungeon Mobile v2.1.0**. Its headline addition is
 
 ### What's new in v2.1.0
 
-- **Navigator** — Grounded, multi-turn streaming chat with Plot Component and Recent Story context, selective Story Card research, Markdown, quick actions, visible tool activity, and per-adventure history.
-- **Confirmed modifications** — Navigator can propose changes to Plot Components, Third Person, and all five editable Story Card fields. Every write requires direct approval, conflict checks, and server read-back.
+- **Navigator** — Grounded, multi-turn streaming chat over an Apollo-backed adventure snapshot, with retrieval tools for Story Cards, Memory Bank, and story history, player-selected context sections, rich Markdown, quick actions, visible tool activity, and per-adventure history.
+- **Confirmed modifications** — Navigator can propose changes to Plot Components, Third Person, all five editable Story Card fields, and Memory Bank entries (edit and delete; AI Dungeon has no create-memory mutation). Every write requires direct approval, a conflict check against the live record, and a server read-back before it is reported as applied.
 - **Mobile-native Navigator UI** — A draggable compass opens a safe-area-aware full-screen sheet with IME handling, large touch targets, and Navigator-first Android Back behavior.
-- **Read-only mode** — Remove Navigator's mutation tools while retaining chat and Story Card research, with live synchronization between the settings and gameplay WebViews.
+- **Read-only mode** — Remove Navigator's mutation tools while retaining chat and retrieval tools. Navigator settings now live in the Navigator drawer: thinking level, read-only mode, and context sections, with live synchronization between the settings and gameplay WebViews.
+- **Request inspection and input limits** — Inspect the exact payload the last turn sent for each tool round, and choose an input cap in AI model settings (128k tokens by default).
 - **One compatible AI backend** — Gemini (default), OpenRouter, and remote custom HTTPS services share one OpenAI-compatible Chat Completions implementation for Ultrascripts, Character Prefill, and Navigator.
 - **Native streaming transport** — Gemini and OpenAI-compatible chat stream through Android's native HTTPS layer with cancellation, timeouts, bounded payloads, and extension-compatible Port events.
 - **Ultrascripts upgrades** — A stronger liveness heartbeat, revised WebFetch behavior, modernized Gemini backend, and bounded Audio module preserve the public script contracts while improving reliability.
@@ -84,7 +85,7 @@ The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built AP
 
 ### Control and navigation
 
-- **Navigator** — Chat with a grounded adventure copilot, research Story Cards, and approve conflict-safe changes from a touch-native full-screen sheet.
+- **Navigator** — Chat with a grounded adventure copilot, research Story Cards, Memory Bank, and story history, choose which context it receives, and approve conflict-checked changes from a touch-native full-screen sheet.
 - **Input History** — Cycle through recent inputs with a touch-friendly history bar scoped to each adventure.
 - **Input Mode Colors** — Color-code the input area based on the active action mode.
 - **Mobile Settings Gear** — Open BetterDungeon settings directly from the AI Dungeon interface.
