@@ -73,10 +73,6 @@ class FeatureManager {
       this.featureClasses.set('notes', NotesFeature);
     }
 
-    if (typeof AutoEnableScriptsFeature !== 'undefined') {
-      this.featureClasses.set('autoEnableScripts', AutoEnableScriptsFeature);
-    }
-
     if (typeof InputHistoryFeature !== 'undefined') {
       this.featureClasses.set('inputHistory', InputHistoryFeature);
     }
@@ -95,7 +91,7 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
+      const alwaysEnabled = ['storyCardAnalytics'];
       // Features that are disabled by default
       const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic'];
       
