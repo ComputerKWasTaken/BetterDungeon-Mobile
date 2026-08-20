@@ -87,7 +87,6 @@ class InjectionEngine(private val context: Context) {
             "features/auto_see_feature.js",
             "features/story_card_analytics_feature.js",
             "features/notes_feature.js",
-            "features/auto_enable_scripts_feature.js",
             "features/input_history_feature.js",
             "features/text_to_speeech_feature.js",
             "features/custom_dynamic_feature.js",

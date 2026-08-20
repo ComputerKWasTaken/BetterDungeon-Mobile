@@ -99,7 +99,6 @@ The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built AP
 - **Trigger Highlighting** — See active Story Card triggers in the context viewer.
 - **Story Card Analytics** — Review card counts, overlaps, empty descriptors, and scenario health information.
 - **Auto See** — Send background See actions on AI responses or configured turn intervals.
-- **Auto Enable Scripts** — Re-enable AI Dungeon's scenario script toggle when it turns off unexpectedly.
 - **Custom Dynamic** — Use the shared V2 model-routing system when WebView request hooks can observe AI Dungeon generation requests.
 
 ## Ultrascripts on Android

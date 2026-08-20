@@ -358,7 +358,6 @@
     characterPreset: true,
     autoSee: false,
     notes: true,
-    autoEnableScripts: true,
     inputHistory: true,
     textToSpeech: false,
     customDynamic: false,
