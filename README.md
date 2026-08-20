@@ -85,7 +85,7 @@ The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built AP
 
 ### Control and navigation
 
-- **Navigator** — Chat with a grounded adventure copilot over an Apollo-backed adventure snapshot, research Story Cards, Memory Bank, and story history, choose context sections, inspect each tool-round payload, and approve changes to Plot Components, Third Person, all five editable Story Card fields, and Memory Bank entries (edit/delete only) from a touch-native full-screen sheet, with live-record conflict checks and server read-back. AI model settings choose the input cap (128k tokens by default); the Navigator drawer holds thinking level, read-only mode, and context sections.
+- **Navigator** — Chat with a grounded adventure copilot, research Story Cards, Memory Bank, and story history, choose which context it receives, and approve conflict-checked changes from a touch-native full-screen sheet.
 - **Input History** — Cycle through recent inputs with a touch-friendly history bar scoped to each adventure.
 - **Input Mode Colors** — Color-code the input area based on the active action mode.
 - **Mobile Settings Gear** — Open BetterDungeon settings directly from the AI Dungeon interface.
