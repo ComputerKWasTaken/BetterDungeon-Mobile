@@ -443,7 +443,7 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   assert.equal(persisted.v, 1);
   assert.equal(persisted.messages.length, 2);
 
-  chrome.storage.sync.set({ betterDungeon_navigator_read_only: false });
+  await session.saveSettings({ readOnly: false });
   assert.deepEqual(session.getPermissionState(), { readOnly: false });
   session.destroy();
 
@@ -554,6 +554,7 @@ async function testProposalResultFloor() {
       createProposal: () => ({ id: 'proposal-1' }),
     },
     readOnly: false,
+    log: () => {},
     isMutationTool: proto.isMutationTool,
     registerProposal: (_messageId, proposal) => owner.proposals.push(proposal),
     findMessage: () => owner,
