@@ -260,9 +260,34 @@ async function testContextAndFallback() {
   );
   assert.doesNotMatch(snapshot.systemInstruction, /Deleted Tower/);
 
+  const emptyMemoryAdventure = adventureRecord();
+  emptyMemoryAdventure.state = {
+    memories: [],
+    lastSummarizedActionId: '',
+    lastMemoryActionId: '',
+  };
+  window.BetterDungeonApolloCache.readAdventure = async () => ({
+    available: true,
+    data: {
+      adventure: emptyMemoryAdventure,
+      state: emptyMemoryAdventure.state,
+      storyCards: [],
+      actions: [],
+    },
+    error: null,
+  });
+  const emptyMemorySnapshot = await reader.build();
+  assert.equal(emptyMemorySnapshot.segments.memoryBank.includedChars, 0);
+  assert.match(emptyMemorySnapshot.systemInstruction, /lastSummarized=unknown, lastMemory=unknown/);
+
   window.storyCardCache = {
     getCardArray: () => [{ id: 'cached-card', type: 'location', title: 'Cached Harbor', keys: 'harbor', value: 'A foggy port.' }],
   };
+  window.BetterDungeonApolloCache.readAdventure = async () => ({
+    available: false,
+    data: null,
+    error: { code: 'not_found', message: 'Apollo cache is cold' },
+  });
   window.BetterDungeonGQL.getNavigatorStoryCards = async () => {
     throw new Error('GraphQL unavailable');
   };
@@ -349,12 +374,14 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   assert.match(await session.buildSystemInstruction(new AbortController().signal), /READ-ONLY MODE/);
 
   let chatRound = 0;
+  const receivedRequests = [];
   window.UltrascriptsAIExecutor = {
     refreshStatus: async options => {
       assert.equal(options.consumer, 'navigator');
       return { ready: true, config: { thinkingLevels: ['minimal', 'low'] } };
     },
     chat: async (request, options) => {
+      receivedRequests.push(request);
       assert.equal(options.consumer, 'navigator');
       assert.equal(request.thinking.level, 'low');
       if (chatRound++ === 0) {
@@ -384,6 +411,17 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   assert.equal(assistant.meta.toolRounds, 1);
   assert.deepEqual(assistant.meta.readToolsCompleted, ['get_story_card']);
   assert.equal(chatRound, 2);
+  const inspection = session.getLastRequestInspection();
+  assert.equal(inspection.rounds.length, receivedRequests.length);
+  inspection.rounds.forEach((round, index) => {
+    const request = receivedRequests[index];
+    assert.equal(round.systemInstruction, request.systemInstruction);
+    assert.deepEqual(round.messages, request.messages);
+    assert.deepEqual(round.tools, request.tools);
+    assert.deepEqual(round.toolResults, request.toolResults);
+    assert.equal(round.continuationPresent, Object.prototype.hasOwnProperty.call(request, 'continuation'));
+    assert.deepEqual(round.budget, request.budget);
+  });
   assert.deepEqual(executedSnapshot.index.cards.map(card => card.id), ['card-1', 'long-card']);
   const trimmedResults = session.trimToolResults([
     { id: 'a', name: 'get_story_card', result: { data: 'a'.repeat(500) } },
@@ -457,6 +495,13 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   await prohibited.send('A prohibited prompt.');
   const prohibitedUser = prohibited.getMessages().find(message => message.role === 'user');
   assert.equal(prohibitedUser.excluded, true);
+  const failedInspection = prohibited.getLastRequestInspection();
+  assert.equal(failedInspection.rounds.length, 1);
+  assert.equal(failedInspection.error.code, 'prohibited_content');
+  assert.equal(failedInspection.meta.toolRounds, 0);
+  prohibited.persist();
+  const failedPersisted = localStorage.get('betterDungeon_navigator_session_prohibited-test');
+  assert.equal(failedPersisted.inspection, undefined);
   prohibited.destroy();
 }
 
@@ -472,10 +517,15 @@ function testNavigatorToolGuidanceAndAllowances() {
   const proposalGuidance = session.buildToolGuidance.call(session, proposal);
   const droppedGuidance = session.buildToolGuidance.call(session, [], { dropped: true });
   assert.match(readGuidance, /Every available tool is read-only/);
+  assert.match(`snapshot${readGuidance}`, /^snapshot\n=== NAVIGATOR READ TOOLS ===/);
   assert.doesNotMatch(readGuidance, /CHANGE PROPOSALS/);
   assert.match(proposalGuidance, /CHANGE PROPOSALS/);
   assert.doesNotMatch(proposalGuidance, /every available tool is read-only/);
   assert.match(proposalGuidance, /Never claim a proposal was applied/);
+  assert.match(proposalGuidance, /Third Person/);
+  assert.match(proposalGuidance, /Memory Bank/);
+  assert.match(proposalGuidance, /stable (?:card|memory) IDs/);
+  assert.match(proposalGuidance, /cannot create/);
   assert.match(droppedGuidance, /lookups.*not represented by the tools below/);
   assert.equal(session.getTurnAllowances.call({}, 40000, false).toolResultAllowance, 0);
   assert.ok(session.getTurnAllowances.call({}, 300000, true).historyAllowance > 16000);
@@ -543,6 +593,37 @@ async function testProposalResultFloor() {
   assert.equal(exhaustedOwner.proposals.length, 0);
 }
 
+
+function testRequestInspectionRetentionAndContract() {
+  const proto = window.NavigatorSession.prototype;
+  const owner = { emit() {}, lastRequestInspection: null, getLastRequestInspection: window.NavigatorSession.prototype.getLastRequestInspection };
+  proto.beginRequestInspection.call(owner);
+  assert.equal(proto.getLastRequestInspection.call(owner).rounds.length, 0);
+  for (let round = 0; round < 3; round += 1) {
+    proto.retainInspectionRound.call(owner, {
+      round, systemInstruction: 's'.repeat(1_500_000), messages: [], tools: [], toolResults: [],
+      continuationPresent: round > 0, budget: {}, thinking: { level: 'low' }, projectedInputChars: 1_500_000,
+    });
+  }
+  const inspection = proto.getLastRequestInspection.call(owner);
+  assert.ok(JSON.stringify(inspection).length <= window.NavigatorSession.MAX_INSPECTION_CHARS);
+  assert.equal(inspection.rounds[0].round, 0);
+  assert.equal(inspection.rounds.at(-1).round, 2);
+  assert.ok(inspection.rounds.some(round => round.omitted === true));
+  const oversized = { emit() {}, lastRequestInspection: null, getLastRequestInspection: window.NavigatorSession.prototype.getLastRequestInspection };
+  proto.beginRequestInspection.call(oversized);
+  proto.retainInspectionRound.call(oversized, { round: 0, systemInstruction: 'x'.repeat(window.NavigatorSession.MAX_INSPECTION_CHARS + 1000), messages: [], tools: [], toolResults: [], continuationPresent: false, budget: {}, thinking: {}, projectedInputChars: window.NavigatorSession.MAX_INSPECTION_CHARS + 1000 });
+  const oversizedInspection = proto.getLastRequestInspection.call(oversized);
+  assert.ok(JSON.stringify(oversizedInspection).length <= window.NavigatorSession.MAX_INSPECTION_CHARS);
+  assert.equal(oversizedInspection.rounds[0].truncated, true);
+  assert.match(oversizedInspection.rounds[0].systemInstruction, /Inspection text truncated/);
+  const source = require('node:fs').readFileSync(require('node:path').join(ROOT, 'services/navigator/session.js'), 'utf8');
+  assert.match(source, /const requestPayload =/);
+  assert.match(source, /chat\(requestPayload/);
+  assert.match(source, /getLastRequestInspection/);
+  assert.doesNotMatch(source, /persist\([^)]*lastRequestInspection/);
+}
+
 async function main() {
   await testInjectionOrder();
   await testGraphqlReaders();
@@ -552,6 +633,7 @@ async function main() {
   testNavigatorToolGuidanceAndAllowances();
   testToolDropUsesInstructionOnly();
   await testProposalResultFloor();
+  testRequestInspectionRetentionAndContract();
   console.log('Navigator Phase 3 contract tests passed');
 }
 

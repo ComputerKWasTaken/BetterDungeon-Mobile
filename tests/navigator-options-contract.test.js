@@ -64,6 +64,7 @@ global.chrome = {
   },
 };
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'));
+vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'services/navigator/mutations.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'services/navigator/primer.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'services/navigator/context.js'), 'utf8'));
 
@@ -73,12 +74,34 @@ async function run() {
   const settings = session.getSettings();
   assert.equal(settings.readOnly, false);
   assert.equal(settings.contextCap, undefined, 'stored per-adventure cap is ignored');
-  assert.equal(settings.includeMemoryBank, false);
-  assert.equal(settings.historyMode, 'floor');
+  assert.deepEqual(settings.contextSections, ['plot', 'history', 'cards']);
+  assert.deepEqual(
+    session.normalizeSettings({ includeMemoryBank: false, historyMode: 'floor' }).contextSections,
+    ['plot', 'history', 'cards']
+  );
+  assert.deepEqual(
+    session.normalizeSettings({ contextSections: ['memory', 'unknown', 'memory'] }).contextSections,
+    ['memory']
+  );
+  assert.equal(session.normalizeSettings({ contextSections: 'memory' }).contextSections, undefined);
   assert.equal(settings.toolRounds, undefined, 'stored tool-round settings are ignored');
-  assert.equal(settings.global.readOnly, true, 'global read-only is reported in global defaults');
-  await session.clearAdventureSetting('readOnly');
-  assert.equal(session.getSettings().readOnly, true);
+  assert.equal(settings.global, undefined, 'effective settings do not expose global defaults');
+  assert.equal(settings.overrides, undefined, 'effective settings do not expose adventure overrides');
+  const legacySession = new window.NavigatorSession('legacy');
+  await legacySession.settingsReady;
+  assert.equal(legacySession.getSettings().readOnly, true, 'legacy global read-only remains the fallback');
+  local.set('betterDungeon_navigator_adventure_mutation', { readOnly: true });
+  const mutations = new window.NavigatorMutations('mutation');
+  assert.equal(await mutations.readOnlyEnabled(), true, 'per-adventure read-only is enforced');
+  local.set('betterDungeon_navigator_adventure_mutation', { readOnly: false });
+  assert.equal(await mutations.readOnlyEnabled(), false, 'adventure read-only overrides legacy sync value');
+  chrome.runtime.id = null;
+  await assert.rejects(
+    mutations.readOnlyEnabled(),
+    error => error?.code === 'extension_context_invalid'
+      && error.message === 'The extension was reloaded. Reload this page before applying changes.'
+  );
+  chrome.runtime.id = 'navigator-options-contract';
   session.providerStatus = { limits: { maxInputChars: 150000 } };
   sync.set('betterDungeon_navigator_defaults', { contextCap: 120000, toolRounds: 8 });
   let reloadedSettings = null;
@@ -96,7 +119,8 @@ async function run() {
   await new Promise(resolve => setTimeout(resolve, 0));
   unsubscribeSettings();
   assert.equal(reloadedSettings.contextCap, undefined, 'stored global cap is ignored');
-  assert.equal(reloadedSettings.overrides.contextCap, undefined, 'cleared adventure cap remains inherited');
+  assert.equal(reloadedSettings.global, undefined);
+  assert.equal(reloadedSettings.overrides, undefined);
   assert.equal(window.NavigatorSession.CHARS_PER_TOKEN, 3);
   assert.equal(window.NavigatorSession.DEFAULT_CONTEXT_CAP_TOKENS, undefined);
   assert.equal(window.NavigatorSession.MIN_CONTEXT_CAP_TOKENS, undefined);
@@ -106,25 +130,89 @@ async function run() {
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /peakInputChars = Math\.max\(peakInputChars, projected\)/);
   const snapshot = await new window.NavigatorContext('demo').build({
     maxChars: 100000,
-    includeMemoryBank: false,
-    historyMode: 'floor',
+    contextSections: ['plot', 'history', 'cards'],
   });
-  assert.match(snapshot.systemInstruction, /Full history omitted by user setting/);
+  assert.doesNotMatch(snapshot.systemInstruction, /MEMORY BANK\n/);
   assert.match(snapshot.systemInstruction, /Memory Bank: omitted by user setting/);
-  assert.doesNotMatch(snapshot.systemInstruction, /reduced for total budget/);
+  assert.match(snapshot.systemInstruction, /search_memory_bank and get_memory/);
   assert.equal(snapshot.segments.memoryBank.truncatedReason, 'user setting');
   assert.equal(snapshot.segments.recentActions.truncatedReason, null);
-  assert.equal(snapshot.segments.recentActions.coverage.omittedReason, 'user setting');
+  assert.equal(snapshot.segments.recentActions.coverage.omittedReason, null);
+  const defaultSnapshot = await new window.NavigatorContext('demo').build({ maxChars: 100000 });
+  assert.match(defaultSnapshot.systemInstruction, /entries\. summary lag latest=/);
+  assert.deepEqual(
+    defaultSnapshot.summary.settings.contextSections,
+    ['plot', 'history', 'memory', 'cards'],
+    'context selection defaults to all sections'
+  );
+  for (const [key, heading, tool] of [
+    ['plot', 'PLOT COMPONENTS', 'no retrieval tool exists for Plot Components'],
+    ['history', 'RECENT STORY ACTIONS', 'search_story_history'],
+    ['memory', 'MEMORY BANK', 'search_memory_bank'],
+    ['cards', 'STORY CARD DIRECTORY', 'search_story_cards'],
+  ]) {
+    const selected = ['plot', 'history', 'memory', 'cards'].filter(section => section !== key);
+    const omitted = await new window.NavigatorContext('demo').build({
+      maxChars: 100000,
+      contextSections: selected,
+    });
+    assert.doesNotMatch(omitted.systemInstruction, new RegExp(`${heading}\n`));
+    assert.match(omitted.systemInstruction, /omitted by user setting/);
+    assert.match(omitted.systemInstruction, new RegExp(tool));
+    const segment = {
+      plot: omitted.segments.plotComponents,
+      history: omitted.segments.recentActions,
+      memory: omitted.segments.memoryBank,
+      cards: omitted.segments.storyCardDirectory,
+    }[key];
+    assert.equal(segment.includedChars, 0);
+    assert.equal(segment.truncatedReason, 'user setting');
+  }
+  const identityOnly = await new window.NavigatorContext('demo').build({
+    maxChars: 100000,
+    contextSections: [],
+  });
+  assert.match(identityOnly.systemInstruction, /IDENTITY\nTitle: Options/);
+  for (const heading of ['PLOT COMPONENTS', 'RECENT STORY ACTIONS', 'MEMORY BANK', 'STORY CARD DIRECTORY']) {
+    assert.doesNotMatch(identityOnly.systemInstruction, new RegExp(`${heading}\n`));
+  }
+  assert.equal(identityOnly.segments.plotComponents.includedChars, 0);
+  assert.equal(identityOnly.segments.recentActions.includedChars, 0);
+  assert.equal(identityOnly.segments.memoryBank.includedChars, 0);
+  assert.equal(identityOnly.segments.storyCardDirectory.includedChars, 0);
+  const originalAdventureData = adventureData;
+  adventureData = {
+    ...adventureData,
+    plot: { instructions: 'Plot '.repeat(3000) },
+    actions: Array.from({ length: 100 }, (_, index) => ({
+      id: String(index + 1),
+      type: 'do',
+      text: `Action ${index + 1} ${'history '.repeat(30)}`,
+    })),
+  };
+  const allSectionsBudget = await new window.NavigatorContext('demo').build({
+    maxChars: 12000,
+    contextSections: ['plot', 'history', 'memory', 'cards'],
+  });
+  const historyOnlyBudget = await new window.NavigatorContext('demo').build({
+    maxChars: 12000,
+    contextSections: ['history'],
+  });
+  assert.ok(
+    historyOnlyBudget.segments.recentActions.includedChars >
+      allSectionsBudget.segments.recentActions.includedChars,
+    'disabling plot/cards/memory frees budget for history'
+  );
+  adventureData = originalAdventureData;
 
   adventureData = { ...adventureData, state: { memories: null } };
   const unavailable = await new window.NavigatorContext('demo').build({
     maxChars: 100000,
-    includeMemoryBank: false,
-    historyMode: 'full',
+    contextSections: ['plot', 'history', 'cards'],
   });
-  assert.match(unavailable.systemInstruction, /Memory Bank and summary lag: unavailable/);
+  assert.match(unavailable.systemInstruction, /Memory Bank and summary lag: unavailable from the GraphQL fallback reader/);
   assert.doesNotMatch(unavailable.systemInstruction, /search_memory_bank/);
-  assert.equal(unavailable.segments.memoryBank.truncatedReason, null);
+  assert.equal(unavailable.segments.memoryBank.truncatedReason, 'user setting');
 
   adventureData = {
     ...adventureData,
@@ -133,8 +221,7 @@ async function run() {
   };
   const clippedFloor = await new window.NavigatorContext('demo').build({
     maxChars: 9000,
-    includeMemoryBank: true,
-    historyMode: 'floor',
+    contextSections: ['plot', 'history', 'memory', 'cards'],
   });
   assert.equal(clippedFloor.segments.recentActions.truncatedReason, 'total budget');
   assert.equal(clippedFloor.segments.recentActions.coverage.omittedReason, 'total budget');
@@ -236,11 +323,40 @@ async function run() {
   assert.match(featureSource, /for \(const delay of \[250, 500, 1000\]\)/);
   assert.match(featureSource, /isApolloPreviewRetryable/);
   assert.match(featureSource, /this\.session !== session \|\| session\.isBusy/);
-  assert.doesNotMatch(featureSource, /bd-navigator-settings-note|bd-navigator-cost|toolRounds|peak input characters|tokens, estimate/);
+  assert.doesNotMatch(featureSource, /bd-navigator-settings-note|bd-navigator-cost|peak input characters|tokens, estimate/);
+  assert.doesNotMatch(featureSource, /bd-navigator-subtitle|updateSubtitle|bd-navigator-empty-note|Navigator reads a budgeted snapshot/);
   assert.doesNotMatch(featureSource, /contextCap|clearAdventureSetting\('contextCap'\)/);
+  assert.match(featureSource, /if \(event === 'reset'\) \{[\s\S]*?this\.renderTranscript\(\);[\s\S]*?if \(this\.inspectionPanel && !this\.inspectionPanel\.hidden\) \{\s*this\.renderRequestInspection\(\);\s*\}\s*\}/);
+  assert.match(featureSource, /header\.querySelector\('\.bd-navigator-settings'\)\.addEventListener\('click', \(\) => \{\s*settings\.hidden = !settings\.hidden;\s*inspection\.hidden = true;/);
+  assert.equal((featureSource.match(/<input[^>]*data-nav-setting="/g) || []).length, 2);
+  assert.match(featureSource, /input type="range"[\s\S]*data-nav-setting="thinkingLevel"/);
+  assert.match(featureSource, /input type="checkbox" data-nav-setting="readOnly"/);
+  assert.match(featureSource, /fieldset class="bd-navigator-context-sections"/);
+  assert.match(featureSource, /data-nav-context-section="plot"[\s\S]*data-nav-context-section="history"[\s\S]*data-nav-context-section="memory"[\s\S]*data-nav-context-section="cards"/);
+  assert.doesNotMatch(featureSource, /fieldset[^>]*data-nav-setting="contextSections"/);
+  assert.match(featureSource, /updateThinkingLevelLabel\(Number\(event\.target\.value\)\)/);
+  assert.match(featureSource, /thinking\.disabled = supported\.length === 0/);
+  assert.doesNotMatch(featureSource, /includeMemoryBank|historyMode|Inherit global default/);
+  assert.match(featureSource, /search_memory_bank[\s\S]*get_memory[\s\S]*search_story_history[\s\S]*get_story_actions/);
+  assert.match(featureSource, /const category = tools\.length > 0 && tools\.every/);
+  assert.match(featureSource, /Used \$\{tools\.length\} Memory Bank tools/);
+  assert.match(featureSource, /Used \$\{tools\.length\} story history tools/);
+  assert.match(featureSource, /Used \$\{tools\.length\} Navigator read tools/);
+  assert.doesNotMatch(featureSource, /hydrationNote|The change is saved and verified on the server\. The open editor will show it after a page reload\./);
+  assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /this turn\\'s read-tool budget/);
+  assert.match(featureSource, /value === undefined \? '\(nothing was sent\)'/);
+  assert.match(featureSource, /` \| Error: \$\{inspection\.error\.message\}`/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-tool-rounds|toolRounds/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-context-cap|contextCap/);
-  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.html'), 'utf8'), /navigator-tool-rounds|navigator-context-cap|characters\)/);
+  const popupJs = fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8');
+  const popupHtml = fs.readFileSync(path.join(ROOT, 'popup.html'), 'utf8');
+  assert.doesNotMatch(popupHtml, /navigator-tool-rounds|navigator-context-cap|characters\)/);
+  for (const id of ['navigator-read-only', 'navigator-thinking-level', 'navigator-memory-bank', 'navigator-history-mode']) {
+    assert.doesNotMatch(popupHtml, new RegExp(`id="${id}"`));
+    assert.doesNotMatch(popupJs, new RegExp(id));
+  }
+  assert.doesNotMatch(popupJs, /betterDungeon_navigator_(read_only|thinking_level|defaults)/);
+  assert.doesNotMatch(popupHtml, /navigator-option-select/);
   console.log('Navigator options contract tests passed');
 }
 

@@ -40,6 +40,17 @@ function styleStore() {
   };
 }
 
+function element() {
+  return {
+    children: [],
+    className: '',
+    textContent: '',
+    append(...children) { this.children.push(...children); },
+    appendChild(child) { this.children.push(child); },
+    setAttribute() {},
+  };
+}
+
 function testStaticMobileContracts() {
   const feature = read('app/src/main/assets/betterdungeon/features/navigator_feature.js');
   const session = read('app/src/main/assets/betterdungeon/services/navigator/session.js');
@@ -84,27 +95,30 @@ function testStaticMobileContracts() {
   assert.match(feature, /window\.__bdNavigatorHandleBack/);
   assert.match(feature, /document\.body\.classList\.add\('bd-navigator-open'\)/);
   assert.match(feature, /async refreshPermissionState\(\)/);
+  assert.equal((feature.match(/<input[^>]*data-nav-setting="/g) || []).length, 2);
+  assert.match(feature, /input type="range"[\s\S]*data-nav-setting="thinkingLevel"/);
+  assert.match(feature, /input type="checkbox" data-nav-setting="readOnly"/);
+  assert.match(feature, /fieldset class="bd-navigator-context-sections"/);
+  assert.match(feature, /data-nav-context-section="plot"[\s\S]*data-nav-context-section="history"[\s\S]*data-nav-context-section="memory"[\s\S]*data-nav-context-section="cards"/);
+  assert.doesNotMatch(feature, /fieldset[^>]*data-nav-setting="contextSections"/);
+  assert.match(feature, /updateThinkingLevelLabel\(Number\(event\.target\.value\)\)/);
+  assert.match(feature, /thinking\.disabled = supported\.length === 0/);
+  assert.doesNotMatch(feature, /includeMemoryBank|historyMode|Inherit global default/);
 
   assert.match(session, /setReadOnlyMode\(enabled\)/);
-  assert.match(session, /this\.setReadOnlyMode\(changes\[READ_ONLY_STORAGE_KEY\]\.newValue\)/);
+  assert.match(session, /changes\?\.\[READ_ONLY_STORAGE_KEY\]/);
+  assert.match(session, /NAVIGATOR_ADVENTURE_SETTINGS_PREFIX/);
 
   assert.equal((popupHtml.match(/id="feature-navigator"/g) || []).length, 1);
-  assert.equal((popupHtml.match(/id="navigator-read-only"/g) || []).length, 1);
+  for (const id of ['navigator-read-only', 'navigator-thinking-level', 'navigator-memory-bank', 'navigator-history-mode']) {
+    assert.equal((popupHtml.match(new RegExp(`id="${id}"`, 'g')) || []).length, 0);
+    assert.doesNotMatch(popupJs, new RegExp(id));
+  }
   assert.match(popupHtml, /full-screen sheet/);
   assert.match(popupHtml, /never writes without direct approval/i);
-  assert.match(popupJs, /navigatorReadOnly:\s*'betterDungeon_navigator_read_only'/);
+  assert.doesNotMatch(popupJs, /betterDungeon_navigator_(read_only|thinking_level|defaults)/);
 
-  const popupHandlerStart = popupJs.indexOf("document.getElementById('navigator-read-only')?.addEventListener");
-  const popupHandler = popupJs.slice(popupHandlerStart, popupJs.indexOf('// Ultrascripts debug toggle', popupHandlerStart));
-  assert.ok(popupHandlerStart >= 0);
-  assert.ok(
-    popupHandler.indexOf('chrome.storage.sync.set') < popupHandler.indexOf("notifyContentScript('SET_NAVIGATOR_READ_ONLY'"),
-    'the popup must persist read-only mode before notifying the main WebView'
-  );
-
-  assert.match(mainJs, /message\.type === 'SET_NAVIGATOR_READ_ONLY'/);
-  assert.match(mainJs, /handleRefreshNavigatorPermissions\(\)\.then\(sendResponse\)/);
-  assert.match(mainJs, /feature\.refreshPermissionState\(\)/);
+  assert.doesNotMatch(mainJs, /SET_NAVIGATOR_READ_ONLY|handleRefreshNavigatorPermissions/);
 
   const backHandler = activity.slice(activity.indexOf('private fun setupBackNavigation()'));
   const popupPriority = backHandler.indexOf('popupContainer.visibility == View.VISIBLE');
@@ -124,6 +138,7 @@ async function testFeatureRuntimeContracts() {
   global.document = {
     activeElement: null,
     body: { classList: classList() },
+    createElement: element,
   };
 
   const filename = path.join(ASSETS, 'features', 'navigator_feature.js');
@@ -150,6 +165,15 @@ async function testFeatureRuntimeContracts() {
   feature.session = { isChatBusy: false };
   feature.updateSubtitle = () => {};
   feature.scrollToBottom = () => {};
+
+  const memoryActivity = feature.createToolActivityIndicator(['search_memory_bank'], true);
+  assert.equal(memoryActivity.children[1].textContent, 'Searched Memory Bank');
+  assert.equal(memoryActivity.children[0].className, 'icon-search');
+  const historyActivity = feature.createToolActivityIndicator(['get_story_actions'], true);
+  assert.equal(historyActivity.children[1].textContent, 'Read story actions');
+  assert.equal(historyActivity.children[0].className, 'icon-wand-sparkles');
+  const mixedActivity = feature.createToolActivityIndicator(['search_story_cards', 'search_memory_bank'], true);
+  assert.equal(mixedActivity.children[1].textContent, 'Used 2 Navigator read tools');
 
   assert.equal(feature.shouldUseSheet(), true);
   feature.openDrawer();

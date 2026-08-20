@@ -36,6 +36,8 @@ class NavigatorFeature {
     this.emptyEl = null;
     this.readOnlyBadge = null;
     this.settingsPanel = null;
+    this.inspectionPanel = null;
+    this.inspectionRound = 0;
     this.messageNodes = new Map();
 
     this.isOpen = false;
@@ -323,6 +325,9 @@ class NavigatorFeature {
 
     if (event === 'reset') {
       this.renderTranscript();
+      if (this.inspectionPanel && !this.inspectionPanel.hidden) {
+        this.renderRequestInspection();
+      }
     } else if (event === 'append') {
       this.appendMessageNode(payload);
       this.updateEmptyState();
@@ -330,8 +335,8 @@ class NavigatorFeature {
     } else if (event === 'update') {
       this.updateMessageNode(payload);
       this.scrollToBottom();
-    } else if (event === 'context') {
-      this.updateSubtitle();
+    } else if (event === 'inspection') {
+      if (this.inspectionPanel && !this.inspectionPanel.hidden) this.renderRequestInspection(payload);
     } else if (event === 'permissions' || event === 'idle') {
       this.updatePermissionUI();
       this.renderAllProposalStates();
@@ -475,10 +480,12 @@ class NavigatorFeature {
       <span class="bd-navigator-mark icon-compass" aria-hidden="true"></span>
       <div class="bd-navigator-heading">
         <h2 class="bd-navigator-title">Navigator</h2>
-        <p class="bd-navigator-subtitle"></p>
       </div>
       <div class="bd-navigator-header-actions">
         <span class="bd-navigator-read-only" hidden>Read-only</span>
+        <button type="button" class="bd-navigator-icon-btn bd-navigator-inspection" aria-label="View last request context" title="View last request context">
+          <span class="icon-file-braces" aria-hidden="true"></span>
+        </button>
         <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings">
           <span class="icon-sliders-horizontal" aria-hidden="true"></span>
         </button>
@@ -496,14 +503,28 @@ class NavigatorFeature {
     settings.setAttribute('aria-label', 'Navigator adventure settings');
     settings.innerHTML = `
       <div class="bd-navigator-settings-grid">
-        <label>Thinking level<select data-nav-setting="thinkingLevel">
-          <option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
-        </select></label>
-        <label>Memory Bank<select data-nav-setting="includeMemoryBank"><option value="true">Include inline</option><option value="false">Omit inline</option></select></label>
-        <label>History<select data-nav-setting="historyMode"><option value="full">Full history</option><option value="floor">Recency floor only</option></select></label>
-        <label>Read-only<select data-nav-setting="readOnly"><option value="">Inherit global default</option><option value="true">Force on</option><option value="false">Force off</option></select></label>
+        <label class="bd-navigator-thinking-control">Thinking level
+          <input type="range" min="0" max="0" step="1" value="0" data-nav-setting="thinkingLevel" aria-label="Thinking level">
+          <span class="bd-navigator-thinking-value" aria-live="polite"></span>
+        </label>
+        <label class="bd-navigator-toggle-control">Read-only
+          <input type="checkbox" data-nav-setting="readOnly" aria-label="Read-only mode">
+        </label>
+        <fieldset class="bd-navigator-context-sections">
+          <legend>Context sections</legend>
+          <label><input type="checkbox" data-nav-context-section="plot"> Plot Components</label>
+          <label><input type="checkbox" data-nav-context-section="history"> Recent story actions</label>
+          <label><input type="checkbox" data-nav-context-section="memory"> Memory Bank</label>
+          <label><input type="checkbox" data-nav-context-section="cards"> Story Card directory</label>
+        </fieldset>
       </div>
     `;
+
+    const inspection = document.createElement('section');
+    inspection.className = 'bd-navigator-inspection-panel';
+    inspection.hidden = true;
+    inspection.setAttribute('aria-label', 'Last request context');
+    inspection.innerHTML = '<div class="bd-navigator-inspection-summary"></div><div class="bd-navigator-inspection-toolbar"></div><div class="bd-navigator-inspection-body"></div>';
 
     const transcript = document.createElement('div');
     transcript.className = 'bd-navigator-transcript';
@@ -521,7 +542,6 @@ class NavigatorFeature {
         <button type="button" data-prompt="Check my Story Cards for gaps, contradictions, or weak entries.">Check Story Cards</button>
         <button type="button" data-prompt="Use the recent story and adventure context to suggest what should happen next.">Brainstorm what happens next</button>
       </div>
-      <p class="bd-navigator-empty-note"></p>
     `;
     transcript.appendChild(empty);
 
@@ -541,7 +561,7 @@ class NavigatorFeature {
       </div>
     `;
 
-    drawer.append(resize, header, settings, transcript, composer);
+    drawer.append(resize, header, settings, inspection, transcript, composer);
     document.body.appendChild(drawer);
 
     this.drawer = drawer;
@@ -552,18 +572,39 @@ class NavigatorFeature {
     this.stopBtn = composer.querySelector('.bd-navigator-stop');
     this.readOnlyBadge = header.querySelector('.bd-navigator-read-only');
     this.settingsPanel = settings;
+    this.inspectionPanel = inspection;
 
     header.querySelector('.bd-navigator-close').addEventListener('click', () => this.closeDrawer());
+    header.querySelector('.bd-navigator-inspection').addEventListener('click', () => {
+      inspection.hidden = !inspection.hidden;
+      settings.hidden = true;
+      if (!inspection.hidden) this.renderRequestInspection();
+    });
     header.querySelector('.bd-navigator-clear').addEventListener('click', () => this.handleClear());
     header.querySelector('.bd-navigator-settings').addEventListener('click', () => {
       settings.hidden = !settings.hidden;
+      inspection.hidden = true;
       if (!settings.hidden) {
         this.renderNavigatorSettings();
         this.session?.checkReady?.().then(() => this.renderNavigatorSettings());
       }
     });
     settings.querySelectorAll('[data-nav-setting]').forEach(control => {
-      control.addEventListener('change', () => this.saveNavigatorSetting(control.dataset.navSetting, control.value));
+      if (control.tagName === 'FIELDSET') return;
+      control.addEventListener('change', () => {
+        const value = control.type === 'checkbox' ? control.checked : control.value;
+        this.saveNavigatorSetting(control.dataset.navSetting, value);
+      });
+    });
+    settings.querySelector('[data-nav-setting="thinkingLevel"]')?.addEventListener('input', event => {
+      this.updateThinkingLevelLabel(Number(event.target.value));
+    });
+    settings.querySelectorAll('[data-nav-context-section]').forEach(control => {
+      control.addEventListener('change', () => {
+        const contextSections = [...settings.querySelectorAll('[data-nav-context-section]:checked')]
+          .map(input => input.dataset.navContextSection);
+        this.saveNavigatorSetting('contextSections', contextSections);
+      });
     });
     this.stopBtn.addEventListener('click', () => this.session?.abort());
 
@@ -597,7 +638,6 @@ class NavigatorFeature {
 
     this.applyLayout();
     this.syncVisualViewport();
-    this.updateSubtitle();
     this.updatePermissionUI();
     this.updateComposerState();
     this.renderTranscript();
@@ -607,36 +647,87 @@ class NavigatorFeature {
     if (!this.settingsPanel || !this.session) return;
     const settings = this.session.getSettings?.();
     if (!settings) return;
-    for (const control of this.settingsPanel.querySelectorAll('[data-nav-setting]')) {
-      const key = control.dataset.navSetting;
-      let value = settings[key];
-      if (key === 'readOnly') value = Object.prototype.hasOwnProperty.call(settings.overrides || {}, 'readOnly') ? String(value) : '';
-      if (key === 'includeMemoryBank') value = String(value !== false);
-      if (control.value !== String(value ?? '')) control.value = String(value ?? '');
-    }
     const supported = settings.providerThinkingLevels || [];
     const thinking = this.settingsPanel.querySelector('[data-nav-setting="thinkingLevel"]');
     if (thinking) {
+      const index = supported.indexOf(settings.thinkingLevel);
+      const preferredLevels = ['minimal', 'low', 'medium', 'high'];
+      const storedRank = preferredLevels.indexOf(settings.thinkingLevel);
+      const nearestIndex = index >= 0
+        ? index
+        : supported.reduce((best, level, candidate) => {
+          if (best < 0) return candidate;
+          const rank = preferredLevels.indexOf(level);
+          const bestRank = preferredLevels.indexOf(supported[best]);
+          if (storedRank < 0 || rank < 0 || bestRank < 0) return best;
+          return Math.abs(rank - storedRank) < Math.abs(bestRank - storedRank)
+            ? candidate
+            : best;
+        }, -1);
+      thinking.min = '0';
+      thinking.max = String(Math.max(0, supported.length - 1));
+      thinking.value = String(nearestIndex >= 0 ? nearestIndex : 0);
       thinking.disabled = supported.length === 0;
-      thinking.title = supported.length ? '' : 'The configured provider advertises no thinking-level support.';
-      for (const option of thinking.options) option.hidden = supported.length > 0 && !supported.includes(option.value);
+      thinking.title = supported.length
+        ? index >= 0 ? '' : 'The stored thinking level is not advertised by the configured provider.'
+        : 'The configured provider advertises no thinking-level support.';
+      this.updateThinkingLevelLabel(nearestIndex);
     }
+    const readOnly = this.settingsPanel.querySelector('[data-nav-setting="readOnly"]');
+    if (readOnly) readOnly.checked = settings.readOnly === true;
+    const selectedSections = Array.isArray(settings.contextSections)
+      ? settings.contextSections
+      : ['plot', 'history', 'memory', 'cards'];
+    for (const control of this.settingsPanel.querySelectorAll('[data-nav-context-section]')) {
+      control.checked = selectedSections.includes(control.dataset.navContextSection);
+    }
+  }
+
+  updateThinkingLevelLabel(index) {
+    const label = this.settingsPanel?.querySelector('.bd-navigator-thinking-value');
+    if (!label) return;
+    const supported = this.session?.getSettings?.()?.providerThinkingLevels || [];
+    label.textContent = supported[Number(index)] || 'Unavailable';
   }
 
   async saveNavigatorSetting(key, rawValue) {
     if (!this.session) return;
-    if (key === 'readOnly' && rawValue === '') {
-      await this.session.clearAdventureSetting('readOnly');
+    const value = key === 'readOnly' ? rawValue === true : rawValue;
+    if (key === 'thinkingLevel') {
+      const supported = this.session.getSettings?.().providerThinkingLevels || [];
+      const selected = supported[Number(rawValue)];
+      if (!selected) return;
+      await this.session.saveSettings({ [key]: selected });
       this.renderNavigatorSettings();
       return;
     }
-    const value = key === 'includeMemoryBank'
-      ? rawValue === 'true'
-        : key === 'readOnly'
-          ? rawValue === 'true'
-          : rawValue;
     await this.session.saveSettings({ [key]: value });
     this.renderNavigatorSettings();
+  }
+
+  renderRequestInspection(inspection = this.session?.getLastRequestInspection?.()) {
+    if (!this.inspectionPanel) return;
+    const summary = this.inspectionPanel.querySelector('.bd-navigator-inspection-summary');
+    const toolbar = this.inspectionPanel.querySelector('.bd-navigator-inspection-toolbar');
+    const body = this.inspectionPanel.querySelector('.bd-navigator-inspection-body');
+    summary.replaceChildren(); toolbar.replaceChildren(); body.replaceChildren();
+    if (!inspection) { summary.textContent = 'Nothing has been captured yet in this page session. This inspection is not saved across reloads.'; return; }
+    const flags = ['toolsDropped', 'inputLimitReached', 'toolLimitReached', 'toolResultsOmitted'].filter(key => inspection.meta?.[key]);
+    summary.textContent = `Captured ${inspection.capturedAt || 'unknown time'} | ${inspection.model || 'model unknown'} | thinking ${inspection.thinkingLevel || 'unknown'} | input cap ${inspection.inputCap || 'unknown'} chars | peak ${inspection.meta?.peakInputChars || 0} chars | tool rounds ${inspection.meta?.toolRounds || 0}${flags.length ? ` | ${flags.join(', ')}` : ''}`;
+    if (inspection.error) summary.appendChild(document.createTextNode(` | Error: ${inspection.error.message}`));
+    const rounds = Array.isArray(inspection.rounds) ? inspection.rounds : [];
+    if (!rounds.length) { body.textContent = 'No executor round was captured. Nothing is saved across reloads.'; return; }
+    if (rounds.length > 1) {
+      const label = document.createElement('label'); label.textContent = 'Round ';
+      const select = document.createElement('select'); select.className = 'bd-navigator-inspection-round';
+      rounds.forEach((round, index) => { const option = document.createElement('option'); option.value = String(index); option.textContent = round.omitted ? `${round.round + 1} (text omitted)` : String(round.round + 1); select.appendChild(option); });
+      select.value = String(Math.min(this.inspectionRound, rounds.length - 1));
+      select.addEventListener('change', () => { this.inspectionRound = Number(select.value); this.renderRequestInspection(inspection); }); label.appendChild(select); toolbar.appendChild(label);
+    }
+    const round = rounds[Math.min(this.inspectionRound, rounds.length - 1)];
+    if (round.omitted && !round.truncated) { body.textContent = round.omissionReason || 'Intermediate round text omitted due to the inspection retention limit.'; return; }
+    const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy round JSON'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(round, null, 2)); copy.textContent = 'Copied'; } catch { copy.textContent = 'Copy unavailable'; } }); toolbar.appendChild(copy);
+    for (const [title, value] of [['System instruction', round.systemInstruction], ['Messages', round.messages], ['Tool schemas', round.tools], ['Tool results', round.toolResults], ['Round budget', { budget: round.budget, thinking: round.thinking, continuationPresent: round.continuationPresent, projectedInputChars: round.projectedInputChars }]]) { const heading = document.createElement('h4'); heading.textContent = title; body.appendChild(heading); const pre = document.createElement('pre'); pre.textContent = value === undefined ? '(nothing was sent)' : typeof value === 'string' ? value : JSON.stringify(value, null, 2); body.appendChild(pre); }
   }
 
   // ==================== OPEN / CLOSE ====================
@@ -654,7 +745,6 @@ class NavigatorFeature {
     this.launcher?.classList.add('bd-navigator-launcher-active');
     this.applyLayout();
     this.syncVisualViewport();
-    this.updateSubtitle();
     this.scrollToBottom(true);
   }
 
@@ -818,14 +908,6 @@ class NavigatorFeature {
   updatePermissionUI() {
     const readOnly = this.session?.getPermissionState?.().readOnly === true;
     if (this.readOnlyBadge) this.readOnlyBadge.hidden = !readOnly;
-    if (this.emptyEl) {
-      const note = this.emptyEl.querySelector('.bd-navigator-empty-note');
-      if (note) {
-        note.textContent = readOnly
-          ? 'Read-only mode is enabled. Navigator can inspect and draft, but mutation tools are unavailable.'
-          : 'Navigator reads a budgeted snapshot. Proposed changes require your approval before they are applied.';
-      }
-    }
   }
 
   async refreshPermissionState() {
@@ -857,32 +939,6 @@ class NavigatorFeature {
     this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
       button.disabled = busy;
     });
-  }
-
-  updateSubtitle() {
-    const subtitle = this.drawer?.querySelector('.bd-navigator-subtitle');
-    if (!subtitle) return;
-
-    const context = this.session?.getContextSummary?.();
-    if (!context || context.state === 'idle') {
-      subtitle.textContent = 'Preparing adventure context…';
-      return;
-    }
-    if (context.state === 'loading') {
-      subtitle.textContent = 'Refreshing adventure context…';
-      return;
-    }
-    if (context.state === 'error') {
-      subtitle.textContent = 'Adventure context unavailable';
-      return;
-    }
-
-    const title = context.title ? `${context.title} · ` : '';
-    const coverage = `${context.plotPopulated || 0}/4 plot · ${context.cardsIncluded || 0}/${context.cardsTotal || 0} card directory · ${context.actionsIncluded || 0} actions`;
-    const state = context.preview
-      ? ' · preview'
-      : (context.partial ? ' · partial' : '');
-    subtitle.textContent = `${title}${coverage}${state}`;
   }
 
   // ==================== TRANSCRIPT RENDERING ====================
@@ -1042,7 +1098,6 @@ class NavigatorFeature {
       drift.textContent = 'The card had an unrelated timestamp update while Navigator applied this change.';
       card.appendChild(drift);
     }
-
     const actions = document.createElement('div');
     actions.className = 'bd-navigator-proposal-buttons';
     const reject = document.createElement('button');
@@ -1552,17 +1607,33 @@ class NavigatorFeature {
     const wrap = document.createElement('span');
     wrap.className = `bd-navigator-tool-activity${complete ? ' bd-navigator-tool-complete' : ''}`;
 
+    const tools = Array.from(new Set(Array.isArray(names) ? names : []));
+    const storyCardTools = new Set(['search_story_cards', 'get_story_card']);
+    const memoryBankTools = new Set(['search_memory_bank', 'get_memory']);
+    const historyTools = new Set(['search_story_history', 'get_story_actions']);
+    const category = tools.length > 0 && tools.every(name => storyCardTools.has(name))
+      ? 'story_cards'
+      : (tools.length > 0 && tools.every(name => memoryBankTools.has(name))
+        ? 'memory_bank'
+        : (tools.length > 0 && tools.every(name => historyTools.has(name)) ? 'history' : 'mixed'));
     const icon = document.createElement('span');
-    const onlySearch = names.length === 1 && names[0] === 'search_story_cards';
-    const onlyRead = names.length === 1 && names[0] === 'get_story_card';
-    icon.className = onlySearch ? 'icon-search' : (onlyRead ? 'icon-book-open-text' : 'icon-wand-sparkles');
+    const onlySearch = tools.length === 1 && tools[0].startsWith('search_');
+    const onlyRead = tools.length === 1 && tools[0].startsWith('get_');
+    icon.className = onlySearch ? 'icon-search' : (onlyRead && category === 'story_cards' ? 'icon-book-open-text' : 'icon-wand-sparkles');
     icon.setAttribute('aria-hidden', 'true');
 
     const label = document.createElement('span');
-    if (onlySearch) label.textContent = complete ? 'Searched Story Cards' : 'Searching Story Cards';
-    else if (onlyRead) label.textContent = complete ? 'Read Story Card' : 'Reading Story Card';
-    else if (complete) label.textContent = `Used ${names.length} Story Card tools`;
-    else label.textContent = `Using ${names.length} Story Card tools`;
+    const action = complete ? 'Searched' : 'Searching';
+    if (tools.length === 1 && tools[0] === 'search_story_cards') label.textContent = `${action} Story Cards`;
+    else if (tools.length === 1 && tools[0] === 'get_story_card') label.textContent = complete ? 'Read Story Card' : 'Reading Story Card';
+    else if (tools.length === 1 && tools[0] === 'search_memory_bank') label.textContent = `${action} Memory Bank`;
+    else if (tools.length === 1 && tools[0] === 'get_memory') label.textContent = complete ? 'Read Memory Bank entry' : 'Reading Memory Bank entry';
+    else if (tools.length === 1 && tools[0] === 'search_story_history') label.textContent = `${action} story history`;
+    else if (tools.length === 1 && tools[0] === 'get_story_actions') label.textContent = complete ? 'Read story actions' : 'Reading story actions';
+    else if (category === 'story_cards') label.textContent = complete ? `Used ${tools.length} Story Card tools` : `Using ${tools.length} Story Card tools`;
+    else if (category === 'memory_bank') label.textContent = complete ? `Used ${tools.length} Memory Bank tools` : `Using ${tools.length} Memory Bank tools`;
+    else if (category === 'history') label.textContent = complete ? `Used ${tools.length} story history tools` : `Using ${tools.length} story history tools`;
+    else label.textContent = complete ? `Used ${tools.length} Navigator read tools` : `Using ${tools.length} Navigator read tools`;
 
     wrap.append(icon, label);
     if (!complete) {

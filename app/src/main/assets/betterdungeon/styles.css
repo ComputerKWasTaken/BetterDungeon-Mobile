@@ -3403,15 +3403,6 @@ body.bd-navigator-resizing {
   color: var(--bd-text-primary);
 }
 
-.bd-navigator-subtitle {
-  margin: 2px 0 0;
-  font-size: var(--bd-font-size-xs);
-  color: var(--bd-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .bd-navigator-settings-panel {
   padding: var(--bd-space-3);
   border-bottom: 1px solid var(--bd-border-subtle);
@@ -3420,8 +3411,8 @@ body.bd-navigator-resizing {
 
 .bd-navigator-settings-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--bd-space-2);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }
 
 .bd-navigator-settings-grid label {
@@ -3434,14 +3425,176 @@ body.bd-navigator-resizing {
 
 .bd-navigator-settings-grid input,
 .bd-navigator-settings-grid select,
-.bd-navigator-option-input,
-.bd-navigator-option-select {
+.bd-navigator-option-input {
   min-width: 0;
   padding: 4px 6px;
   color: var(--bd-text);
   background: var(--bd-surface);
   border: 1px solid var(--bd-border);
   border-radius: 4px;
+}
+
+.bd-navigator-thinking-control {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--bd-space-2);
+  row-gap: 6px;
+  min-height: 24px;
+  padding: 4px 8px 6px;
+  border: 1px solid var(--bd-border-default);
+  border-radius: 4px;
+}
+
+.bd-navigator-thinking-value {
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: end;
+  color: var(--bd-text-primary);
+  font-size: var(--bd-font-size-xs);
+  font-weight: var(--bd-font-weight-semibold);
+}
+
+.bd-navigator-settings-grid input[type="range"] {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 100%;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  border: 0 !important;
+  cursor: pointer;
+}
+
+.bd-navigator-settings-grid input[type="range"]:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.bd-navigator-settings-grid input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--bd-radius-full);
+  background: var(--bd-bg-tertiary);
+  border: 1px solid var(--bd-border-default);
+}
+
+.bd-navigator-settings-grid input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
+  border: 1px solid var(--bd-accent-primary);
+  border-radius: var(--bd-radius-full);
+  background: var(--bd-accent-primary);
+}
+
+.bd-navigator-settings-grid input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: var(--bd-radius-full);
+  background: var(--bd-bg-tertiary);
+  border: 1px solid var(--bd-border-default);
+}
+
+.bd-navigator-settings-grid input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--bd-accent-primary);
+  border-radius: var(--bd-radius-full);
+  background: var(--bd-accent-primary);
+}
+
+.bd-navigator-settings-grid input[type="range"]:focus-visible {
+  outline: 2px solid var(--bd-border-focus);
+  outline-offset: 2px;
+}
+
+.bd-navigator-toggle-control {
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bd-space-2);
+  min-height: 24px;
+  padding: 6px 8px;
+  border: 1px solid var(--bd-border-default);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.bd-navigator-toggle-control input[type="checkbox"],
+.bd-navigator-context-sections input[type="checkbox"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: inline-block;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--bd-border-default) !important;
+  border-radius: 3px;
+  background-color: var(--bd-bg-tertiary) !important;
+  background-image: none;
+  cursor: pointer;
+}
+
+.bd-navigator-toggle-control input[type="checkbox"]:checked,
+.bd-navigator-context-sections input[type="checkbox"]:checked {
+  border-color: var(--bd-accent-primary) !important;
+  background-color: var(--bd-accent-primary) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.7 9.5 3.8' fill='none' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 12px 12px;
+}
+
+.bd-navigator-toggle-control input[type="checkbox"]:focus-visible,
+.bd-navigator-context-sections input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--bd-border-focus) !important;
+  outline-offset: 2px;
+}
+
+.bd-navigator-context-sections {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px var(--bd-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 2px 8px 8px;
+  border: 1px solid var(--bd-border-default);
+  border-radius: 4px;
+  color: var(--bd-text-muted);
+  font-size: var(--bd-font-size-xs);
+}
+
+.bd-navigator-context-sections legend {
+  margin-left: -2px;
+  padding: 0 4px;
+  color: var(--bd-text-muted);
+  font-size: var(--bd-font-size-xs);
+}
+
+.bd-navigator-context-sections label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 20px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .bd-navigator-context-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .bd-navigator-header-actions {
@@ -3495,6 +3648,64 @@ body.bd-navigator-resizing {
 .bd-navigator-close:hover {
   background: var(--bd-error-bg);
   color: var(--bd-error-light);
+}
+
+.bd-navigator-inspection-panel {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(70vh, 620px);
+  overflow: auto;
+  padding: var(--bd-space-3);
+  border-bottom: 1px solid var(--bd-border-subtle);
+  background: var(--bd-surface-raised);
+}
+
+.bd-navigator-inspection-summary {
+  margin-bottom: var(--bd-space-2);
+  color: var(--bd-text-secondary);
+  font-size: var(--bd-font-size-xs);
+  line-height: var(--bd-line-height-normal);
+}
+
+.bd-navigator-inspection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--bd-space-2);
+  margin-bottom: var(--bd-space-2);
+}
+
+.bd-navigator-inspection-toolbar button,
+.bd-navigator-inspection-toolbar select {
+  min-height: 32px;
+  padding: 4px 8px;
+  color: var(--bd-text);
+  background: var(--bd-surface);
+  border: 1px solid var(--bd-border);
+  border-radius: 4px;
+}
+
+.bd-navigator-inspection-body h4 {
+  margin: var(--bd-space-2) 0 4px;
+  color: var(--bd-text-muted);
+  font-size: var(--bd-font-size-xs);
+}
+
+.bd-navigator-inspection-body pre {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 220px;
+  margin: 0;
+  padding: var(--bd-space-2);
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--bd-text-primary);
+  background: var(--bd-bg-secondary);
+  border: 1px solid var(--bd-border-subtle);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
 }
 
 .bd-navigator-transcript {
@@ -3579,13 +3790,6 @@ body.bd-navigator-resizing {
 .bd-navigator-quick-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-
-.bd-navigator-empty-note {
-  margin: 0;
-  font-size: var(--bd-font-size-sm);
-  line-height: var(--bd-line-height-normal);
-  color: var(--bd-text-muted);
 }
 
 .bd-navigator-message {
@@ -4195,7 +4399,26 @@ body.bd-navigator-open {
 }
 
 .bd-navigator-input {
+  min-height: 60px;
+  padding-right: 60px;
+  border-radius: 30px;
   font-size: 16px;
+}
+
+.bd-navigator-send,
+.bd-navigator-stop {
+  right: 8px;
+  bottom: 8px;
+  width: 44px;
+  height: 44px;
+}
+
+/* The sheet is exactly one viewport tall, so the inspection panel yields
+   height instead of pushing the composer off screen. */
+.bd-navigator-inspection-panel {
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 45vh;
 }
 
 .bd-navigator-ime-visible .bd-navigator-header {

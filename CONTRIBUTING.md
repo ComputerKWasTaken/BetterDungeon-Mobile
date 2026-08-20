@@ -92,6 +92,10 @@ The injection order mirrors the browser extension where practical:
 
 Each injected JavaScript file is isolated so one feature failing does not prevent the rest of the app from loading.
 
+## Automated contract suites
+
+The `tests/*.test.js` files are dependency-free Node contract suites. Run an individual suite with `node tests/<name>.test.js`. When changing shared Navigator or Apollo files, mirror the corresponding changes into the desktop repository and keep those shared files byte-identical.
+
 ## Adding or updating shared features
 
 Shared features should remain compatible with the primary BetterDungeon repository whenever possible.
