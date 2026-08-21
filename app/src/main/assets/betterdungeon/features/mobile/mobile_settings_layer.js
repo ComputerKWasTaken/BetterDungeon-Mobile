@@ -24,24 +24,27 @@ ${settingsCogSvg}
 </div></div></span>
     `;
 
-    // Clone the current home-header action so the injected control inherits AI
-    // Dungeon's live 44px pill styling instead of relying on hashed class names.
-    function createHomeSettingsButton(sourceWrapper) {
-        const wrapper = sourceWrapper.cloneNode(true);
-        const button = wrapper.querySelector('button');
-        const icon = wrapper.querySelector('.font_icons');
-        if (!button || !icon) return null;
+    // Clone the current drawer action so the injected control inherits AI
+    // Dungeon's live styling instead of relying on hashed class names.
+    function createDrawerSettingsButton(sourceButton) {
+        const button = sourceButton.cloneNode(true);
+        const icon = button.querySelector('.font_icons');
+        const label = Array.from(button.querySelectorAll('span'))
+            .find(span => span.textContent.trim() === 'Guidebook');
+        if (!icon || !label) return null;
 
-        wrapper.classList.add('bd-mobile-settings');
+        button.classList.add('bd-mobile-settings');
         button.setAttribute('aria-label', 'BetterDungeon Settings');
         button.setAttribute('title', 'BetterDungeon Settings');
         button.removeAttribute('aria-haspopup');
         button.removeAttribute('aria-expanded');
         button.removeAttribute('data-state');
         button.removeAttribute('data-slot');
+        button.removeAttribute('id');
         icon.outerHTML = settingsCogSvg.trim();
+        label.textContent = 'BetterDungeon';
         button.addEventListener('click', onSettingsClick);
-        return wrapper;
+        return button;
     }
 
     function onSettingsClick(e) {
@@ -54,18 +57,15 @@ ${settingsCogSvg}
         }
     }
     function injectSettingsButtons() {
-        // 1. Home Page Target — beside Social in the new Primary header action group.
-        const socialButton = document.querySelector(
-            '[aria-label="Primary header"][role="navigation"] button[aria-label="Social"]'
-        );
-        if (socialButton) {
-            const socialWrapper = socialButton.parentElement;
-            const actionGroup = socialWrapper?.parentElement;
-            if (actionGroup && !actionGroup.querySelector('.bd-mobile-settings')) {
-                const node = createHomeSettingsButton(socialWrapper);
-                if (node) actionGroup.insertBefore(node, socialWrapper);
-            }
-        }
+        // 1. Home Page Target - directly above Guidebook in the drawer.
+        const guidebookButtons = document.querySelectorAll('button[aria-label="Guidebook"]');
+        guidebookButtons.forEach(guidebookButton => {
+            const drawerGroup = guidebookButton.parentElement;
+            if (!drawerGroup || drawerGroup.querySelector('.bd-mobile-settings')) return;
+
+            const node = createDrawerSettingsButton(guidebookButton);
+            if (node) drawerGroup.insertBefore(node, guidebookButton);
+        });
 
         // 2. Adventure Page Target (next to the Model Switcher / Undo / Redo)
         // Find the specific wrapper by looking for the "Game settings" or "Undo change" aria-labels
