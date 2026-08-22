@@ -444,3 +444,4 @@ class TutorialService {
 if (typeof window !== 'undefined') {
   window.TutorialService = TutorialService;
 }
+
