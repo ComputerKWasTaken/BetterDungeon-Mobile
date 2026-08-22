@@ -77,7 +77,6 @@ The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built AP
 
 ### Better writing on a touch screen
 
-- **Markdown** — Shared V2 Markdown instruction presets with authors-note support and automatic application.
 - **Command Mode** — Send narrative commands with Subtle and OOC sub-modes.
 - **Try Mode** — Run configurable RNG-based action checks with touch-friendly controls.
 - **Adventure Notes** — Keep notes per adventure inside Plot Components.
