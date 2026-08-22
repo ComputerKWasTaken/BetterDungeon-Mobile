@@ -42,7 +42,6 @@ class InjectionEngine(private val context: Context) {
             "services/ultrascripts/ws-stream.js", // Early stream shimming
             "utils/dom.js",
             "utils/storage.js",
-            "utils/markdown-config.js",
             "services/graphql-service.js",
             "services/apollo-cache-service.js",
             "services/adventure-read-service.js",
@@ -76,7 +75,6 @@ class InjectionEngine(private val context: Context) {
             "services/story-card-scanner.js",
             "features/ultrascripts_feature.js",
             "core/feature-manager.js",
-            "features/markdown_feature.js",
             "features/command_feature.js",
             "features/try_feature.js",
             "features/trigger_highlight_feature.js",
