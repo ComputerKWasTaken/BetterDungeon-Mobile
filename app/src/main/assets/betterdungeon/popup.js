@@ -13,7 +13,6 @@ const STORAGE_KEYS = {
   presets: 'betterDungeon_favoritePresets',
   characters: 'betterDungeon_characterPresets',
   activeCharacter: 'betterDungeon_activeCharacterPreset',
-  characterGenerationInstructions: 'betterDungeon_characterPresetGenerationInstructions',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
   customModeColors: 'betterDungeon_customModeColors',
@@ -1501,6 +1500,7 @@ async function resetModeColors() {
 // ============================================
 
 function initPresets() {
+  initPresetViews();
   loadPresets();
   
   // Save button
@@ -1511,6 +1511,45 @@ function initPresets() {
 
   // Undo button
   document.getElementById('undo-preset-btn')?.addEventListener('click', undoLastApply);
+}
+
+function switchPresetView(view, shouldFocus = false) {
+  const tabs = [...document.querySelectorAll('[data-preset-view]')];
+  const panels = [...document.querySelectorAll('[data-preset-panel]')];
+  const selectedView = tabs.some(tab => tab.dataset.presetView === view) ? view : 'characters';
+
+  tabs.forEach((tab) => {
+    const isSelected = tab.dataset.presetView === selectedView;
+    tab.classList.toggle('active', isSelected);
+    tab.setAttribute('aria-selected', String(isSelected));
+    tab.tabIndex = isSelected ? 0 : -1;
+    if (isSelected && shouldFocus) tab.focus();
+  });
+
+  panels.forEach((panel) => {
+    panel.hidden = panel.dataset.presetPanel !== selectedView;
+  });
+}
+
+function initPresetViews() {
+  const tabs = [...document.querySelectorAll('[data-preset-view]')];
+  if (tabs.length === 0) return;
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => switchPresetView(tab.dataset.presetView));
+    tab.addEventListener('keydown', (event) => {
+      let nextIndex = null;
+      if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+      if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === 'Home') nextIndex = 0;
+      if (event.key === 'End') nextIndex = tabs.length - 1;
+      if (nextIndex === null) return;
+      event.preventDefault();
+      switchPresetView(tabs[nextIndex].dataset.presetView, true);
+    });
+  });
+
+  switchPresetView('characters');
 }
 
 async function loadPresets() {
@@ -1823,31 +1862,9 @@ function updateTextareaStates() {
 
 function initCharacters() {
   loadCharacters();
-  loadCharacterGenerationInstructions();
   
   document.getElementById('create-character-btn')?.addEventListener('click', async () => {
     openCharacterModal(createBlankCharacter(), true);
-  });
-  document.getElementById('character-open-ai-settings')?.addEventListener('click', openAISettingsFromCharacters);
-}
-
-function loadCharacterGenerationInstructions() {
-  const input = document.getElementById('character-generation-instructions');
-  const counter = document.getElementById('character-generation-instructions-count');
-  let saveTimer = null;
-  if (!input) return;
-  chrome.storage.local.get(STORAGE_KEYS.characterGenerationInstructions, (result) => {
-    input.value = String((result || {})[STORAGE_KEYS.characterGenerationInstructions] || '').slice(0, 1500);
-    if (counter) counter.textContent = `${input.value.length}/1500`;
-  });
-  input.addEventListener('input', () => {
-    if (input.value.length > 1500) input.value = input.value.slice(0, 1500);
-    if (counter) counter.textContent = `${input.value.length}/1500`;
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      chrome.storage.local.set({ [STORAGE_KEYS.characterGenerationInstructions]: input.value });
-      saveTimer = null;
-    }, 350);
   });
 }
 
@@ -1918,9 +1935,11 @@ function normalizeCharacterList(raw) {
 function renderCharacters(characters) {
   const container = document.getElementById('character-list');
   const emptyState = document.getElementById('character-empty');
+  const count = document.getElementById('character-count');
   if (!container) return;
 
   container.querySelectorAll('.character-card').forEach(c => c.remove());
+  if (count) count.textContent = `${characters.length} saved`;
 
   if (characters.length === 0) {
     if (emptyState) emptyState.style.display = 'flex';
@@ -1929,7 +1948,13 @@ function renderCharacters(characters) {
 
   if (emptyState) emptyState.style.display = 'none';
 
-  characters.forEach(char => {
+  const sortedCharacters = [...characters].sort((a, b) => {
+    if (a.id === currentMainCharacterId) return -1;
+    if (b.id === currentMainCharacterId) return 1;
+    return Number(b.updatedAt || 0) - Number(a.updatedAt || 0);
+  });
+
+  sortedCharacters.forEach(char => {
     const card = createCharacterCard(char);
     container.appendChild(card);
   });
@@ -1946,26 +1971,25 @@ function createCharacterCard(character) {
     : 'No description yet';
 
   card.innerHTML = `
-    <div class="character-card-main">
+    <div class="character-card-header">
       <div class="character-title-row">
         <h4 class="character-name">${escapeHtml(character.name)}</h4>
-        ${isMain ? '<span class="character-main-badge"><span class="icon-star"></span>Main</span>' : ''}
+        ${isMain ? '<span class="character-main-badge"><span class="icon-check"></span>Selected</span>' : ''}
       </div>
-      <div class="character-meta">
-        <span class="character-description-preview">${escapeHtml(preview)}</span>
-      </div>
-    </div>
-    <div class="character-card-actions">
-      <button class="character-main-btn${isMain ? ' active' : ''}" aria-label="${isMain ? 'Main character' : 'Make main character'}" title="${isMain ? 'Main character' : 'Make main character'}"${isMain ? ' disabled' : ''}>
-        <span class="icon-star"></span>
-      </button>
-      <button class="character-edit-btn" aria-label="Edit" title="Edit">
+      <button class="character-edit-btn" type="button" aria-label="Edit character" title="Edit character">
         <span class="icon-pencil"></span>
+      </button>
+    </div>
+    <p class="character-description-preview">${escapeHtml(preview)}</p>
+    <div class="character-card-actions">
+      <button class="character-select-btn${isMain ? ' active' : ''}" type="button"${isMain ? ' disabled' : ''}>
+        <span class="${isMain ? 'icon-check' : 'icon-user-check'}"></span>
+        ${isMain ? 'Selected for Prefill' : 'Use for Prefill'}
       </button>
     </div>
   `;
 
-  card.querySelector('.character-main-btn')?.addEventListener('click', (event) => {
+  card.querySelector('.character-select-btn')?.addEventListener('click', (event) => {
     event.stopPropagation();
     if (!isMain) setMainCharacter(character.id);
   });
@@ -1981,7 +2005,7 @@ function setMainCharacter(characterId) {
   currentMainCharacterId = characterId || null;
   chrome.storage.local.set({ [STORAGE_KEYS.activeCharacter]: currentMainCharacterId }, () => {
     loadCharacters();
-    showToast('Main character updated', 'success');
+    showToast('Character selected for prefill', 'success');
   });
 }
 
@@ -2021,13 +2045,16 @@ function openCharacterModal(character, isNew = false) {
   const nameInput = document.getElementById('character-name-input');
   const descriptionInput = document.getElementById('character-description-input');
   const deleteBtn = document.getElementById('character-delete-btn');
+  const saveBtn = document.getElementById('character-modal-save');
 
   if (title) title.textContent = isNew ? 'New Character' : 'Edit Character';
   if (nameInput) nameInput.value = character.name || '';
   if (descriptionInput) descriptionInput.value = character.description || '';
   if (deleteBtn) deleteBtn.style.display = isNew ? 'none' : '';
+  if (saveBtn) saveBtn.textContent = isNew ? 'Create Character' : 'Save Changes';
   
   openModal('character-modal');
+  requestAnimationFrame(() => nameInput?.focus());
 }
 
 function saveCharacterChanges() {
@@ -2554,9 +2581,13 @@ function setupTutorialHandlers() {
       closeTutorialModal();
       switchToTab('features');
     } else {
-      // Regular step modal - proceed to next
+      // The welcome screen launches the main Premise tutorial.
       closeTutorialModal();
-      tutorialService?.next();
+      if (tutorialService?.getCurrentStep()?.id === 'welcome') {
+        tutorialService.goToTopic('premise');
+      } else {
+        tutorialService?.next();
+      }
     }
   });
   
@@ -2565,9 +2596,25 @@ function setupTutorialHandlers() {
     exitTutorial();
   });
 
-  document.getElementById('tutorial-overlay')?.addEventListener('click', (e) => {
-    if (e.target.id === 'tutorial-overlay') tutorialService?.next();
-  });
+  document.addEventListener('keydown', handleTutorialKeydown);
+  window.addEventListener('resize', queueTutorialReposition);
+  document.querySelector('.main')?.addEventListener('scroll', queueTutorialReposition, { passive: true });
+}
+
+function handleTutorialKeydown(event) {
+  if (!tutorialService?.isRunning()) return;
+  if (event.key !== 'Escape') return;
+
+  const topicPanel = document.getElementById('tutorial-topic-panel');
+  if (topicPanel && !topicPanel.classList.contains('hidden')) {
+    topicPanel.classList.add('hidden');
+    document.getElementById('tutorial-topics')?.setAttribute('aria-expanded', 'false');
+    repositionTutorialTooltip();
+    return;
+  }
+
+  event.preventDefault();
+  exitTutorial();
 }
 
 function showTutorialBanner() {
@@ -2596,6 +2643,8 @@ function exitTutorial() {
 }
 
 let previouslyExpandedCard = null;
+let previouslyExpandedSection = null;
+let tutorialRepositionFrame = null;
 
 function handleTutorialStep(step, currentIndex, totalSteps) {
   if (!step) return;
@@ -2606,6 +2655,10 @@ function handleTutorialStep(step, currentIndex, totalSteps) {
   } else if (step.type === 'spotlight') {
     if (step.action === 'switchTab') {
       switchToTab(step.actionTarget);
+      setTimeout(() => showSpotlight(step, currentIndex, totalSteps), 100);
+    } else if (step.action === 'switchPresetView') {
+      switchToTab('presets');
+      switchPresetView(step.actionTarget);
       setTimeout(() => showSpotlight(step, currentIndex, totalSteps), 100);
     } else {
       showSpotlight(step, currentIndex, totalSteps);
@@ -2631,9 +2684,9 @@ function showTutorialModal(step) {
     topicList?.classList.add('hidden');
     if (topicList) topicList.innerHTML = '';
   } else {
-    primaryBtn.textContent = 'Start from Beginning';
+    primaryBtn.textContent = 'Start Premise';
     secondaryBtn.style.display = 'block';
-    secondaryBtn.textContent = 'Maybe Later';
+    secondaryBtn.textContent = 'Not Now';
     if (step.id === 'welcome' && topicList) {
       renderTutorialTopics(topicList, { includeHeading: true });
       topicList.classList.remove('hidden');
@@ -2644,6 +2697,7 @@ function showTutorialModal(step) {
   }
 
   modal.classList.add('visible');
+  requestAnimationFrame(() => primaryBtn?.focus());
 }
 
 function closeTutorialModal() {
@@ -2687,8 +2741,13 @@ function renderTutorialTopics(container, options = {}) {
     desc.className = 'tutorial-topic-desc';
     desc.textContent = topic.description;
 
+    const meta = document.createElement('span');
+    meta.className = 'tutorial-topic-meta';
+    meta.textContent = `${topic.stepCount} ${topic.stepCount === 1 ? 'step' : 'steps'}`;
+
     copy.appendChild(title);
     copy.appendChild(desc);
+    copy.appendChild(meta);
 
     const arrow = document.createElement('span');
     arrow.className = 'tutorial-topic-arrow';
@@ -2716,17 +2775,37 @@ function toggleTutorialTopics() {
 
   renderTutorialTopics(panel);
   panel.classList.toggle('hidden');
+  document.getElementById('tutorial-topics')?.setAttribute(
+    'aria-expanded',
+    String(!panel.classList.contains('hidden'))
+  );
   repositionTutorialTooltip();
 }
 
 function repositionTutorialTooltip() {
   const tooltip = document.getElementById('tutorial-tooltip');
+  const spotlight = document.getElementById('tutorial-spotlight');
   const step = tutorialService?.getCurrentStep?.();
-  if (!tooltip || !step?.target) return;
+  if (!tooltip || !spotlight || !step?.target || !tutorialService?.isRunning()) return;
 
   requestAnimationFrame(() => {
     const target = document.querySelector(step.target);
-    if (target) positionTooltip(tooltip, target.getBoundingClientRect(), step.position || 'bottom');
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const padding = 8;
+    spotlight.style.left = `${rect.left - padding}px`;
+    spotlight.style.top = `${rect.top - padding}px`;
+    spotlight.style.width = `${rect.width + padding * 2}px`;
+    spotlight.style.height = `${rect.height + padding * 2}px`;
+    positionTooltip(tooltip, rect, step.position || 'bottom');
+  });
+}
+
+function queueTutorialReposition() {
+  if (!tutorialService?.isRunning() || tutorialRepositionFrame) return;
+  tutorialRepositionFrame = requestAnimationFrame(() => {
+    tutorialRepositionFrame = null;
+    repositionTutorialTooltip();
   });
 }
 
@@ -2741,6 +2820,14 @@ function showSpotlight(step, currentIndex, totalSteps) {
   const spotlight = document.getElementById('tutorial-spotlight');
   const tooltip = document.getElementById('tutorial-tooltip');
   if (!overlay || !spotlight || !tooltip) return;
+
+  const sectionBody = target.closest('.section-body');
+  if (sectionBody?.classList.contains('collapsed')) {
+    const sectionHeader = sectionBody.previousElementSibling;
+    previouslyExpandedSection = { body: sectionBody, header: sectionHeader };
+    sectionBody.classList.remove('collapsed');
+    sectionHeader?.setAttribute('aria-expanded', 'true');
+  }
 
   // Expand card if needed
   if (step.expandCard) {
@@ -2779,15 +2866,18 @@ function showSpotlight(step, currentIndex, totalSteps) {
     target.classList.add('tutorial-highlighted');
     overlay.classList.add('active');
 
-    positionTooltip(tooltip, finalRect, step.position || 'bottom');
     updateTooltipContent(step, currentIndex, totalSteps);
+    positionTooltip(tooltip, finalRect, step.position || 'bottom');
 
-    setTimeout(() => tooltip.classList.add('visible'), 200);
+    setTimeout(() => {
+      tooltip.classList.add('visible');
+      tooltip.focus({ preventScroll: true });
+    }, 100);
   }, 300);
 }
 
 function positionTooltip(tooltip, targetRect, position) {
-  const width = 260;
+  const width = tooltip.offsetWidth || Math.min(286, window.innerWidth - 32);
   const gap = 16;
   const padding = 16;
   const tooltipHeight = tooltip.offsetHeight || 150; // Estimate if not yet rendered
@@ -2839,16 +2929,24 @@ function positionTooltip(tooltip, targetRect, position) {
 function updateTooltipContent(step, currentIndex, totalSteps) {
   document.getElementById('tutorial-tooltip-title').textContent = step.title;
   document.getElementById('tutorial-tooltip-content').textContent = step.content;
+  const icon = document.getElementById('tutorial-tooltip-icon');
+  if (icon) icon.className = step.icon || 'icon-lightbulb';
+
   renderTutorialTopics(document.getElementById('tutorial-topic-panel'));
 
   const progress = ((currentIndex + 1) / totalSteps) * 100;
-  document.getElementById('tutorial-progress-fill').style.width = `${progress}%`;
-  document.getElementById('tutorial-progress-text').textContent = `${currentIndex + 1}/${totalSteps}`;
+  const progressFill = document.getElementById('tutorial-progress-fill');
+  if (progressFill) {
+    progressFill.style.width = `${progress}%`;
+    progressFill.parentElement?.setAttribute('aria-valuenow', String(currentIndex + 1));
+    progressFill.parentElement?.setAttribute('aria-valuemax', String(totalSteps));
+  }
+  document.getElementById('tutorial-progress-text').textContent = `Step ${currentIndex + 1} of ${totalSteps}`;
 
   const prevBtn = document.getElementById('tutorial-prev');
   const nextBtn = document.getElementById('tutorial-next');
   
-  if (prevBtn) prevBtn.style.display = currentIndex > 1 ? 'block' : 'none';
+  if (prevBtn) prevBtn.style.display = currentIndex > 0 ? 'block' : 'none';
   if (nextBtn) nextBtn.textContent = currentIndex === totalSteps - 1 ? 'Finish' : 'Next';
 }
 
@@ -2856,11 +2954,18 @@ function cleanupTutorialStep() {
   document.getElementById('tutorial-overlay')?.classList.remove('active');
   document.getElementById('tutorial-tooltip')?.classList.remove('visible');
   document.getElementById('tutorial-topic-panel')?.classList.add('hidden');
+  document.getElementById('tutorial-topics')?.setAttribute('aria-expanded', 'false');
   document.querySelectorAll('.tutorial-highlighted').forEach(el => el.classList.remove('tutorial-highlighted'));
 
   if (previouslyExpandedCard) {
     previouslyExpandedCard.classList.remove('expanded');
     previouslyExpandedCard = null;
+  }
+
+  if (previouslyExpandedSection) {
+    previouslyExpandedSection.body.classList.add('collapsed');
+    previouslyExpandedSection.header?.setAttribute('aria-expanded', 'false');
+    previouslyExpandedSection = null;
   }
 }
 
@@ -2883,6 +2988,7 @@ function handleTutorialComplete(completionModal) {
 function handleTutorialExit() {
   cleanupTutorialStep();
   closeTutorialModal();
+  document.getElementById('tutorial-help-btn')?.focus();
 }
 
 // ============================================

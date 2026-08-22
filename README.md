@@ -40,6 +40,9 @@ The current release is **BetterDungeon Mobile v2.1.0**. Its headline addition is
 - **One compatible AI backend** — Gemini (default), OpenRouter, and remote custom HTTPS services share one OpenAI-compatible Chat Completions implementation for Ultrascripts, Character Prefill, and Navigator.
 - **Native streaming transport** — Gemini and OpenAI-compatible chat stream through Android's native HTTPS layer with cancellation, timeouts, bounded payloads, and extension-compatible Port events.
 - **Ultrascripts upgrades** — A stronger liveness heartbeat, revised WebFetch behavior, modernized Gemini backend, and bounded Audio module preserve the public script contracts while improving reliability.
+- **Native feature cleanup** — BetterDungeon's Markdown feature was removed now that AI Dungeon supports it natively. Mobile text-to-speech remains because AI Dungeon's speech does not work inside the app WebView.
+- **Cleaner presets** — Character and Plot Presets now have focused views, clearer selection language, simpler character cards, and less configuration clutter.
+- **Guided onboarding** — The new Premise tutorial explains what BetterDungeon is and how its major systems fit together, with deeper focused guides available from Help.
 
 Previous Mobile release notes remain available from the version switcher in BetterDungeon Settings.
 
@@ -94,7 +97,7 @@ The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built AP
 ### Scenario tools and automation
 
 - **Plot Presets** — Save and restore Plot Components.
-- **Character Presets** — Save character dossiers and use Gemini through the Ultrascripts AI module to generate scenario prefill answers.
+- **Character Presets** — Save character dossiers and use the configured AI service to generate scenario prefill answers.
 - **Trigger Highlighting** — See active Story Card triggers in the context viewer.
 - **Story Card Analytics** — Review card counts, overlaps, empty descriptors, and scenario health information.
 - **Auto See** — Send background See actions on AI responses or configured turn intervals.
