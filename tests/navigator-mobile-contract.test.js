@@ -61,7 +61,12 @@ function testStaticMobileContracts() {
   const mainJs = read('app/src/main/assets/betterdungeon/main.js');
   const activity = read('app/src/main/java/com/computerk/betterdungeon/MainActivity.kt');
 
-  assert.doesNotMatch(styles, /bd-navigator-settings-tab/);
+  assert.match(styles, /\.bd-navigator-settings-native-hidden\s*\{/);
+  assert.match(styles, /\.bd-navigator-settings-content\s*\{/);
+  assert.match(styles, /\.bd-navigator-drawer\.bd-navigator-embedded\s*\{/);
+  assert.match(styles, /#keyboard-field-reveal-scroll-surface-settings-gameplay\.bd-navigator-settings-active/);
+  assert.match(styles, /\.bd-navigator-settings-surface\.bd-navigator-settings-active/);
+  assert.match(styles, /bd-navigator-secondary-open/);
   assert.match(styles, /\.bd-navigator-drawer\.bd-navigator-sheet\s*\{/);
   assert.match(styles, /--bd-navigator-viewport-height/);
   assert.match(styles, /body\.bd-navigator-open/);
@@ -87,13 +92,28 @@ function testStaticMobileContracts() {
   assert.deepEqual(missingTokens, [], `undefined Navigator design tokens: ${missingTokens.join(', ')}`);
 
   assert.match(feature, /shouldUseSheet\(\)\s*\{\s*return true;/);
-  assert.match(feature, /setAttribute\('role', 'dialog'\)/);
-  assert.match(feature, /setAttribute\('aria-modal', 'true'\)/);
+  assert.match(feature, /this\.useSettingsPanel = true/);
+  assert.match(feature, /GAMEPLAY_SETTINGS_SURFACE_ID = 'keyboard-field-reveal-scroll-surface-settings-gameplay'/);
+  assert.match(feature, /\[role="tablist"\]\[aria-label="Section Tabs" i\]/);
+  assert.match(feature, /setAttribute\('role', 'complementary'\)/);
+  assert.doesNotMatch(feature, /setAttribute\('aria-modal', 'true'\)/);
+  assert.match(feature, /createSettingsTab\(tablist, modelsTab\)/);
+  assert.match(feature, /insertBefore\(wrapper, modelsTab\.parentElement\)/);
+  assert.match(feature, /activateSettingsNavigator\(\{ focus: false \}\)/);
+  assert.match(feature, /syncSettingsIntegration\(\)/);
+  assert.match(feature, /scheduleSettingsIntegrationSync\(\)/);
+  assert.match(feature, /this\.scheduleSettingsIntegrationSync\(\);\s*if \(this\.detectionDebounce\)/);
+  assert.match(feature, /classList\?\.contains\('is_ScrollView'\)/);
+  assert.match(feature, /bd-navigator-settings-surface/);
+  assert.match(feature, /aria-controls', 'bd-navigator-settings-content'/);
+  assert.doesNotMatch(feature, /\[NavigatorDebug\]/);
+  assert.match(feature, /bd-navigator-settings-native-hidden/);
   assert.match(feature, /compositionstart/);
   assert.match(feature, /event\.isComposing/);
-  assert.doesNotMatch(feature, /this\.inputEl\?\.focus\(\)/);
+  assert.doesNotMatch(feature, /activateSettingsNavigator\(\{ focus: true \}\)/);
   assert.match(feature, /window\.__bdNavigatorHandleBack/);
-  assert.match(feature, /document\.body\.classList\.add\('bd-navigator-open'\)/);
+  assert.doesNotMatch(feature, /aria-label="Close Navigator"/);
+  assert.doesNotMatch(feature, /event\.altKey[\s\S]*event\.key\?\.toLowerCase\(\) === 'n'/);
   assert.match(feature, /async refreshPermissionState\(\)/);
   assert.equal((feature.match(/<input[^>]*data-nav-setting="/g) || []).length, 2);
   assert.match(feature, /input type="range"[\s\S]*data-nav-setting="thinkingLevel"/);
@@ -114,7 +134,8 @@ function testStaticMobileContracts() {
     assert.equal((popupHtml.match(new RegExp(`id="${id}"`, 'g')) || []).length, 0);
     assert.doesNotMatch(popupJs, new RegExp(id));
   }
-  assert.match(popupHtml, /full-screen sheet/);
+  assert.match(popupHtml, /Game Menu &gt; Gameplay &gt; Navigator/);
+  assert.doesNotMatch(popupHtml, /full-screen sheet/);
   assert.match(popupHtml, /never writes without direct approval/i);
   assert.doesNotMatch(popupJs, /betterDungeon_navigator_(read_only|thinking_level|defaults)/);
 
@@ -128,6 +149,8 @@ function testStaticMobileContracts() {
   assert.ok(popupPriority >= 0 && popupPriority < pendingGuard);
   assert.ok(pendingGuard < navigatorDispatch && navigatorDispatch < webViewFallback);
   assert.match(backHandler, /result\.trim\(\)\.equals\("true", ignoreCase = true\)/);
+  assert.match(activity, /override fun onConsoleMessage\(consoleMessage: ConsoleMessage\)/);
+  assert.match(activity, /"BDWebView"/);
 }
 
 async function testFeatureRuntimeContracts() {
@@ -135,10 +158,16 @@ async function testFeatureRuntimeContracts() {
   global.innerWidth = 1000;
   global.innerHeight = 800;
   global.visualViewport = { offsetLeft: 0, offsetTop: 0, width: 1000, height: 800 };
+  let closeSettingsCalls = 0;
   global.document = {
     activeElement: null,
     body: { classList: classList() },
     createElement: element,
+    querySelector(selector) {
+      return selector === '[aria-label="Close settings"]'
+        ? { click() { closeSettingsCalls += 1; } }
+        : null;
+    },
   };
 
   const filename = path.join(ASSETS, 'features', 'navigator_feature.js');
@@ -176,30 +205,39 @@ async function testFeatureRuntimeContracts() {
   assert.equal(mixedActivity.children[1].textContent, 'Used 2 Navigator read tools');
 
   assert.equal(feature.shouldUseSheet(), true);
-  feature.openDrawer();
+  let activationFocus = null;
+  feature.syncSettingsIntegration = () => true;
+  feature.applyActiveSettingsView = ({ focus }) => { activationFocus = focus; };
+  assert.equal(feature.activateSettingsNavigator({ focus: false }), true);
   assert.equal(feature.isOpen, true);
-  assert.equal(feature.drawer.hidden, false);
-  assert.equal(focusCalls, 0, 'opening Navigator must not summon the IME');
-  assert.equal(document.body.classList.contains('bd-navigator-open'), true);
-  assert.equal(drawerClasses.contains('bd-navigator-sheet'), true);
+  assert.equal(feature.settingsTabActive, true);
+  assert.equal(activationFocus, false);
+  assert.equal(focusCalls, 0, 'opening Navigator from the settings tab must not summon the IME');
+
+  feature.settingsSurface = {
+    classList: classList(),
+    getBoundingClientRect: () => ({ bottom: 700 }),
+  };
+  feature.settingsContentPanel = {
+    hidden: false,
+    style: {},
+    getBoundingClientRect: () => ({ top: 200 }),
+  };
+  drawerClasses.add('bd-navigator-embedded');
+  feature.syncVisualViewport();
   assert.equal(feature.drawer.style.getPropertyValue('--bd-navigator-viewport-height'), '800px');
+  assert.equal(feature.drawer.style.height, '500px');
+  assert.equal(feature.settingsContentPanel.style.height, '500px');
 
   feature.installAndroidBackHandler();
   assert.equal(window.__bdNavigatorHandleBack(), true);
   assert.equal(feature.isOpen, false);
   assert.equal(feature.drawer.hidden, true);
-  assert.equal(document.body.classList.contains('bd-navigator-open'), false);
   assert.equal(blurCalls, 1);
+  assert.equal(closeSettingsCalls, 1);
   assert.equal(window.__bdNavigatorHandleBack(), false);
   feature.uninstallAndroidBackHandler();
   assert.equal(window.__bdNavigatorHandleBack, undefined);
-
-  feature.launcherPosition = { x: 900, y: 700 };
-  global.visualViewport = { offsetLeft: 10, offsetTop: 20, width: 300, height: 400 };
-  feature.applyLauncherPosition();
-  assert.equal(feature.launcher.style.left, '254px');
-  assert.equal(feature.launcher.style.top, '364px');
-  assert.deepEqual(feature.launcherPosition, { x: 900, y: 700 }, 'IME clamping must not overwrite saved coordinates');
 
   let loaded = 0;
   let refreshed = 0;

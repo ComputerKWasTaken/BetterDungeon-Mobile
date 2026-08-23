@@ -348,7 +348,7 @@ async function run() {
   assert.doesNotMatch(featureSource, /bd-navigator-subtitle|updateSubtitle|bd-navigator-empty-note|Navigator reads a budgeted snapshot/);
   assert.doesNotMatch(featureSource, /contextCap|clearAdventureSetting\('contextCap'\)/);
   assert.match(featureSource, /if \(event === 'reset'\) \{[\s\S]*?this\.renderTranscript\(\);[\s\S]*?if \(this\.inspectionPanel && !this\.inspectionPanel\.hidden\) \{\s*this\.renderRequestInspection\(\);\s*\}\s*\}/);
-  assert.match(featureSource, /header\.querySelector\('\.bd-navigator-settings'\)\.addEventListener\('click', \(\) => \{\s*settings\.hidden = !settings\.hidden;\s*inspection\.hidden = true;/);
+  assert.match(featureSource, /settingsToggle\.addEventListener\('click', \(\) => \{\s*settings\.hidden = !settings\.hidden;\s*inspection\.hidden = true;\s*syncDisclosureState\(\);/);
   assert.equal((featureSource.match(/<input[^>]*data-nav-setting="/g) || []).length, 2);
   assert.match(featureSource, /input type="range"[\s\S]*data-nav-setting="thinkingLevel"/);
   assert.match(featureSource, /input type="checkbox" data-nav-setting="readOnly"/);

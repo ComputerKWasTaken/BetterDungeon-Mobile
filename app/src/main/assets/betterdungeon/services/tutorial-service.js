@@ -92,7 +92,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="navigator"] .toggle',
         title: 'Enable and open Navigator',
-        content: 'This switch controls whether Navigator appears on AI Dungeon adventure pages. When enabled, drag the compass button somewhere comfortable, then tap it to open Navigator as a full-screen sheet. Navigator uses the AI service configured in the Ultrascripts tab.',
+        content: 'This switch controls whether Navigator appears on AI Dungeon adventure pages. When enabled, open Game Menu and choose Gameplay > Navigator. Navigator uses the AI service configured in the Ultrascripts tab.',
         icon: 'icon-compass',
         position: 'bottom',
         action: 'switchTab',
