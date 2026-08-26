@@ -73,6 +73,9 @@ function testStaticMobileContracts() {
   assert.match(styles, /font-size:\s*16px/);
   assert.match(styles, /@media \(max-width:\s*480px\)/);
   assert.match(styles, /min-height:\s*44px/);
+  assert.match(styles, /\.bd-navigator-proposal-refresh[\s\S]*text-decoration: underline/);
+  assert.match(styles, /\.bd-navigator-proposal-value pre \{[\s\S]*display: block;[\s\S]*min-width: 0;[\s\S]*max-width: 100%/);
+  assert.doesNotMatch(styles, /\.bd-navigator-markdown code \{[\s\S]*box-decoration-break: clone/);
 
   const navigatorCss = styles.slice(styles.indexOf('NAVIGATOR\n'));
   const tokenReferences = new Set(

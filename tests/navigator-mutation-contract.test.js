@@ -429,6 +429,11 @@ function testStaticIntegration() {
   assert.match(feature, /applyProposal\(messageId, proposal\.id\)/);
   assert.match(feature, /rejectProposal\(messageId, proposal\.id\)/);
   assert.match(feature, /Deletion is permanent\. Navigator cannot undo this action\./);
+  assert.match(feature, /hasPlotUILimitation[\s\S]*proposal\.field === 'memory'[\s\S]*proposal\.field === 'authorsNote'/);
+  assert.match(feature, /hasPlotUILimitation && proposal\.status === 'applied'/);
+  assert.match(feature, /Plot Essentials and Author's Note changes don't update the UI due to technical limitations\./);
+  assert.match(feature, /bd-navigator-proposal-refresh/);
+  assert.match(feature, /refresh\.addEventListener\('click', \(\) => window\.location\.reload\(\)\)/);
 }
 
 async function main() {
