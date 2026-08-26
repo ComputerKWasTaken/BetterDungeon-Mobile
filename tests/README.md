@@ -20,6 +20,7 @@ These dependency-free Node suites can be run individually with:
 - **`apollo-consumer-contract.test.js`** - Apollo-first Story Card scanning with fallback behavior, Ultrascripts history compatibility, and Auto See warm-tail refresh coordination.
 - **`branch-persistence-contract.test.js`** - Supported AI Dungeon branch allowlisting, remembered-branch restoration, and in-app navigation persistence.
 - **`navigator-context-allocator.test.js`** - Navigator snapshot budgeting, proportional allocation, section ceilings, truncation and degradation metadata, floor budgets, and hostile-budget behavior.
+- **`navigator-chat-qol.test.js`** - Navigator edit/retry history semantics, proposal expiry, retry eligibility, sanitized ordered tool activity, and persisted-transcript privacy.
 - **`navigator-contract.test.js`** - Mobile asset injection order, GraphQL readers and fallbacks, context and read-tool behavior, streaming persistence and abort handling, tool guidance, proposal floors, and request inspection.
 - **`navigator-mobile-contract.test.js`** - Mobile Navigator Gameplay-subtab styling and tokens, embedded drawer runtime behavior, IME-safe sizing, Android Back handling, settings synchronization, and mobile activity labels.
 - **`navigator-mutation-contract.test.js`** - GraphQL writers, authoritative Story Card safety gates, mutation boundaries, approval flow, and static feature integration.

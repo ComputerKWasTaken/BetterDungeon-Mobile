@@ -309,12 +309,20 @@ async function testReadTools(snapshot) {
     ...snapshot.index,
     cards: [
       ...snapshot.index.cards,
-      { id: 'long-card', type: 'lore', title: 'Dragon Archive', keys: 'dragon', value: longEntry },
+      {
+        id: 'long-card',
+        type: 'lore '.repeat(80),
+        title: `Dragon Archive ${'title '.repeat(100)}`,
+        keys: Array.from({ length: 25 }, (_, triggerIndex) => `dragon-trigger-${triggerIndex}-${'x'.repeat(250)}`).join(','),
+        value: longEntry,
+        description: 'notes '.repeat(300),
+      },
     ],
   };
   const tools = new window.NavigatorTools('test-adventure');
   const definitions = tools.definitions();
   assert.deepEqual(definitions.map(item => item.name), [
+    'get_plot_components',
     'get_story_card',
     'search_story_cards',
     'search_story_history',
@@ -323,7 +331,17 @@ async function testReadTools(snapshot) {
     'get_memory',
   ]);
   definitions[0].name = 'modified';
-  assert.equal(tools.definitions()[0].name, 'get_story_card', 'definitions must be cloned');
+  assert.equal(tools.definitions()[0].name, 'get_plot_components', 'definitions must be cloned');
+
+  const plotIndex = {
+    ...index,
+    adventure: { ...index.adventure, instructions: 'instruction '.repeat(800) },
+  };
+  const plot = await tools.execute('get_plot_components', { components: ['ai_instructions', 'authors_note'] }, { index: plotIndex });
+  assert.deepEqual(plot.data.requested, ['ai_instructions', 'authors_note']);
+  assert.equal(plot.data.components[0].truncated, true);
+  assert.ok(plot.data.components[0].sourceChars > plot.data.components[0].returnedChars);
+  assert.equal(plot.data.components[1].truncated, false);
 
   const search = await tools.execute('search_story_cards', { query: 'dragon', limit: 2 }, { index });
   assert.equal(search.ok, true);
@@ -333,6 +351,15 @@ async function testReadTools(snapshot) {
   const card = await tools.execute('get_story_card', { id: 'long-card' }, { index });
   assert.equal(card.data.card.id, 'long-card');
   assert.equal(card.data.entryTruncated, true);
+  assert.equal(card.data.card.typeTruncated, true);
+  assert.equal(card.data.card.titleTruncated, true);
+  assert.equal(card.data.card.keysTruncated, true);
+  assert.equal(card.data.card.triggersTruncated, true);
+  assert.equal(card.data.card.notesTruncated, true);
+  assert.equal(card.data.card.entryTruncated, true);
+  assert.equal(card.data.card.triggerCount, 25);
+  assert.equal(card.data.card.triggersReturned, 20);
+  assert.ok(card.data.card.entrySourceChars > card.data.card.value.length);
   assert.ok(card.data.card.value.length <= 6000);
 
   await expectCode(tools.execute('search_story_cards', { query: '', limit: 1 }, { index }), 'invalid_tool_args');

@@ -28,7 +28,7 @@ Hey everyone, it's computerK here. BetterDungeon Mobile is the Android side of t
 
 The goal is not to force every desktop feature onto a phone. The goal is to bring the good stuff over, make it feel natural with touch controls, and add the Android bridge work needed to make extension-style features function inside a native app.
 
-The current release is **BetterDungeon Mobile v2.1.0**. Its headline addition is Navigator, a grounded AI agent for understanding and safely maintaining the adventure you are currently playing. Some desktop-only tools, such as Hotkeys and the Story Card Modal Dock, remain intentionally excluded from Mobile.
+The current release is **BetterDungeon Mobile v2.1.0**. Its headline addition is Navigator, an AI agent designed to help you improve and modify your adventures. Some desktop-only tools, such as Hotkeys and the Story Card Modal Dock, remain intentionally excluded from Mobile.
 
 ### What's new in v2.1.0
 
@@ -87,7 +87,7 @@ The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built AP
 
 ### Control and navigation
 
-- **Navigator** — Chat with a grounded adventure copilot inside Game Menu > Gameplay > Navigator, research Story Cards, Memory Bank, and story history, choose which context it receives, and approve conflict-checked changes.
+- **Navigator** — An AI agent designed to help you improve and modify your adventures from Game Menu > Gameplay > Navigator by researching Story Cards, Memory Bank, and story history and preparing conflict-checked changes for your approval.
 - **Input History** — Cycle through recent inputs with a touch-friendly history bar scoped to each adventure.
 - **Input Mode Colors** — Color-code the input area based on the active action mode.
 - **Mobile Settings Gear** — Open BetterDungeon settings directly from the AI Dungeon interface.

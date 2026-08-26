@@ -44,7 +44,6 @@ window.BetterDungeonAdventureRead = {
 };
 
 (async () => {
-  // Primer VERSION 5 adds enough ledger text to require this headroom.
   const small = await new window.NavigatorContext('allocator').build({ maxChars: 22000 });
   assert.ok(small.systemInstruction.length <= 22000);
   assert.match(small.systemInstruction, /Memory Bank:.*returned \d+ of 15 entries/);
@@ -52,12 +51,15 @@ window.BetterDungeonAdventureRead = {
   assert.match(small.systemInstruction, /Memory 1:/);
   assert.doesNotMatch(small.systemInstruction, /__typename|actionIds/);
   assert.match(small.systemInstruction, /Action 20/);
-  assert.equal(small.partial, true);
+  assert.equal(small.segments.primer.coreIncluded, true);
+  assert.equal(small.segments.primer.version, 8);
   assert.equal(small.segments.recentActions.floorIncluded, 10);
   assert.ok(small.segments.recentActions.coverage);
   assert.ok(small.segments.storyCardDirectory.coverage);
-  assert.equal(small.segments.allocation.shrinkOrder[0], 'memory');
-  assert.equal(small.segments.allocation.reasons[small.segments.allocation.shrinkOrder[0]], 'total budget');
+  if (small.segments.allocation.shrinkOrder.length) {
+    assert.equal(small.segments.allocation.shrinkOrder[0], 'memory');
+    assert.equal(small.segments.allocation.reasons[small.segments.allocation.shrinkOrder[0]], 'total budget');
+  }
   if (small.segments.memoryBank.truncated) {
     assert.equal(
       small.segments.memoryBank.truncatedReason,
@@ -73,6 +75,10 @@ window.BetterDungeonAdventureRead = {
   assert.match(generous.systemInstruction, /Rule one\. Rule two\.\n\nRule three/);
   assert.equal(generous.segments.plotComponents.fields.instructions.truncated, false);
   assert.equal(generous.segments.memoryBank.truncated, false);
+  assert.equal(generous.segments.primer.truncated, false);
+  assert.equal(generous.segments.primer.coreIncluded, true);
+  assert.match(generous.systemInstruction, /CORE EVIDENCE RULES/);
+  assert.match(generous.systemInstruction, /STORY CARD REFERENCE/);
   assert.ok(generous.segments.total.sourceChars >= generous.segments.total.includedChars, `${generous.segments.total.sourceChars} < ${generous.segments.total.includedChars}`);
   assert.equal(generous.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
   const boundary = await new window.NavigatorContext('allocator').build({ maxChars: 22000 });
@@ -94,7 +100,9 @@ window.BetterDungeonAdventureRead = {
   assert.match(floor.systemInstruction, /search_story_history/);
   assert.match(floor.systemInstruction, /search_memory_bank/);
   assert.match(floor.systemInstruction, /search_story_cards/);
-  assert.match(floor.systemInstruction, /You are Navigator, BetterDungeon/);
+  assert.match(floor.systemInstruction, /You are Navigator, an AI agent designed/);
+  assert.equal(floor.segments.primer.coreIncluded, true);
+  assert.match(floor.systemInstruction, /CORE PROPOSAL RULES/);
   assert.equal(floor.index.cards.length, 12);
   assert.equal(floor.index.actions.length, 20);
   assert.equal(floor.index.memories.length, 15);

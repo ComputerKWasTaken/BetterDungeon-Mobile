@@ -155,7 +155,7 @@ async function run() {
   });
   assert.doesNotMatch(snapshot.systemInstruction, /MEMORY BANK\n/);
   assert.match(snapshot.systemInstruction, /Memory Bank: omitted by user setting/);
-  assert.match(snapshot.systemInstruction, /search_memory_bank and get_memory/);
+  assert.doesNotMatch(snapshot.systemInstruction, /search_memory_bank and get_memory/);
   assert.equal(snapshot.segments.memoryBank.truncatedReason, 'user setting');
   assert.equal(snapshot.segments.recentActions.truncatedReason, null);
   assert.equal(snapshot.segments.recentActions.coverage.omittedReason, null);
@@ -167,7 +167,7 @@ async function run() {
     'context selection defaults to all sections'
   );
   for (const [key, heading, tool] of [
-    ['plot', 'PLOT COMPONENTS', 'no retrieval tool exists for Plot Components'],
+    ['plot', 'PLOT COMPONENTS', 'get_plot_components'],
     ['history', 'RECENT STORY ACTIONS', 'search_story_history'],
     ['memory', 'MEMORY BANK', 'search_memory_bank'],
     ['cards', 'STORY CARD DIRECTORY', 'search_story_cards'],
@@ -179,7 +179,7 @@ async function run() {
     });
     assert.doesNotMatch(omitted.systemInstruction, new RegExp(`${heading}\n`));
     assert.match(omitted.systemInstruction, /omitted by user setting/);
-    assert.match(omitted.systemInstruction, new RegExp(tool));
+    assert.doesNotMatch(omitted.systemInstruction, new RegExp(tool));
     const segment = {
       plot: omitted.segments.plotComponents,
       history: omitted.segments.recentActions,
@@ -358,11 +358,11 @@ async function run() {
   assert.match(featureSource, /updateThinkingLevelLabel\(Number\(event\.target\.value\)\)/);
   assert.match(featureSource, /thinking\.disabled = supported\.length === 0/);
   assert.doesNotMatch(featureSource, /includeMemoryBank|historyMode|Inherit global default/);
-  assert.match(featureSource, /search_memory_bank[\s\S]*get_memory[\s\S]*search_story_history[\s\S]*get_story_actions/);
-  assert.match(featureSource, /const category = tools\.length > 0 && tools\.every/);
-  assert.match(featureSource, /Used \$\{tools\.length\} Memory Bank tools/);
-  assert.match(featureSource, /Used \$\{tools\.length\} story history tools/);
-  assert.match(featureSource, /Used \$\{tools\.length\} Navigator read tools/);
+  assert.match(featureSource, /toolActivityLabel\(name\)/);
+  assert.match(featureSource, /search_memory_bank: 'Search Memory Bank'/);
+  assert.match(featureSource, /get_story_actions: 'Read story actions'/);
+  assert.match(featureSource, /Using \$\{activities\.length\}/);
+  assert.match(featureSource, /Used \$\{activities\.length\}/);
   assert.doesNotMatch(featureSource, /hydrationNote|The change is saved and verified on the server\. The open editor will show it after a page reload\./);
   assert.match(featureSource, /NavigatorSession\.CHARS_PER_TOKEN/);
   assert.match(featureSource, /input cap \$\{formatCapacity\(inspection\.inputCap\)\}/);

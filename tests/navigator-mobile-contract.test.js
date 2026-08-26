@@ -60,6 +60,14 @@ function testStaticMobileContracts() {
   const popupJs = read('app/src/main/assets/betterdungeon/popup.js');
   const mainJs = read('app/src/main/assets/betterdungeon/main.js');
   const activity = read('app/src/main/java/com/computerk/betterdungeon/MainActivity.kt');
+  const tutorial = read('app/src/main/assets/betterdungeon/services/tutorial-service.js');
+  const readme = read('README.md');
+  const navigatorDescription = /an AI agent designed to help you improve and modify your adventures/i;
+
+  for (const [name, source] of [['Navigator UI', feature], ['popup', popupHtml], ['tutorial', tutorial], ['README', readme]]) {
+    assert.match(source, navigatorDescription, `${name} must use Navigator's canonical description`);
+  }
+  assert.doesNotMatch(`${popupHtml}\n${tutorial}`, /adventure-aware AI assistant|Your AI agent for improving/i);
 
   assert.match(styles, /\.bd-navigator-settings-native-hidden\s*\{/);
   assert.match(styles, /\.bd-navigator-settings-content\s*\{/);
@@ -76,6 +84,11 @@ function testStaticMobileContracts() {
   assert.match(styles, /\.bd-navigator-proposal-refresh[\s\S]*text-decoration: underline/);
   assert.match(styles, /\.bd-navigator-proposal-value pre \{[\s\S]*display: block;[\s\S]*min-width: 0;[\s\S]*max-width: 100%/);
   assert.doesNotMatch(styles, /\.bd-navigator-markdown code \{[\s\S]*box-decoration-break: clone/);
+  assert.doesNotMatch(
+    styles,
+    /\.bd-navigator-drawer\.bd-navigator-embedded\.bd-navigator-secondary-open \.bd-navigator-empty-(?:icon|text)[^{]*\{[^}]*display:\s*none/
+  );
+  assert.match(styles, /\.bd-navigator-drawer\.bd-navigator-embedded \.bd-navigator-composer \{[\s\S]*padding: 6px 0 10px/);
 
   const navigatorCss = styles.slice(styles.indexOf('NAVIGATOR\n'));
   const tokenReferences = new Set(
@@ -99,7 +112,8 @@ function testStaticMobileContracts() {
   assert.match(feature, /GAMEPLAY_SETTINGS_SURFACE_ID = 'keyboard-field-reveal-scroll-surface-settings-gameplay'/);
   assert.match(feature, /\[role="tablist"\]\[aria-label="Section Tabs" i\]/);
   assert.match(feature, /setAttribute\('role', 'complementary'\)/);
-  assert.doesNotMatch(feature, /setAttribute\('aria-modal', 'true'\)/);
+  assert.doesNotMatch(feature, /drawer\.setAttribute\('aria-modal', 'true'\)/);
+  assert.match(feature, /role="alertdialog" aria-modal="true"/);
   assert.match(feature, /createSettingsTab\(tablist, modelsTab\)/);
   assert.match(feature, /insertBefore\(wrapper, modelsTab\.parentElement\)/);
   assert.match(feature, /activateSettingsNavigator\(\{ focus: false \}\)/);
@@ -116,6 +130,19 @@ function testStaticMobileContracts() {
   assert.doesNotMatch(feature, /activateSettingsNavigator\(\{ focus: true \}\)/);
   assert.match(feature, /window\.__bdNavigatorHandleBack/);
   assert.doesNotMatch(feature, /aria-label="Close Navigator"/);
+  assert.match(feature, /class="bd-navigator-header-identity"[\s\S]*class="bd-navigator-mark icon-compass"[\s\S]*class="bd-navigator-title">Navigator/);
+  assert.match(feature, /this\.settingsTabPreferred = true/);
+  assert.match(feature, /if \(this\.settingsTabPreferred && !this\.settingsTabActive\)/);
+  assert.match(feature, /preservePreference: true/);
+  assert.match(feature, /class="bd-navigator-edit-banner" hidden/);
+  assert.match(feature, /renderToolTrail\(toolTrail, message\)/);
+  assert.match(feature, /createMessageAction\('Copy', 'icon-copy'/);
+  assert.match(feature, /createMessageAction\('Edit', 'icon-pencil'/);
+  assert.match(feature, /createMessageAction\('Retry', 'icon-rotate-ccw'/);
+  assert.match(feature, /replaceFromUserMessage\?\.\(messageId, text\)/);
+  assert.match(styles, /@media \(hover: none\), \(pointer: coarse\)[\s\S]*\.bd-navigator-message-actions/);
+  assert.match(styles, /\.bd-navigator-tool-trail-region \{[\s\S]*grid-template-rows: 0fr;[\s\S]*transition: grid-template-rows 180ms ease/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.bd-navigator-tool-trail-region \{ transition: none; \}/);
   assert.doesNotMatch(feature, /event\.altKey[\s\S]*event\.key\?\.toLowerCase\(\) === 'n'/);
   assert.match(feature, /async refreshPermissionState\(\)/);
   assert.equal((feature.match(/<input[^>]*data-nav-setting="/g) || []).length, 2);
@@ -198,14 +225,9 @@ async function testFeatureRuntimeContracts() {
   feature.updateSubtitle = () => {};
   feature.scrollToBottom = () => {};
 
-  const memoryActivity = feature.createToolActivityIndicator(['search_memory_bank'], true);
-  assert.equal(memoryActivity.children[1].textContent, 'Searched Memory Bank');
-  assert.equal(memoryActivity.children[0].className, 'icon-search');
-  const historyActivity = feature.createToolActivityIndicator(['get_story_actions'], true);
-  assert.equal(historyActivity.children[1].textContent, 'Read story actions');
-  assert.equal(historyActivity.children[0].className, 'icon-wand-sparkles');
-  const mixedActivity = feature.createToolActivityIndicator(['search_story_cards', 'search_memory_bank'], true);
-  assert.equal(mixedActivity.children[1].textContent, 'Used 2 Navigator read tools');
+  assert.equal(feature.toolActivityLabel('search_memory_bank'), 'Search Memory Bank');
+  assert.equal(feature.toolActivityLabel('get_story_actions'), 'Read story actions');
+  assert.equal(feature.toolActivityLabel('unknown'), 'Use Navigator tool');
 
   assert.equal(feature.shouldUseSheet(), true);
   let activationFocus = null;
@@ -214,6 +236,7 @@ async function testFeatureRuntimeContracts() {
   assert.equal(feature.activateSettingsNavigator({ focus: false }), true);
   assert.equal(feature.isOpen, true);
   assert.equal(feature.settingsTabActive, true);
+  assert.equal(feature.settingsTabPreferred, true);
   assert.equal(activationFocus, false);
   assert.equal(focusCalls, 0, 'opening Navigator from the settings tab must not summon the IME');
 
@@ -236,6 +259,7 @@ async function testFeatureRuntimeContracts() {
   assert.equal(window.__bdNavigatorHandleBack(), true);
   assert.equal(feature.isOpen, false);
   assert.equal(feature.drawer.hidden, true);
+  assert.equal(feature.settingsTabPreferred, true, 'closing Settings should remember the Navigator subtab');
   assert.equal(blurCalls, 1);
   assert.equal(closeSettingsCalls, 1);
   assert.equal(window.__bdNavigatorHandleBack(), false);
