@@ -138,6 +138,8 @@ async function testPerTurnDeduplication() {
   };
   session.readOnly = false;
   session.registerProposal = () => {};
+  session.applyProposal = async () => true;
+  session.findProposal = () => ({ proposal: { status: 'applied' } });
   const proposalCalls = [{ id: 'proposal-call', name: 'propose_story_card_create', arguments: { title: 'New card' } }];
   const proposalFirst = await session.executeToolCalls(proposalCalls, new AbortController().signal, 4000, 'message', snapshot, memo, 3);
   const proposalSecond = await session.executeToolCalls(proposalCalls, new AbortController().signal, 4000, 'message', snapshot, memo, 4);

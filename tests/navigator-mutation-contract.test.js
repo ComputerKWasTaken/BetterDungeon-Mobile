@@ -373,6 +373,7 @@ async function testSessionApprovalFlow() {
   syncStorage.set(window.NavigatorMutations.READ_ONLY_STORAGE_KEY, false);
   const session = new window.NavigatorSession('test-adventure');
   await session.settingsReady;
+  session.applyMode = 'review';
   session.contextSnapshot = { index: testSessionApprovalFlow.index };
 
   const message = session.addMessage({ role: 'assistant', content: 'Preparing a change.', proposals: [] });
@@ -403,6 +404,18 @@ async function testSessionApprovalFlow() {
   assert.equal(await session.applyProposal(rejectMessage.id, rejected.id), false);
   assert.equal(rejected.status, 'rejected');
   assert.equal(writes.length, beforeReject, 'rejection must be final');
+
+  session.applyMode = 'auto';
+  session.contextSnapshot.index = snapshot(live);
+  const autoMessage = session.addMessage({ role: 'assistant', content: 'Applying a change.', proposals: [] });
+  const autoExecuted = await session.executeToolCalls([{
+    id: 'call-3', name: 'propose_third_person_change', arguments: { enabled: false },
+  }], new AbortController().signal, 16000, autoMessage.id);
+  assert.equal(autoExecuted.results[0].result.data.status, 'applied');
+  const autoProposal = autoMessage.proposals[0];
+  assert.equal(autoProposal.status, 'applied');
+  assert.equal(writes.filter(write => write.kind === 'plot').length, 2, 'auto mode must apply through the mutation pipeline');
+  session.applyMode = 'review';
 
   session.setReadOnlyMode(true);
   assert.deepEqual(session.getToolDefinitions().map(tool => tool.name), ['get_story_card']);

@@ -366,7 +366,7 @@ async function run() {
   assert.doesNotMatch(featureSource, /hydrationNote|The change is saved and verified on the server\. The open editor will show it after a page reload\./);
   assert.match(featureSource, /NavigatorSession\.CHARS_PER_TOKEN/);
   assert.match(featureSource, /input cap \$\{formatCapacity\(inspection\.inputCap\)\}/);
-  assert.match(featureSource, /if \(proposal\.status !== 'pending'\) return card;/);
+  assert.match(featureSource, /if \(proposal\.status === 'pending'\) \{/);
   assert.match(featureSource, /reject\.disabled = state\.chatBusy;/);
   assert.match(featureSource, /apply\.disabled = state\.chatBusy \|\| state\.readOnly;/);
   assert.doesNotMatch(sessionSource, /loadThinkingLevel/);

@@ -395,7 +395,7 @@ async function testSessionStreamingPersistenceAndAbort(index) {
     return executeToolCalls(...args);
   };
   await session.settingsReady;
-  assert.deepEqual(session.getPermissionState(), { readOnly: true });
+  assert.deepEqual(session.getPermissionState(), { readOnly: true, applyMode: 'auto' });
   assert.equal(session.thinkingLevel, 'high');
   assert.ok(session.getToolDefinitions().every(tool => !tool.name.startsWith('propose_')));
   assert.match(await session.buildSystemInstruction(new AbortController().signal), /READ-ONLY MODE/);
@@ -471,7 +471,7 @@ async function testSessionStreamingPersistenceAndAbort(index) {
   assert.equal(persisted.messages.length, 2);
 
   await session.saveSettings({ readOnly: false });
-  assert.deepEqual(session.getPermissionState(), { readOnly: false });
+  assert.deepEqual(session.getPermissionState(), { readOnly: false, applyMode: 'auto' });
   session.destroy();
 
   localStorage.set('betterDungeon_navigator_session_restore-test', {
@@ -545,8 +545,8 @@ function testNavigatorToolGuidanceAndAllowances() {
   const droppedGuidance = session.buildToolGuidance.call(session, [], { dropped: true });
   assert.match(readGuidance, /Every available tool is read-only/);
   assert.match(`snapshot${readGuidance}`, /^snapshot\n=== NAVIGATOR READ TOOLS ===/);
-  assert.doesNotMatch(readGuidance, /CHANGE PROPOSALS/);
-  assert.match(proposalGuidance, /CHANGE PROPOSALS/);
+  assert.doesNotMatch(readGuidance, /NAVIGATOR CHANGES/);
+  assert.match(proposalGuidance, /NAVIGATOR CHANGES/);
   assert.doesNotMatch(proposalGuidance, /every available tool is read-only/);
   assert.match(proposalGuidance, /Never claim a proposal was applied/);
   assert.match(proposalGuidance, /Third Person/);
