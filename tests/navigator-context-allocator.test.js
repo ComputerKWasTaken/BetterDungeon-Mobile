@@ -52,7 +52,7 @@ window.BetterDungeonAdventureRead = {
   assert.doesNotMatch(small.systemInstruction, /__typename|actionIds/);
   assert.match(small.systemInstruction, /Action 20/);
   assert.equal(small.segments.primer.coreIncluded, true);
-  assert.equal(small.segments.primer.version, 8);
+  assert.equal(small.segments.primer.version, 9);
   assert.equal(small.segments.recentActions.floorIncluded, 10);
   assert.ok(small.segments.recentActions.coverage);
   assert.ok(small.segments.storyCardDirectory.coverage);
@@ -102,7 +102,7 @@ window.BetterDungeonAdventureRead = {
   assert.match(floor.systemInstruction, /search_story_cards/);
   assert.match(floor.systemInstruction, /You are Navigator, an AI agent designed/);
   assert.equal(floor.segments.primer.coreIncluded, true);
-  assert.match(floor.systemInstruction, /CORE PROPOSAL RULES/);
+  assert.match(floor.systemInstruction, /CORE CHANGE RULES/);
   assert.equal(floor.index.cards.length, 12);
   assert.equal(floor.index.actions.length, 20);
   assert.equal(floor.index.memories.length, 15);

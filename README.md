@@ -33,7 +33,7 @@ The current release is **BetterDungeon Mobile v2.1.0**. Its headline addition is
 ### What's new in v2.1.0
 
 - **Navigator** — Grounded, multi-turn streaming chat over an Apollo-backed adventure snapshot, with retrieval tools for Story Cards, Memory Bank, and story history, player-selected context sections, rich Markdown, quick actions, visible tool activity, and per-adventure history.
-- **Confirmed modifications** — Navigator can propose changes to Plot Components, Third Person, all five editable Story Card fields, and Memory Bank entries (edit and delete; AI Dungeon has no create-memory mutation). Every write requires direct approval, a conflict check against the live record, and a server read-back before it is reported as applied.
+- **Changes applied for you** — Navigator applies changes to Plot Components, Third Person, all five editable Story Card fields, and Memory Bank entries (edit and delete; AI Dungeon has no create-memory mutation) automatically, reporting each one on a compact change card so you can course correct. Every write still gets a conflict check against the live record and a server read-back before it is reported as applied, Review mode restores per-change approval, and Read-only mode disables changes entirely.
 - **Mobile-native Navigator UI** — Navigator lives inside AI Dungeon's Gameplay settings, with IME-aware sizing, large touch targets, and Navigator-first Android Back behavior.
 - **Read-only mode** — Remove Navigator's mutation tools while retaining chat and retrieval tools. Navigator's inline panel includes thinking level, read-only mode, and context sections, with live synchronization between the settings and gameplay WebViews.
 - **Request inspection and input limits** — Inspect the exact payload the last turn sent for each tool round, and choose an input cap in AI model settings (128k tokens by default).
@@ -87,7 +87,7 @@ The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built AP
 
 ### Control and navigation
 
-- **Navigator** — An AI agent designed to help you improve and modify your adventures from Game Menu > Gameplay > Navigator by researching Story Cards, Memory Bank, and story history and preparing conflict-checked changes for your approval.
+- **Navigator** — An AI agent designed to help you improve and modify your adventures from Game Menu > Gameplay > Navigator by researching Story Cards, Memory Bank, and story history and applying conflict-checked, verified changes automatically with a change card for every edit.
 - **Input History** — Cycle through recent inputs with a touch-friendly history bar scoped to each adventure.
 - **Input Mode Colors** — Color-code the input area based on the active action mode.
 - **Mobile Settings Gear** — Open BetterDungeon settings directly from the AI Dungeon interface.

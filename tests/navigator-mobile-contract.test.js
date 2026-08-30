@@ -166,7 +166,7 @@ function testStaticMobileContracts() {
   }
   assert.match(popupHtml, /Game Menu &gt; Gameplay &gt; Navigator/);
   assert.doesNotMatch(popupHtml, /full-screen sheet/);
-  assert.match(popupHtml, /never writes without direct approval/i);
+  assert.match(popupHtml, /changes apply automatically by default/i);
   assert.doesNotMatch(popupJs, /betterDungeon_navigator_(read_only|thinking_level|defaults)/);
 
   assert.doesNotMatch(mainJs, /SET_NAVIGATOR_READ_ONLY|handleRefreshNavigatorPermissions/);
