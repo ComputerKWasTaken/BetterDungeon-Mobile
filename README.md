@@ -32,15 +32,15 @@ The current release is **BetterDungeon Mobile v2.1.0**. Its headline addition is
 
 ### What's new in v2.1.0
 
-- **Navigator** — Grounded, multi-turn streaming chat over an Apollo-backed adventure snapshot, with retrieval tools for Story Cards, Memory Bank, and story history, player-selected context sections, rich Markdown, quick actions, visible tool activity, and per-adventure history.
-- **Changes applied for you** — Navigator applies changes to Plot Components, Third Person, all five editable Story Card fields, and Memory Bank entries (edit and delete; AI Dungeon has no create-memory mutation) automatically, reporting each one on a compact change card so you can course correct. Every write still gets a conflict check against the live record and a server read-back before it is reported as applied, Review mode restores per-change approval, and Read-only mode disables changes entirely.
-- **Mobile-native Navigator UI** — Navigator lives inside AI Dungeon's Gameplay settings, with IME-aware sizing, large touch targets, and Navigator-first Android Back behavior.
-- **Read-only mode** — Remove Navigator's mutation tools while retaining chat and retrieval tools. Navigator's inline panel includes thinking level, read-only mode, and context sections, with live synchronization between the settings and gameplay WebViews.
-- **Request inspection and input limits** — Inspect the exact payload the last turn sent for each tool round, and choose an input cap in AI model settings (128k tokens by default).
+- **Navigator** — Grounded, multi-turn streaming chat over an always-attempted bounded snapshot of Plot Components, recent story, Memory Bank, and Story Cards, with additional bounded retrieval tools, rich Markdown, quick actions, visible tool activity, and per-adventure history.
+- **Three change modes** — Automatic applies verified non-deletion changes immediately and is the recommended default; permanent Story Card and Memory Bank deletions still require explicit approval. Proposed changes queues every mutation for approval, while No changes removes mutation tools entirely. Every write remains conflict-checked and verified with a server read-back.
+- **Mobile-native Navigator UI** — Navigator lives inside AI Dungeon's Gameplay settings with the same compact three-way Changes control as PC, plus IME-aware sizing, large touch targets, and Navigator-first Android Back behavior.
+- **Dedicated Inspector** — Inspector replaces the chat view while open and presents readable request status, exact bounded context, sent conversation, tool activity, and expandable technical details. It retains only the latest request in memory and provides no clipboard export.
+- **Request input limits** — Choose an input cap in AI model settings (128k tokens by default); Navigator reports reduced context, omitted history, dropped tools or results, and provider limits in Inspector.
 - **One compatible AI backend** — Gemini (default), OpenRouter, and remote custom HTTPS services share one OpenAI-compatible Chat Completions implementation for Ultrascripts, Character Prefill, and Navigator.
 - **Native streaming transport** — Gemini and OpenAI-compatible chat stream through Android's native HTTPS layer with cancellation, timeouts, bounded payloads, and extension-compatible Port events.
 - **Ultrascripts upgrades** — A stronger liveness heartbeat, revised WebFetch behavior, modernized Gemini backend, and bounded Audio module preserve the public script contracts while improving reliability.
-- **Native feature cleanup** — BetterDungeon's Markdown feature was removed now that AI Dungeon supports it natively. Mobile text-to-speech remains because AI Dungeon's speech does not work inside the app WebView.
+- **Native feature cleanup** — BetterDungeon's Markdown feature was removed now that AI Dungeon supports it natively. Mobile text-to-speech remains because AI Dungeon's speech does not work inside the app's WebView.
 - **Cleaner presets** — Character and Plot Presets now have focused views, clearer selection language, simpler character cards, and less configuration clutter.
 - **Guided onboarding** — The new Premise tutorial explains what BetterDungeon is and how its major systems fit together, with deeper focused guides available from Help.
 
@@ -87,7 +87,7 @@ The debug APK will be placed under `app/build/outputs/apk/debug/`. Self-built AP
 
 ### Control and navigation
 
-- **Navigator** — An AI agent designed to help you improve and modify your adventures from Game Menu > Gameplay > Navigator by researching Story Cards, Memory Bank, and story history and applying conflict-checked, verified changes automatically with a change card for every edit.
+- **Navigator** — An AI agent designed to help you improve and modify your adventures from Game Menu > Gameplay > Navigator. It uses always-on bounded context, can research Story Cards, Memory Bank, and story history, and applies verified non-deletion edits automatically by default while keeping permanent deletions approval-gated.
 - **Input History** — Cycle through recent inputs with a touch-friendly history bar scoped to each adventure.
 - **Input Mode Colors** — Color-code the input area based on the active action mode.
 - **Mobile Settings Gear** — Open BetterDungeon settings directly from the AI Dungeon interface.
@@ -155,7 +155,6 @@ If you are looking for the public extension or the official APK releases, use th
 - Have a feature idea? [Open a feature request](../../issues/new).
 - Looking for an APK? Visit the [primary BetterDungeon Releases page](https://github.com/ComputerKWasTaken/BetterDungeon/releases).
 - Want to talk about the project? Find me on Discord at `@computerK`.
-
 - Want to support continued development? [Visit my Ko-fi page](https://ko-fi.com/computerk).
 
 Much love.

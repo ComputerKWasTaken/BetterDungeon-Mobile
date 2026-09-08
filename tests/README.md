@@ -19,11 +19,11 @@ These dependency-free Node suites can be run individually with:
 - **`apollo-cache-contract.test.js`** - Apollo bridge wiring, operation allowlisting, unavailable and direct-error handling, Adventure denormalization, memo invalidation, relay pairing, and timeout recovery.
 - **`apollo-consumer-contract.test.js`** - Apollo-first Story Card scanning with fallback behavior, Ultrascripts history compatibility, and Auto See warm-tail refresh coordination.
 - **`branch-persistence-contract.test.js`** - Supported AI Dungeon branch allowlisting, remembered-branch restoration, and in-app navigation persistence.
-- **`navigator-context-allocator.test.js`** - Navigator snapshot budgeting, proportional allocation, section ceilings, truncation and degradation metadata, floor budgets, and hostile-budget behavior.
-- **`navigator-chat-qol.test.js`** - Navigator edit/retry history semantics, proposal expiry, retry eligibility, sanitized ordered tool activity, and persisted-transcript privacy.
-- **`navigator-contract.test.js`** - Mobile asset injection order, GraphQL readers and fallbacks, context and read-tool behavior, streaming persistence and abort handling, tool guidance, proposal floors, and request inspection.
-- **`navigator-mobile-contract.test.js`** - Mobile Navigator Gameplay-subtab styling and tokens, embedded drawer runtime behavior, IME-safe sizing, Android Back handling, settings synchronization, and mobile activity labels.
-- **`navigator-mutation-contract.test.js`** - GraphQL writers, authoritative Story Card safety gates, mutation boundaries, approval flow, and static feature integration.
-- **`navigator-options-contract.test.js`** - Effective Navigator settings, read-only and context-section behavior, provider input limits, section omission and degradation, tool activity labels, drawer integration, and request inspection.
+- **`navigator-assets-contract.test.js`** - Navigator v2.1 injection order and current context, retrieval, mutation, inspection, and UI asset contracts.
+- **`navigator-change-mode-contract.test.js`** - Canonical Automatic, Proposed changes, and No changes enforcement, legacy fallbacks, and fail-closed storage behavior.
+- **`navigator-chat-qol.test.js`** - Automatic defaults, sanitized tool activity, change-mode behavior, deletion approval, inspection capture, and legacy mode migration.
+- **`navigator-context-contract.test.js`** - Always-attempted bounded context, coverage metadata, and exact Inspector-section parity with the final system instruction.
+- **`navigator-mobile-contract.test.js`** - Mobile Gameplay-subtab integration, three-way Changes UI, dedicated Inspector, IME-safe sizing, touch targets, and Inspector-first Android Back handling.
 - **`navigator-proposal-lifecycle-contract.test.js`** - Proposal persistence and restoration, applied hydration diagnostics, conflict and timestamp-drift handling, and proposal creation and mutation lifecycle behavior.
-- **`navigator-retrieval-contract.test.js`** - Bounded Story Card, Memory Bank, and story-history retrieval, ranking and truncation, per-turn deduplication, and retrieval proposal behavior.
+- **`navigator-settings-contract.test.js`** - Gameplay-subtab styling, native swipe navigation without custom tab arrows, the compact Changes toggle, removed context/message actions, dedicated Inspector, and reduced-motion behavior.
+- **`navigator-tools-contract.test.js`** - Current primer contract, bounded retrieval payloads, explicit field truncation, and removal of Read Plot Components.
