@@ -8,19 +8,19 @@ The Android WebView port of BetterDungeon for AI Dungeon, bringing the features 
 
 [![Version](https://img.shields.io/badge/version-2.1.0-7c3aed?style=for-the-badge)](app/build.gradle.kts)
 [![Android](https://img.shields.io/badge/Android-API_27%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/)
-[![License](https://img.shields.io/github/license/ComputerKWasTaken/BetterDungeon?style=for-the-badge)](https://github.com/ComputerKWasTaken/BetterDungeon/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/ComputerKWasTaken/BetterDungeon?style=for-the-badge)](https://github.com/ComputerKWasTaken/BetterDungeon/blob/stable/LICENSE)
 
 </div>
 
-> This repository is for developing BetterDungeon Mobile. It is not the public release repository.
+> **Archived:** BetterDungeon Mobile development moved into the [BetterDungeon monorepo](https://github.com/ComputerKWasTaken/BetterDungeon/tree/dev/android). This repository is retained as its historical record.
 
 ## Important: where to get the APK
 
-The official BetterDungeon Android APK is hosted on the **primary BetterDungeon repository**, not this Mobile development repository. This keeps downloads simple and preserves the single release location that BetterDungeon users are already familiar with.
+The official BetterDungeon Android APK and all new development are hosted in the **primary BetterDungeon repository**. This keeps downloads, shared code, tests, and releases in one place.
 
 **[Download BetterDungeon Mobile from the primary repository's Releases page.](https://github.com/ComputerKWasTaken/BetterDungeon/releases)**
 
-Please do not direct regular users to this repository for APK downloads. Come here when you want to inspect the Android implementation, contribute code, or build the app yourself.
+Please do not open new development work here. Use the monorepo's [`android/` project](https://github.com/ComputerKWasTaken/BetterDungeon/tree/dev/android) to inspect the current implementation, contribute code, or build the app yourself.
 
 ## What is BetterDungeon Mobile?
 

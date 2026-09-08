@@ -1,8 +1,10 @@
 # Contributing to BetterDungeon Mobile
 
+> **This repository is archived.** Continue all Android work in the [BetterDungeon monorepo](https://github.com/ComputerKWasTaken/BetterDungeon/tree/dev/android). The instructions below are retained only as historical documentation.
+
 Hey! Thanks for being interested in the Android side of BetterDungeon.
 
-This repository is the **development home** for BetterDungeon Mobile. It contains the native Android host, the WebView bridge, the injection pipeline, and the mobile-specific UI layers. It is also where contributors can build and test their own APKs.
+This repository was the original development home for BetterDungeon Mobile. Its final pre-migration state is preserved on `migration/monorepo-snapshot-2026-09-08`.
 
 The official public APK releases are hosted on the [primary BetterDungeon repository](https://github.com/ComputerKWasTaken/BetterDungeon/releases). Please keep that distinction in mind when opening documentation, issues, or pull requests: this repository is for development, not public release distribution.
 
